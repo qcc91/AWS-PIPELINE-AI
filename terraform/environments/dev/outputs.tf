@@ -106,3 +106,18 @@ output "sns_topic_arn" {
   description = "ARN of the DEV encrypted alert topic with no subscriptions."
   value       = module.monitoring.sns_topic_arn
 }
+
+output "batch_glue_job_name" {
+  description = "V1 broker claim CSV Glue job."
+  value       = module.batch_ingestion.glue_job_name
+}
+
+output "batch_state_machine_arn" {
+  description = "V1 broker claim CSV Step Functions state machine."
+  value       = module.batch_ingestion.state_machine_arn
+}
+
+output "batch_event_rule_arn" {
+  description = "V1 broker claim CSV EventBridge rule."
+  value       = module.batch_ingestion.event_rule_arn
+}

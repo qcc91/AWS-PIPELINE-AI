@@ -144,6 +144,21 @@ $resourceScopes = @(
       "aws_iam_role_policy"
     )
   }
+  [pscustomobject]@{
+    Name = "batch-ingestion"
+    Prefix = (Join-Path $terraformRoot "modules/batch-ingestion") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_cloudwatch_event_rule"
+      "aws_cloudwatch_event_target"
+      "aws_cloudwatch_log_group"
+      "aws_glue_job"
+      "aws_iam_role"
+      "aws_iam_role_policy"
+      "aws_s3_bucket_notification"
+      "aws_s3_object"
+      "aws_sfn_state_machine"
+    )
+  }
 )
 
 foreach ($file in $terraformFiles) {

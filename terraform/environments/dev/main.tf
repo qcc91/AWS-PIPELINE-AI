@@ -64,6 +64,21 @@ module "glue" {
   tags                   = module.common.tags
 }
 
+module "batch_ingestion" {
+  source = "../../modules/batch-ingestion"
+
+  environment           = local.environment
+  aws_region            = var.aws_region
+  account_id            = var.account_id
+  landing_bucket_name   = module.storage["landing"].bucket_id
+  lakehouse_bucket_name = module.storage["lakehouse"].bucket_id
+  control_bucket_name   = module.storage["control"].bucket_id
+  kms_key_arn           = module.platform_kms.key_arn
+  glue_database_names   = module.glue.database_names
+  glue_script_path      = abspath("${path.root}/../../../jobs/glue_claim_pipeline.py")
+  tags                  = module.common.tags
+}
+
 module "monitoring" {
   source = "../../modules/monitoring"
 

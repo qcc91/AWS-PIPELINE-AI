@@ -1,7 +1,7 @@
 # Manager Current Phase
 
 - Phase: V1 — End-to-End Happy Path
-- Status: DEV bootstrap and foundation deployed and verified; beginning V1 batch/lakehouse implementation
+- Status: DEV bootstrap/foundation deployed and verified; V1 batch/lakehouse code and real plan ready for review
 - Human approvals:
   - Gate 1 approved on 2026-09-08
   - Phase 1 execution plan approved on 2026-09-08
@@ -10,7 +10,7 @@
 - Default AWS Region: `ap-southeast-2`
 - Active environment: DEV
 - PROD: design only; no resources may be deployed
-- Current package: V1-BATCH-LAKEHOUSE; implementation and plan preparation only until its reviewed Terraform plan is approved
+- Current package: V1-BATCH-LAKEHOUSE; real plan is 14 create/0 change/0 destroy and awaits Human approval
 - Authorized work: V1 happy-path code, tests, Terraform implementation, read-only discovery, plan preparation, and verification of the deployed foundation
 - Prohibited work: unreviewed additional AWS resource changes; PROD deployment; V2–V5 hardening; silent cross-region use
 - Next Human checkpoint: Terraform plan approval for the next V1 resource-changing package
@@ -21,5 +21,6 @@
 - Deployed state: bootstrap 9 resources and foundation 62 resources; both refreshed plans return zero drift and exact state counts
 - AWS verification: seven S3 buckets use versioning/SSE-KMS/full public block; three KMS keys rotate; VPC/subnets/S3 endpoint, four Glue databases, CloudTrail, encrypted Logs/SNS, and CloudTrail delivery role are present
 - Apply deviation: V1 root KMS policy required additional explicit Terraform read/tag/alias actions; recovery used in-place policy updates only and created no extra resources
+- Batch evidence: Terraform validation passes; 10 Python tests pass; all 14 plan actions are confined to `module.batch_ingestion`; no batch apply has run
 - Version authorization: V1 only; V2–V5 are roadmap context and must not be implemented yet
 - Last updated: 2026-09-09

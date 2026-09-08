@@ -1,0 +1,4 @@
+claim_id,claim_number,policy_id,customer_id,claim_status,incident_date,submitted_at,claim_amount,approved_amount,currency_code,description,updated_at
+clm_1001,BRK-1001,pol_2001,cus_3001,SUBMITTED,2026-09-01,2026-09-02T10:15:00Z,1250.00,,AUD,Window damage from storm,2026-09-02T10:15:00Z
+clm_1002,BRK-1002,pol_2002,cus_3002,APPROVED,2026-08-28,2026-08-29T09:00:00Z,840.50,800.00,AUD,Vehicle repair estimate,2026-09-03T14:22:00Z
+clm_1003,BRK-1003,pol_2003,cus_3003,UNDER_REVIEW,2026-09-04,2026-09-05T11:30:00Z,3200.00,0.00,AUD,Water damage assessment,2026-09-05T11:30:00Z

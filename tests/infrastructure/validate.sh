@@ -130,6 +130,16 @@ is_allowed_resource() {
           ;;
       esac
       ;;
+    "$terraform_root/modules/batch-ingestion"/*)
+      case "$type" in
+        aws_cloudwatch_event_rule|aws_cloudwatch_event_target|aws_cloudwatch_log_group|aws_glue_job|aws_iam_role|aws_iam_role_policy|aws_s3_bucket_notification|aws_s3_object|aws_sfn_state_machine)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in batch-ingestion: $type"
+          ;;
+      esac
+      ;;
     *)
       fail "resource outside an approved Phase 1 path: $file"
       ;;
