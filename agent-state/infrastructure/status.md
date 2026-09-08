@@ -25,6 +25,19 @@ None.
 - Accepted on 2026-09-08 after two focused correction attempts.
 - Next assigned task: pending TASK-INF-002 delegation.
 
+## TASK-INF-003 — Complete and accepted
+
+- Added provider-neutral networking, KMS, and reusable encrypted S3 modules; no environment root integration.
+- Networking has two private subnets, distinct AZ/CIDR inputs, private route table, and S3 Gateway endpoint only; no IGW/NAT/interface endpoint/public IP.
+- KMS has rotation, 30-day deletion window, prevent_destroy, account-root delegation and explicit same-account admin/user role validation.
+- S3 has ownership/public blocks/TLS/default SSE-KMS/versioning/prevent_destroy/noncurrent retention and explicit wrong-header denies.
+- PowerShell gate passed after the Sol correction; Terraform/TFLint/Checkov remain NOT RUN because tools/provider caches are unavailable. Bash remains NOT RUN because the Windows Bash/WSL shim returns `E_ACCESSDENIED`. AWS changes performed: None.
+- Correction attempt 1: restored TASK-INF-002 backend examples to HEAD contract, expanded phase resource scopes, added Sydney AZ/tag validations and S3 endpoint output. PowerShell gate rerun pending final formatting review.
+- Correction attempt 2: restored bootstrap files byte-equivalent to HEAD, added derived subnet inputs and module-specific security/tag controls, and reran PowerShell gate successfully. Terraform/TFLint/Checkov/Bash/YAML remain NOT RUN where unavailable.
+- Sol escalation: expanded all TASK-INF-003 HCL into canonical multiline structures; replaced the cross-module union allowlist with exact bootstrap/networking/KMS/S3 path/type scopes; restored offline single-line detection; added Bash parity and semantic checks for exact resource declarations/count contracts, networking isolation, tag/classification contracts, KMS least privilege/role paths, S3 naming/lifecycle/encryption; and required descriptions for every Terraform output.
+- `terraform/bootstrap/**` and `terraform/environments/**` remain zero-diff against accepted HEAD `2462f78`.
+- Manager accepted the task on 2026-09-08 after independent content review and a successful PowerShell offline gate.
+
 ## TASK-INF-002 — Sol escalation correction complete, awaiting Manager review
 
 - Added DEV bootstrap S3/KMS resources and independent PROD design-only root.

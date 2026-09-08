@@ -43,8 +43,8 @@ mapfile -d '' -t tf_files < <(find "$terraform_root" -type f -name '*.tf' -not -
 ((${#tf_files[@]} > 0)) || fail "no Terraform files found"
 all_tf="$(cat "${tf_files[@]}")"
 
-# TASK-INF-002 phase scopes. Later tasks extend this function explicitly with
-# approved foundation paths and type allowlists; they do not weaken this check.
+# Approved Phase 1 scopes use path-specific type allowlists. A resource in any
+# other path fails even if its type appears in one of these lists.
 is_allowed_resource() {
   local file="$1"
   local type="$2"
@@ -60,8 +60,38 @@ is_allowed_resource() {
           ;;
       esac
       ;;
+    "$terraform_root/modules/networking"/*)
+      case "$type" in
+        aws_vpc|aws_subnet|aws_route_table|aws_route_table_association|aws_vpc_endpoint)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in networking: $type"
+          ;;
+      esac
+      ;;
+    "$terraform_root/modules/kms"/*)
+      case "$type" in
+        aws_kms_key|aws_kms_alias)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in kms: $type"
+          ;;
+      esac
+      ;;
+    "$terraform_root/modules/s3"/*)
+      case "$type" in
+        aws_s3_bucket|aws_s3_bucket_versioning|aws_s3_bucket_lifecycle_configuration|aws_s3_bucket_ownership_controls|aws_s3_bucket_policy|aws_s3_bucket_public_access_block|aws_s3_bucket_server_side_encryption_configuration)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in s3: $type"
+          ;;
+      esac
+      ;;
     *)
-      fail "resource outside an approved TASK-INF-002 scope: $file"
+      fail "resource outside an approved Phase 1 path: $file"
       ;;
   esac
 }
@@ -87,8 +117,8 @@ fi
 while IFS= read -r -d '' output_file; do
   output_count="$(grep -Eic '^[[:space:]]*output[[:space:]]+"' "$output_file" || true)"
   description_count="$(grep -Eic '^[[:space:]]*description[[:space:]]*=' "$output_file" || true)"
-  [[ "$output_count" == "$description_count" ]] || fail "every bootstrap output must have one description: $output_file"
-done < <(find "$bootstrap_root" -type f -name 'outputs.tf' -print0)
+  [[ "$output_count" == "$description_count" ]] || fail "every Terraform output must have one description: $output_file"
+done < <(find "$terraform_root" -type f -name 'outputs.tf' -not -path '*/.terraform/*' -print0)
 
 for root_entry in "${roots[@]}"; do
   root_name="${root_entry%%:*}"
@@ -170,10 +200,119 @@ for invalid_role in 'arn:aws:iam::210987654321:role/platform/dev/TerraformExecut
   [[ ! "$invalid_role" =~ $role_pattern ]] || fail "role validation regression: invalid role was accepted: $invalid_role"
 done
 
+# TASK-INF-003 networking assertions.
+networking_main="$terraform_root/modules/networking/main.tf"
+networking_variables="$terraform_root/modules/networking/variables.tf"
+networking_outputs="$terraform_root/modules/networking/outputs.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$networking_main")" == '5' ]] || fail "networking must contain exactly five approved resource declarations"
+for declaration in 'aws_vpc" "this' 'aws_subnet" "private' 'aws_route_table" "private' 'aws_route_table_association" "private' 'aws_vpc_endpoint" "s3'; do
+  [[ "$(grep -Fc "resource \"$declaration\"" "$networking_main")" == '1' ]] || fail "networking resource declaration missing or duplicated: $declaration"
+done
+compact_networking="$(tr -d '\r\n' < "$networking_main")"
+grep -Eq 'resource[[:space:]]+"aws_subnet"[[:space:]]+"private"[[:space:]]*\{[^}]*count[[:space:]]*=[[:space:]]*2' <<<"$compact_networking" || fail "networking must create exactly two private subnets"
+grep -Eq 'resource[[:space:]]+"aws_route_table_association"[[:space:]]+"private"[[:space:]]*\{[^}]*count[[:space:]]*=[[:space:]]*2' <<<"$compact_networking" || fail "networking must create exactly two route-table associations"
+grep -Fq 'cidrsubnet(var.vpc_cidr, var.private_subnet_newbits, var.private_subnet_netnums[count.index])' "$networking_main" || fail "private subnet CIDRs must use the approved cidrsubnet expression"
+grep -Eiq 'length\(var\.private_subnet_netnums\)[[:space:]]*==[[:space:]]*2' "$networking_variables" || fail "exactly two subnet netnums must be required"
+grep -Eiq 'netnum[[:space:]]*>=[[:space:]]*0' "$networking_variables" || fail "subnet netnums must be non-negative"
+grep -Eiq 'netnum[[:space:]]*<[[:space:]]*pow\(2,[[:space:]]*var\.private_subnet_newbits\)' "$networking_variables" || fail "subnet netnums must remain below 2^newbits"
+grep -Fq 'var.private_subnet_netnums[0] != var.private_subnet_netnums[1]' "$networking_variables" || fail "subnet netnums must be distinct"
+compact_networking_variables="$(tr -d '\r\n' < "$networking_variables")"
+grep -Eq 'var\.private_subnet_newbits[[:space:]]*>=[[:space:]]*1.*var\.private_subnet_newbits[[:space:]]*<=[[:space:]]*8' <<<"$compact_networking_variables" || fail "private_subnet_newbits must have the approved bounded range"
+grep -Eiq 'length\(var\.availability_zones\)[[:space:]]*==[[:space:]]*2' "$networking_variables" || fail "exactly two availability zones must be required"
+grep -Fq 'var.availability_zones[0] != var.availability_zones[1]' "$networking_variables" || fail "availability zones must be distinct"
+grep -Fq '^ap-southeast-2[a-z]$' "$networking_variables" || fail "availability zones must be restricted to Sydney"
+grep -Fq 'service_name      = "com.amazonaws.ap-southeast-2.s3"' "$networking_main" || fail "the S3 endpoint service must be Sydney"
+grep -Fq 'vpc_endpoint_type = "Gateway"' "$networking_main" || fail "the S3 endpoint must be Gateway type"
+grep -Fq 'route_table_ids   = [aws_route_table.private.id]' "$networking_main" || fail "the S3 endpoint must use the private route table"
+grep -Fq 'map_public_ip_on_launch = false' "$networking_main" || fail "private subnets must disable automatic public IPs"
+if grep -Eiq '^[[:space:]]*resource[[:space:]]+"aws_(internet_gateway|nat_gateway|eip|route)"|vpc_endpoint_type[[:space:]]*=[[:space:]]*"Interface"|map_public_ip_on_launch[[:space:]]*=[[:space:]]*true|assign_ipv6_address_on_creation[[:space:]]*=[[:space:]]*true|0\.0\.0\.0/0' "$networking_main"; then
+  fail "networking contains a prohibited internet/NAT/interface/public route or address control"
+fi
+for required_output in vpc_id private_subnet_ids private_subnet_cidrs private_route_table_id s3_gateway_endpoint_id; do
+  grep -Eq "^[[:space:]]*output[[:space:]]+\"${required_output}\"" "$networking_outputs" || fail "networking output missing: $required_output"
+done
+
+# TASK-INF-003 shared tag-contract assertions.
+for module_name in networking kms s3; do
+  module_variables="$terraform_root/modules/$module_name/variables.tf"
+  tags_block="$(sed -n '/^variable "tags"/,$p' "$module_variables")"
+  [[ -n "$tags_block" ]] || fail "$module_name tags block is missing"
+  ! grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$tags_block" || fail "$module_name tags must have no default"
+  for tag_key in Project Environment Owner ManagedBy CostCenter DataClassification; do
+    grep -Fq "\"$tag_key\"" <<<"$tags_block" || fail "$module_name tags validation is missing required key: $tag_key"
+  done
+  grep -Eq 'trimspace\(lookup\(var\.tags,[[:space:]]*key,[[:space:]]*""\)\)[[:space:]]*!=[[:space:]]*""' <<<"$tags_block" || fail "$module_name must reject empty required tag values"
+  grep -Eq 'lookup\(var\.tags,[[:space:]]*"ManagedBy",[[:space:]]*""\)[[:space:]]*==[[:space:]]*"terraform"' <<<"$tags_block" || fail "$module_name ManagedBy must be terraform"
+  for classification in public internal confidential restricted; do
+    grep -Fq "\"$classification\"" <<<"$tags_block" || fail "$module_name DataClassification allowlist is incomplete: $classification"
+  done
+done
+
+# TASK-INF-003 reusable KMS assertions.
+kms_main="$terraform_root/modules/kms/main.tf"
+kms_variables="$terraform_root/modules/kms/variables.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$kms_main")" == '2' ]] || fail "KMS module must declare exactly one key and one alias"
+[[ "$(grep -Fc 'resource "aws_kms_key" "this"' "$kms_main")" == '1' ]] || fail "KMS key declaration missing or duplicated"
+[[ "$(grep -Fc 'resource "aws_kms_alias" "this"' "$kms_main")" == '1' ]] || fail "KMS alias declaration missing or duplicated"
+grep -Eiq 'enable_key_rotation[[:space:]]*=[[:space:]]*true' "$kms_main" || fail "KMS rotation is missing"
+grep -Eiq 'deletion_window_in_days[[:space:]]*=[[:space:]]*30' "$kms_main" || fail "KMS 30-day deletion window is missing"
+grep -Eiq 'prevent_destroy[[:space:]]*=[[:space:]]*true' "$kms_main" || fail "KMS key deletion protection is missing"
+grep -Fq 'target_key_id = aws_kms_key.this.key_id' "$kms_main" || fail "KMS alias target is missing"
+[[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$kms_main")" == '1' ]] || fail "KMS must contain exactly one kms:* action"
+[[ "$(grep -Ec 'Sid[[:space:]]*=[[:space:]]*"EnableAccountRootDelegation"' "$kms_main")" == '1' ]] || fail "KMS must contain exactly one account-root delegation Sid"
+for admin_action in kms:PutKeyPolicy kms:EnableKeyRotation kms:ScheduleKeyDeletion kms:CancelKeyDeletion kms:CreateGrant; do
+  grep -Fq "\"$admin_action\"" "$kms_main" || fail "direct KMS administrator action missing: $admin_action"
+done
+for user_action in kms:Encrypt kms:Decrypt 'kms:GenerateDataKey*' kms:DescribeKey 'kms:ReEncrypt*'; do
+  grep -Fq "\"$user_action\"" "$kms_main" || fail "KMS user data-plane action missing: $user_action"
+done
+[[ "$(grep -Fc "$hcl_role_pattern" "$kms_variables")" == '2' ]] || fail "KMS admin and user roles must both be same-account, path-capable, and wildcard-free"
+grep -Eiq 'length\(var\.admin_role_arns\)[[:space:]]*>[[:space:]]*0' "$kms_variables" || fail "at least one KMS administrator is required"
+compact_kms_variables="$(tr -d '\r\n' < "$kms_variables")"
+grep -Eq 'variable[[:space:]]+"user_role_arns"[[:space:]]*\{.*default[[:space:]]*=[[:space:]]*\[\]' <<<"$compact_kms_variables" || fail "KMS user roles must be allowed to remain empty"
+grep -Fq 'Purpose = var.purpose' "$kms_main" || fail "KMS purpose must be applied as a Purpose tag"
+
+# TASK-INF-003 reusable S3 assertions.
+s3_main="$terraform_root/modules/s3/main.tf"
+s3_variables="$terraform_root/modules/s3/variables.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$s3_main")" == '7' ]] || fail "S3 module must declare exactly seven approved resources"
+for resource_type in aws_s3_bucket aws_s3_bucket_versioning aws_s3_bucket_ownership_controls aws_s3_bucket_public_access_block aws_s3_bucket_server_side_encryption_configuration aws_s3_bucket_lifecycle_configuration aws_s3_bucket_policy; do
+  [[ "$(grep -Ec "^[[:space:]]*resource[[:space:]]+\"${resource_type}\"" "$s3_main")" == '1' ]] || fail "S3 resource declaration missing or duplicated: $resource_type"
+done
+for bucket_rule in '!strcontains(var.bucket_name, "..")' '!strcontains(var.bucket_name, ".-")' '!strcontains(var.bucket_name, "-.")' 'xn--' 'amzn-s3-demo-' '-s3alias' '--x-s3' '--table-s3'; do
+  grep -Fq -- "$bucket_rule" "$s3_variables" || fail "S3 bucket-name validation is missing rule: $bucket_rule"
+done
+grep -Fq '^[0-9]{1,3}(\\.[0-9]{1,3}){3}$' "$s3_variables" || fail "S3 bucket names must reject IP-address format"
+grep -Fq '^arn:aws:kms:ap-southeast-2:[0-9]{12}:key/[0-9a-fA-F]{8}-' "$s3_variables" || fail "S3 KMS input must be an actual Sydney key ARN"
+compact_s3_variables="$(tr -d '\r\n' < "$s3_variables")"
+grep -Eq 'variable[[:space:]]+"purpose"[[:space:]]*\{.*contains\(' <<<"$compact_s3_variables" || fail "S3 purpose must be non-empty and allowlisted"
+grep -Fq 'Purpose = var.purpose' "$s3_main" || fail "S3 purpose must be applied as a Purpose tag"
+retention_block="$(sed -n '/^variable "noncurrent_retention_days"/,/^}/p' "$s3_variables")"
+[[ -n "$retention_block" ]] || fail "S3 noncurrent retention block is missing"
+! grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$retention_block" || fail "S3 noncurrent retention must have no default"
+grep -Eiq 'force_destroy[[:space:]]*=[[:space:]]*false' "$s3_main" || fail "S3 force_destroy must be false"
+grep -Eiq 'prevent_destroy[[:space:]]*=[[:space:]]*true' "$s3_main" || fail "S3 bucket deletion protection is missing"
+grep -Eiq 'depends_on[[:space:]]*=[[:space:]]*\[aws_s3_bucket_versioning\.this\]' "$s3_main" || fail "S3 lifecycle must depend on versioning"
+grep -Eq 'filter[[:space:]]*\{[[:space:]]*\}' "$s3_main" || fail "S3 lifecycle must include an all-object filter"
+grep -Eiq 'status[[:space:]]*=[[:space:]]*"Enabled"' "$s3_main" || fail "S3 versioning is missing"
+grep -Eiq 'object_ownership[[:space:]]*=[[:space:]]*"BucketOwnerEnforced"' "$s3_main" || fail "S3 BucketOwnerEnforced is missing"
+for control in block_public_acls block_public_policy ignore_public_acls restrict_public_buckets; do
+  grep -Eiq "$control[[:space:]]*=[[:space:]]*true" "$s3_main" || fail "S3 public-access control is missing: $control"
+done
+grep -Eiq 'kms_master_key_id[[:space:]]*=[[:space:]]*var\.kms_key_arn' "$s3_main" || fail "S3 default encryption must use the supplied KMS key ARN"
+grep -Eiq 'sse_algorithm[[:space:]]*=[[:space:]]*"aws:kms"' "$s3_main" || fail "S3 default encryption algorithm is missing"
+compact_s3="$(tr -d '\r\n' < "$s3_main")"
+grep -Eiq 'Sid[[:space:]]*=[[:space:]]*"DenyInsecureTransport".*"aws:SecureTransport"[[:space:]]*=[[:space:]]*"false"' <<<"$compact_s3" || fail "S3 TLS-only deny is missing"
+grep -Eiq 'Sid[[:space:]]*=[[:space:]]*"DenyIncorrectExplicitEncryption".*StringNotEquals.*"s3:x-amz-server-side-encryption"[[:space:]]*=[[:space:]]*"aws:kms".*Null.*"s3:x-amz-server-side-encryption"[[:space:]]*=[[:space:]]*"false"' <<<"$compact_s3" || fail "S3 explicit wrong-algorithm deny is missing"
+grep -Eiq 'Sid[[:space:]]*=[[:space:]]*"DenyIncorrectExplicitKmsKey".*ArnNotEquals.*"s3:x-amz-server-side-encryption-aws-kms-key-id"[[:space:]]*=[[:space:]]*var\.kms_key_arn.*Null.*"s3:x-amz-server-side-encryption-aws-kms-key-id"[[:space:]]*=[[:space:]]*"false"' <<<"$compact_s3" || fail "S3 explicit wrong-key deny is missing"
+if grep -Eiq 'Null[[:space:]]*=[[:space:]]*\{[[:space:]]*"s3:x-amz-server-side-encryption(-aws-kms-key-id)?"[[:space:]]*=[[:space:]]*"true"' <<<"$compact_s3"; then
+  fail "S3 missing encryption headers must remain allowed for default SSE-KMS"
+fi
+
 secret_pattern='aws_access_key_id|aws_secret_access_key|password[[:space:]]*=|secret[[:space:]]*=[[:space:]]*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
 mapfile -d '' -t scan_files < <(find "$terraform_root" "$repo/buildspecs" "$repo/tests/infrastructure" -type f \( -name '*.tf*' -o -name '*.hcl*' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.ps1' -o -name '*.sh' \) ! -name 'validate.ps1' ! -name 'validate.sh' -not -path '*/.terraform/*' -print0)
 if ((${#scan_files[@]} > 0)) && grep -Eiq "$secret_pattern" "${scan_files[@]}"; then
   fail "possible credential material detected"
 fi
 
-echo "PASS: offline infrastructure/bootstrap assertions. AWS changes performed: None."
+echo "PASS: offline TASK-INF-001/002/003 infrastructure assertions. AWS changes performed: None."

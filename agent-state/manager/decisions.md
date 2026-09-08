@@ -30,6 +30,8 @@
 - Manager remains the parent orchestration agent.
 - Worker implementation defaults to GPT-5.6 Luna when explicit routing is available.
 - 2026-09-08: TASK-INF-002 escalated from GPT-5.6 Luna to GPT-5.6 Sol after two focused correction attempts. Reason: HCL remained non-canonical and potentially unparsable due to multiple arguments compressed into single-line blocks; Bash gate still lacked parity for secret and security assertions. Escalation is limited to completing TASK-INF-002.
+- 2026-09-08: TASK-INF-003 escalated from GPT-5.6 Luna to GPT-5.6 Sol after two focused correction attempts. Reason: new modules still contained extensive single-line HCL; the PowerShell gate used a cross-module union allowlist; the Bash gate did not admit or validate TASK-INF-003; IAM role-path and data-classification validations remained incomplete. Escalation is limited to completing TASK-INF-003.
+- 2026-09-08: The scoped TASK-INF-003 Sol correction was accepted after independent Manager review. The review confirmed path-specific resource allowlists, canonical multiline HCL, derived non-overlapping subnet contracts, no internet/NAT/interface resources, same-account path-capable KMS roles, explicit direct-role KMS actions, and private versioned SSE-KMS S3 controls.
 
 ## Current blockers
 
@@ -46,3 +48,6 @@
 - Manager static review confirmed 9 expected DEV bootstrap resource instances, zero PROD instances, S3/KMS deletion protection, default and explicit-header encryption controls, same-account role-path validation, environment-separated backend examples, and equivalent PowerShell/Bash source assertions.
 - Manager added root `.gitignore` as a small security integration fix to prevent Terraform state, populated backend config, tfvars, and plan artifacts from entering Git. Provider-backed Terraform validation remains NOT RUN and is carried as a P1-CP1 risk.
 - AWS changes for TASK-INF-002: None.
+- TASK-INF-003 accepted on 2026-09-08 after two Luna corrections and one scoped Sol escalation.
+- Manager executed the PowerShell offline gate successfully. Terraform fmt/validate, TFLint, Checkov, and Bash remain NOT RUN/unavailable; provider-backed validation risk is carried to TASK-INF-005/P1-CP1.
+- AWS changes for TASK-INF-003: None.

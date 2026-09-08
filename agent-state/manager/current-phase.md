@@ -8,9 +8,9 @@
 - Default AWS Region: `ap-southeast-2`
 - Active environment: DEV
 - PROD: design only; no resources may be deployed
-- Current task: TASK-INF-002 accepted; TASK-INF-003 ready for delegation
+- Current task: TASK-INF-003 accepted; TASK-INF-004 ready for delegation
 - Authorized work: TASK-INF-001 through TASK-INF-005 code, tests, static validation, and safe read-only plan
 - Prohibited work: `terraform apply`; create, modify, or delete AWS resources; TASK-INF-006; PROD deployment; silent cross-region use
 - Next Human checkpoint: P1-CP1 — First AWS Change Approval
-- Next action: commit TASK-INF-002 checkpoint and delegate TASK-INF-003
+- Next action: commit TASK-INF-003 checkpoint and delegate TASK-INF-004
 - Last updated: 2026-09-08

@@ -52,8 +52,8 @@ if ($null -eq $terraform) {
   }
 }
 
-# TASK-INF-002 phase scopes. Later tasks extend this table explicitly with their
-# approved foundation paths and type allowlists; they do not weaken this check.
+# Approved Phase 1 scopes use path-specific type allowlists. A resource in any
+# other path fails even if its type appears in one of these lists.
 $resourceScopes = @(
   [pscustomobject]@{
     Name = "bootstrap"
@@ -61,6 +61,38 @@ $resourceScopes = @(
     AllowedTypes = @(
       "aws_kms_alias"
       "aws_kms_key"
+      "aws_s3_bucket"
+      "aws_s3_bucket_lifecycle_configuration"
+      "aws_s3_bucket_ownership_controls"
+      "aws_s3_bucket_policy"
+      "aws_s3_bucket_public_access_block"
+      "aws_s3_bucket_server_side_encryption_configuration"
+      "aws_s3_bucket_versioning"
+    )
+  }
+  [pscustomobject]@{
+    Name = "networking"
+    Prefix = (Join-Path $terraformRoot "modules/networking") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_route_table"
+      "aws_route_table_association"
+      "aws_subnet"
+      "aws_vpc"
+      "aws_vpc_endpoint"
+    )
+  }
+  [pscustomobject]@{
+    Name = "kms"
+    Prefix = (Join-Path $terraformRoot "modules/kms") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_kms_alias"
+      "aws_kms_key"
+    )
+  }
+  [pscustomobject]@{
+    Name = "s3"
+    Prefix = (Join-Path $terraformRoot "modules/s3") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
       "aws_s3_bucket"
       "aws_s3_bucket_lifecycle_configuration"
       "aws_s3_bucket_ownership_controls"
@@ -80,7 +112,7 @@ foreach ($file in $terraformFiles) {
       $file.FullName.StartsWith($_.Prefix, [System.StringComparison]::OrdinalIgnoreCase)
     } | Select-Object -First 1
     if ($null -eq $scope) {
-      Fail "resource outside an approved TASK-INF-002 scope: $($file.FullName)"
+      Fail "resource outside an approved Phase 1 path: $($file.FullName)"
     }
 
     $type = $declaration.Groups[1].Value
@@ -99,12 +131,12 @@ if ($allTf -match $singleLineBlock) {
   Fail "non-canonical single-line HCL block detected: $($Matches[0])"
 }
 
-foreach ($outputFile in $terraformFiles | Where-Object { $_.Name -eq "outputs.tf" -and $_.FullName.StartsWith($bootstrapRoot, [System.StringComparison]::OrdinalIgnoreCase) }) {
+foreach ($outputFile in $terraformFiles | Where-Object { $_.Name -eq "outputs.tf" }) {
   $outputText = Get-Content -LiteralPath $outputFile.FullName -Raw
   $outputCount = ([regex]::Matches($outputText, '(?im)^\s*output\s+"')).Count
   $descriptionCount = ([regex]::Matches($outputText, '(?im)^\s*description\s*=')).Count
   if ($outputCount -ne $descriptionCount) {
-    Fail "every bootstrap output must have one description: $($outputFile.FullName)"
+    Fail "every Terraform output must have one description: $($outputFile.FullName)"
   }
 }
 
@@ -219,6 +251,166 @@ foreach ($invalidRole in @(
   }
 }
 
+# TASK-INF-003 networking assertions.
+$networkingMain = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/networking/main.tf") -Raw
+$networkingVariables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/networking/variables.tf") -Raw
+$networkingOutputs = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/networking/outputs.tf") -Raw
+$networkingResources = [regex]::Matches($networkingMain, '(?im)^\s*resource\s+"([^"]+)"\s+"([^"]+)"')
+$expectedNetworkingResources = @{
+  "aws_vpc.this"                       = 1
+  "aws_subnet.private"                 = 1
+  "aws_route_table.private"            = 1
+  "aws_route_table_association.private" = 1
+  "aws_vpc_endpoint.s3"                = 1
+}
+if ($networkingResources.Count -ne $expectedNetworkingResources.Count) {
+  Fail "networking must contain exactly five approved resource declarations"
+}
+foreach ($expected in $expectedNetworkingResources.Keys) {
+  $parts = $expected.Split('.')
+  $count = @($networkingResources | Where-Object { $_.Groups[1].Value -eq $parts[0] -and $_.Groups[2].Value -eq $parts[1] }).Count
+  if ($count -ne 1) {
+    Fail "networking resource declaration missing or duplicated: $expected"
+  }
+}
+Assert-Match $networkingMain 'resource\s+"aws_subnet"\s+"private"\s*\{[\s\S]*?count\s*=\s*2' "networking must create exactly two private subnets"
+Assert-Match $networkingMain 'resource\s+"aws_route_table_association"\s+"private"\s*\{[\s\S]*?count\s*=\s*2' "networking must create exactly two route-table associations"
+Assert-Match $networkingMain 'cidr_block\s*=\s*cidrsubnet\(var\.vpc_cidr,\s*var\.private_subnet_newbits,\s*var\.private_subnet_netnums\[count\.index\]\)' "private subnet CIDRs must use the approved cidrsubnet expression"
+Assert-Match $networkingVariables 'length\(var\.private_subnet_netnums\)\s*==\s*2' "exactly two subnet netnums must be required"
+Assert-Match $networkingVariables 'netnum\s*>=\s*0' "subnet netnums must be non-negative"
+Assert-Match $networkingVariables 'netnum\s*<\s*pow\(2,\s*var\.private_subnet_newbits\)' "subnet netnums must remain below 2^newbits"
+Assert-Match $networkingVariables 'var\.private_subnet_netnums\[0\]\s*!=\s*var\.private_subnet_netnums\[1\]' "subnet netnums must be distinct"
+Assert-Match $networkingVariables 'var\.private_subnet_newbits\s*>=\s*1[\s\S]*?var\.private_subnet_newbits\s*<=\s*8' "private_subnet_newbits must have the approved bounded range"
+Assert-Match $networkingVariables 'length\(var\.availability_zones\)\s*==\s*2' "exactly two availability zones must be required"
+Assert-Match $networkingVariables 'var\.availability_zones\[0\]\s*!=\s*var\.availability_zones\[1\]' "availability zones must be distinct"
+Assert-Match $networkingVariables '\^ap-southeast-2\[a-z\]\$' "availability zones must be restricted to Sydney"
+Assert-Match $networkingMain 'service_name\s*=\s*"com\.amazonaws\.ap-southeast-2\.s3"' "the S3 endpoint service must be Sydney"
+Assert-Match $networkingMain 'vpc_endpoint_type\s*=\s*"Gateway"' "the S3 endpoint must be Gateway type"
+Assert-Match $networkingMain 'route_table_ids\s*=\s*\[aws_route_table\.private\.id\]' "the S3 endpoint must use the private route table"
+Assert-Match $networkingMain 'map_public_ip_on_launch\s*=\s*false' "private subnets must disable automatic public IPs"
+if ($networkingMain -match '(?im)^\s*resource\s+"aws_(internet_gateway|nat_gateway|eip|route)"' -or
+    $networkingMain -match 'vpc_endpoint_type\s*=\s*"Interface"' -or
+    $networkingMain -match 'map_public_ip_on_launch\s*=\s*true' -or
+    $networkingMain -match 'assign_ipv6_address_on_creation\s*=\s*true' -or
+    $networkingMain -match '0\.0\.0\.0/0') {
+  Fail "networking contains a prohibited internet/NAT/interface/public route or address control"
+}
+foreach ($requiredOutput in @("vpc_id", "private_subnet_ids", "private_subnet_cidrs", "private_route_table_id", "s3_gateway_endpoint_id")) {
+  Assert-Match $networkingOutputs ('(?im)^\s*output\s+"' + $requiredOutput + '"') "networking output missing: $requiredOutput"
+}
+
+# TASK-INF-003 shared tag-contract assertions.
+foreach ($moduleName in @("networking", "kms", "s3")) {
+  $variablesText = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/$moduleName/variables.tf") -Raw
+  $tagsBlock = [regex]::Match($variablesText, '(?ms)^variable\s+"tags"\s*\{(?<body>.*)\}\s*$').Groups['body'].Value
+  if ([string]::IsNullOrWhiteSpace($tagsBlock) -or $tagsBlock -match '(?im)^\s*default\s*=') {
+    Fail "$moduleName tags must be required and have no default"
+  }
+  foreach ($tagKey in @("Project", "Environment", "Owner", "ManagedBy", "CostCenter", "DataClassification")) {
+    if (-not $tagsBlock.Contains('"' + $tagKey + '"')) {
+      Fail "$moduleName tags validation is missing required key: $tagKey"
+    }
+  }
+  Assert-Match $tagsBlock 'trimspace\(lookup\(var\.tags,\s*key,\s*""\)\)\s*!=\s*""' "$moduleName must reject empty required tag values"
+  Assert-Match $tagsBlock 'lookup\(var\.tags,\s*"ManagedBy",\s*""\)\s*==\s*"terraform"' "$moduleName ManagedBy must be terraform"
+  foreach ($classification in @("public", "internal", "confidential", "restricted")) {
+    if (-not $tagsBlock.Contains('"' + $classification + '"')) {
+      Fail "$moduleName DataClassification allowlist is incomplete: $classification"
+    }
+  }
+}
+
+# TASK-INF-003 reusable KMS assertions.
+$kmsMain = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/kms/main.tf") -Raw
+$kmsVariables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/kms/variables.tf") -Raw
+$kmsResources = [regex]::Matches($kmsMain, '(?im)^\s*resource\s+"([^"]+)"\s+"([^"]+)"')
+if ($kmsResources.Count -ne 2 -or
+    ([regex]::Matches($kmsMain, '(?im)^\s*resource\s+"aws_kms_key"\s+"this"')).Count -ne 1 -or
+    ([regex]::Matches($kmsMain, '(?im)^\s*resource\s+"aws_kms_alias"\s+"this"')).Count -ne 1) {
+  Fail "KMS module must declare exactly one key and one alias"
+}
+Assert-Match $kmsMain 'enable_key_rotation\s*=\s*true' "KMS rotation is missing"
+Assert-Match $kmsMain 'deletion_window_in_days\s*=\s*30' "KMS 30-day deletion window is missing"
+Assert-Match $kmsMain 'prevent_destroy\s*=\s*true' "KMS key deletion protection is missing"
+Assert-Match $kmsMain 'target_key_id\s*=\s*aws_kms_key\.this\.key_id' "KMS alias target is missing"
+if (([regex]::Matches($kmsMain, 'Action\s*=\s*"kms:\*"')).Count -ne 1 -or
+    ([regex]::Matches($kmsMain, 'Sid\s*=\s*"EnableAccountRootDelegation"')).Count -ne 1) {
+  Fail "KMS must contain exactly one account-root kms:* delegation statement"
+}
+$kmsAdmin = [regex]::Match($kmsMain, '(?s)for role_index, role_arn in var\.admin_role_arns\s*:\s*\{(?<body>.*?)\n\s*\}\n\s*\],').Groups['body'].Value
+$kmsUser = [regex]::Match($kmsMain, '(?s)for role_index, role_arn in var\.user_role_arns\s*:\s*\{(?<body>.*?)\n\s*\}\n\s*\],').Groups['body'].Value
+if ([string]::IsNullOrWhiteSpace($kmsAdmin) -or $kmsAdmin -match 'kms:\*') {
+  Fail "direct KMS administrators must have explicit management actions and no kms:*"
+}
+foreach ($adminAction in @("kms:PutKeyPolicy", "kms:EnableKeyRotation", "kms:ScheduleKeyDeletion", "kms:CancelKeyDeletion", "kms:CreateGrant")) {
+  if (-not $kmsAdmin.Contains('"' + $adminAction + '"')) {
+    Fail "direct KMS administrator action missing: $adminAction"
+  }
+}
+foreach ($userAction in @("kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*", "kms:DescribeKey", "kms:ReEncrypt*")) {
+  if (-not $kmsUser.Contains('"' + $userAction + '"')) {
+    Fail "KMS user data-plane action missing: $userAction"
+  }
+}
+if (([regex]::Matches($kmsVariables, [regex]::Escape($hclRolePrefix))).Count -ne 2) {
+  Fail "KMS admin and user role validations must both be same-account, path-capable, and wildcard-free"
+}
+Assert-Match $kmsVariables 'length\(var\.admin_role_arns\)\s*>\s*0' "at least one KMS administrator is required"
+Assert-Match $kmsVariables 'variable\s+"user_role_arns"[\s\S]*?default\s*=\s*\[\]' "KMS user roles must be allowed to remain empty"
+Assert-Match $kmsMain 'Purpose\s*=\s*var\.purpose' "KMS purpose must be applied as a Purpose tag"
+
+# TASK-INF-003 reusable S3 assertions.
+$s3Main = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/s3/main.tf") -Raw
+$s3Variables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/s3/variables.tf") -Raw
+$s3Resources = [regex]::Matches($s3Main, '(?im)^\s*resource\s+"([^"]+)"\s+"([^"]+)"')
+$expectedS3Types = @(
+  "aws_s3_bucket"
+  "aws_s3_bucket_versioning"
+  "aws_s3_bucket_ownership_controls"
+  "aws_s3_bucket_public_access_block"
+  "aws_s3_bucket_server_side_encryption_configuration"
+  "aws_s3_bucket_lifecycle_configuration"
+  "aws_s3_bucket_policy"
+)
+if ($s3Resources.Count -ne $expectedS3Types.Count) {
+  Fail "S3 module must declare exactly seven approved resources"
+}
+foreach ($resourceType in $expectedS3Types) {
+  if (@($s3Resources | Where-Object { $_.Groups[1].Value -eq $resourceType }).Count -ne 1) {
+    Fail "S3 resource declaration missing or duplicated: $resourceType"
+  }
+}
+foreach ($bucketRule in @('!strcontains(var.bucket_name, "..")', '!strcontains(var.bucket_name, ".-")', '!strcontains(var.bucket_name, "-.")', 'xn--', 'amzn-s3-demo-', '-s3alias', '--x-s3', '--table-s3')) {
+  if (-not $s3Variables.Contains($bucketRule)) {
+    Fail "S3 bucket-name validation is missing rule: $bucketRule"
+  }
+}
+Assert-Match $s3Variables '\^\[0-9\]\{1,3\}\(\\\\\.\[0-9\]\{1,3\}\)\{3\}\$' "S3 bucket names must reject IP-address format"
+Assert-Match $s3Variables '\^arn:aws:kms:ap-southeast-2:\[0-9\]\{12\}:key/\[0-9a-fA-F\]\{8\}' "S3 KMS input must be an actual Sydney key ARN"
+Assert-Match $s3Variables 'variable\s+"purpose"[\s\S]*?contains\(' "S3 purpose must be non-empty and allowlisted"
+Assert-Match $s3Main 'Purpose\s*=\s*var\.purpose' "S3 purpose must be applied as a Purpose tag"
+$retentionBlock = [regex]::Match($s3Variables, '(?ms)^variable\s+"noncurrent_retention_days"\s*\{(?<body>.*?)^\}').Groups['body'].Value
+if ([string]::IsNullOrWhiteSpace($retentionBlock) -or $retentionBlock -match '(?im)^\s*default\s*=') {
+  Fail "S3 noncurrent retention must be required and have no default"
+}
+Assert-Match $s3Main 'force_destroy\s*=\s*false' "S3 force_destroy must be false"
+Assert-Match $s3Main 'prevent_destroy\s*=\s*true' "S3 bucket deletion protection is missing"
+Assert-Match $s3Main 'depends_on\s*=\s*\[aws_s3_bucket_versioning\.this\]' "S3 lifecycle must depend on versioning"
+Assert-Match $s3Main 'filter\s*\{\s*\}' "S3 lifecycle must include an all-object filter"
+Assert-Match $s3Main 'versioning_configuration\s*\{[\s\S]*?status\s*=\s*"Enabled"' "S3 versioning is missing"
+Assert-Match $s3Main 'object_ownership\s*=\s*"BucketOwnerEnforced"' "S3 BucketOwnerEnforced is missing"
+foreach ($control in @("block_public_acls", "block_public_policy", "ignore_public_acls", "restrict_public_buckets")) {
+  Assert-Match $s3Main ($control + '\s*=\s*true') "S3 public-access control is missing: $control"
+}
+Assert-Match $s3Main 'kms_master_key_id\s*=\s*var\.kms_key_arn' "S3 default encryption must use the supplied KMS key ARN"
+Assert-Match $s3Main 'sse_algorithm\s*=\s*"aws:kms"' "S3 default encryption algorithm is missing"
+Assert-Match $s3Main 'Sid\s*=\s*"DenyInsecureTransport"[\s\S]*?"aws:SecureTransport"\s*=\s*"false"' "S3 TLS-only deny is missing"
+Assert-Match $s3Main 'Sid\s*=\s*"DenyIncorrectExplicitEncryption"[\s\S]*?StringNotEquals[\s\S]*?"s3:x-amz-server-side-encryption"\s*=\s*"aws:kms"[\s\S]*?Null[\s\S]*?"s3:x-amz-server-side-encryption"\s*=\s*"false"' "S3 explicit wrong-algorithm deny is missing"
+Assert-Match $s3Main 'Sid\s*=\s*"DenyIncorrectExplicitKmsKey"[\s\S]*?ArnNotEquals[\s\S]*?"s3:x-amz-server-side-encryption-aws-kms-key-id"\s*=\s*var\.kms_key_arn[\s\S]*?Null[\s\S]*?"s3:x-amz-server-side-encryption-aws-kms-key-id"\s*=\s*"false"' "S3 explicit wrong-key deny is missing"
+if ($s3Main -match '(?is)Null\s*=\s*\{\s*"s3:x-amz-server-side-encryption(?:-aws-kms-key-id)?"\s*=\s*"true"') {
+  Fail "S3 missing encryption headers must remain allowed for default SSE-KMS"
+}
+
 $secretPattern = '(?i)(aws_access_key_id|aws_secret_access_key|password\s*=|secret\s*=\s*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)'
 $scanFiles = @(Get-ChildItem -LiteralPath $terraformRoot, (Join-Path $repo "buildspecs"), (Join-Path $repo "tests/infrastructure") -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object {
@@ -232,4 +424,4 @@ foreach ($file in $scanFiles) {
   }
 }
 
-Write-Output "PASS: offline infrastructure/bootstrap assertions. AWS changes performed: None."
+Write-Output "PASS: offline TASK-INF-001/002/003 infrastructure assertions. AWS changes performed: None."
