@@ -65,3 +65,15 @@ None.
 - DEV code-level expected resource instances: 9. PROD: 0.
 - AWS changes performed: None.
 - Next task: TASK-INF-003 pending delegation.
+
+## TASK-INF-004 — Complete and accepted
+
+- Added canonical multiline IAM, Glue Catalog, Lake Formation, and monitoring modules without environment integration.
+- IAM defines two roles and two inline least-privilege policies, same-account path-capable trust, two-location S3/KMS scope, and service-conditioned PassRole.
+- Glue creates exactly four environment databases with distinct locations and no table/job/crawler resources.
+- Lake Formation registers two locations with an explicit role and grants only database metadata: DataEngineer four databases, Analyst gold, MLEngineer silver/gold, RAGApplication none.
+- Monitoring defines the complete 14-resource audit chain: dedicated KMS key/alias, protected encrypted/versioned audit S3 controls, encrypted retained Logs group, conditioned CloudTrail delivery role/policy, management-only regional CloudTrail, and one encrypted SNS topic with zero subscriptions/alarms.
+- PowerShell and Bash gates now have exact IAM/Glue/Lake Formation/monitoring path/type allowlists and equivalent TASK-INF-004 semantic/negative assertions while retaining TASK-INF-001–003 checks.
+- PowerShell gate passed with TASK-INF-001/002/003/004 output. Terraform/TFLint/Checkov were NOT RUN because tools/provider cache are unavailable; Bash was NOT RUN because the Windows Bash/WSL shim returns `E_ACCESSDENIED`.
+- Accepted paths remain zero-diff against `8f7ed17`. Manager accepted the task after independent review. AWS changes performed: None.
+- Manager-targeted correction: split the CloudTrail KMS grant so `GenerateDataKey*` alone requires the CloudTrail encryption context while `DescribeKey` retains exact source-account/source-ARN conditions without that context; added required current-object audit retention with `audit_retention_days >= audit_noncurrent_retention_days`; removed Lake Formation DataEngineer `DROP`; and removed Terraform review role `s3:ListAllMyBuckets`. PowerShell gate, `git diff --check`, and the accepted-path zero-diff check all passed after these changes.

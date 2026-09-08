@@ -102,6 +102,48 @@ $resourceScopes = @(
       "aws_s3_bucket_versioning"
     )
   }
+  [pscustomobject]@{
+    Name         = "glue"
+    Prefix       = (Join-Path $terraformRoot "modules/glue") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @("aws_glue_catalog_database")
+  }
+  [pscustomobject]@{
+    Name   = "lakeformation"
+    Prefix = (Join-Path $terraformRoot "modules/lakeformation") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_lakeformation_data_lake_settings"
+      "aws_lakeformation_permissions"
+      "aws_lakeformation_resource"
+    )
+  }
+  [pscustomobject]@{
+    Name   = "monitoring"
+    Prefix = (Join-Path $terraformRoot "modules/monitoring") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_cloudtrail"
+      "aws_cloudwatch_log_group"
+      "aws_iam_role"
+      "aws_iam_role_policy"
+      "aws_kms_alias"
+      "aws_kms_key"
+      "aws_s3_bucket"
+      "aws_s3_bucket_lifecycle_configuration"
+      "aws_s3_bucket_ownership_controls"
+      "aws_s3_bucket_policy"
+      "aws_s3_bucket_public_access_block"
+      "aws_s3_bucket_server_side_encryption_configuration"
+      "aws_s3_bucket_versioning"
+      "aws_sns_topic"
+    )
+  }
+  [pscustomobject]@{
+    Name = "iam"
+    Prefix = (Join-Path $terraformRoot "modules/iam") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_iam_role"
+      "aws_iam_role_policy"
+    )
+  }
 )
 
 foreach ($file in $terraformFiles) {
@@ -411,6 +453,169 @@ if ($s3Main -match '(?is)Null\s*=\s*\{\s*"s3:x-amz-server-side-encryption(?:-aws
   Fail "S3 missing encryption headers must remain allowed for default SSE-KMS"
 }
 
+# TASK-INF-004 IAM, Glue, Lake Formation, and monitoring assertions.
+$iamMain = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/iam/main.tf") -Raw
+$iamVariables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/iam/variables.tf") -Raw
+$iamResources = [regex]::Matches($iamMain, '(?im)^\s*resource\s+"([^"]+)"\s+"([^"]+)"')
+if ($iamResources.Count -ne 4 -or
+    ([regex]::Matches($iamMain, '(?im)^\s*resource\s+"aws_iam_role"')).Count -ne 2 -or
+    ([regex]::Matches($iamMain, '(?im)^\s*resource\s+"aws_iam_role_policy"')).Count -ne 2) {
+  Fail "IAM must declare exactly two roles and two inline role policies"
+}
+if ($iamMain -match '(?i)AdministratorAccess|PowerUser|Action\s*=\s*"\*"|"iam:\*"|"kms:\*"') {
+  Fail "IAM contains a forbidden broad policy action or managed-policy name"
+}
+if (([regex]::Matches($iamMain, 'Resource\s*=\s*"\*"')).Count -ne 1) {
+  Fail "IAM Resource=* must occur exactly once for unsupported resource-level discovery APIs"
+}
+foreach ($unscopedAction in @("ec2:DescribeAvailabilityZones", "sts:GetCallerIdentity")) {
+  if (-not $iamMain.Contains('"' + $unscopedAction + '"')) {
+    Fail "IAM unscoped discovery action missing: $unscopedAction"
+  }
+}
+if ($iamMain.Contains('"s3:ListAllMyBuckets"')) {
+  Fail "Terraform review role must not include unnecessary s3:ListAllMyBuckets"
+}
+Assert-Match $iamMain 'Sid\s*=\s*"PassLakeFormationRegistrationRoleOnly"[\s\S]*?Action\s*=\s*"iam:PassRole"[\s\S]*?Resource\s*=\s*aws_iam_role\.lakeformation_registration\.arn[\s\S]*?"iam:PassedToService"\s*=\s*"lakeformation\.amazonaws\.com"' "PassRole must be scoped to the created registration role and Lake Formation service"
+Assert-Match $iamMain 'Principal\s*=\s*\{\s*AWS\s*=\s*var\.trusted_role_arns' "Terraform trust must use explicit approved roles"
+Assert-Match $iamMain 'Principal\s*=\s*\{\s*Service\s*=\s*"lakeformation\.amazonaws\.com"' "registration-role trust must use Lake Formation"
+Assert-Match $iamVariables 'length\(var\.trusted_role_arns\)\s*>\s*0' "Terraform trust-role input must be non-empty"
+Assert-Match $iamVariables '\^arn:aws:iam::\$\{var\.account_id\}:role/\(\[A-Za-z0-9\+=,\.@_-\]\+/\)\*' "Terraform trust role validation must be same-account and path-capable"
+foreach ($iamScope in @("var.data_location_bucket_arns", "local.data_location_object_arns", "var.data_kms_key_arns")) {
+  if (-not $iamMain.Contains("Resource = $iamScope")) {
+    Fail "Lake Formation registration policy scope missing: $iamScope"
+  }
+}
+foreach ($kmsAction in @("kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*", "kms:DescribeKey", "kms:ReEncrypt*")) {
+  if (-not $iamMain.Contains('"' + $kmsAction + '"')) {
+    Fail "Lake Formation registration KMS action missing: $kmsAction"
+  }
+}
+
+$glueMain = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/glue/main.tf") -Raw
+$glueVariables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/glue/variables.tf") -Raw
+if (([regex]::Matches($glueMain, '(?im)^\s*resource\s+"aws_glue_catalog_database"\s+"layer"')).Count -ne 1 -or
+    ([regex]::Matches($glueMain, '(?im)^\s*resource\s+"')).Count -ne 1) {
+  Fail "Glue must use exactly one four-item database resource declaration"
+}
+foreach ($layer in @("bronze", "silver", "gold", "control")) {
+  if (-not $glueMain.Contains($layer)) {
+    Fail "Glue layer mapping missing: $layer"
+  }
+}
+Assert-Match $glueMain 'for_each\s*=\s*local\.database_locations' "Glue database declaration must use the exact layer map"
+Assert-Match $glueMain 'name\s*=\s*"insurance_\$\{var\.environment\}_\$\{each\.key\}"' "Glue database naming contract is missing"
+Assert-Match $glueVariables '!contains\(' "Glue control location must be distinct from all lakehouse locations"
+if ($glueMain -match '(?im)^\s*resource\s+"aws_glue_(catalog_table|job|crawler)"') {
+  Fail "Glue module must not create tables, jobs, or crawlers"
+}
+
+$lakeFormationMain = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/lakeformation/main.tf") -Raw
+$lakeFormationVariables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/lakeformation/variables.tf") -Raw
+Assert-Match $lakeFormationMain 'resource\s+"aws_lakeformation_resource"\s+"location"[\s\S]*?for_each\s*=\s*local\.registered_locations[\s\S]*?role_arn\s*=\s*var\.data_access_role_arn[\s\S]*?use_service_linked_role\s*=\s*false' "Lake Formation must register exactly two locations with the explicit role"
+Assert-Match $lakeFormationVariables 'lakehouse_location_arn[\s\S]*?control_location_arn' "Lake Formation two location inputs are missing"
+Assert-Match $lakeFormationMain 'resource\s+"aws_lakeformation_data_lake_settings"[\s\S]*?admins\s*=\s*var\.admin_role_arns' "Lake Formation explicit admins are missing"
+Assert-Match $lakeFormationMain 'resource\s+"aws_lakeformation_permissions"\s+"data_engineer_database"[\s\S]*?for_each\s*=\s*local\.data_engineer_databases[\s\S]*?principal\s*=\s*var\.data_engineer_role_arn' "DataEngineer four-database metadata grant is missing"
+Assert-Match $lakeFormationMain 'permissions\s*=\s*\["ALTER",\s*"CREATE_TABLE",\s*"DESCRIBE"\]' "DataEngineer permissions must be ALTER, CREATE_TABLE, and DESCRIBE"
+Assert-Match $lakeFormationMain 'resource\s+"aws_lakeformation_permissions"\s+"analyst_gold_database"[\s\S]*?principal\s*=\s*var\.analyst_role_arn[\s\S]*?name\s*=\s*var\.database_names\["gold"\]' "Analyst must receive only gold database metadata"
+Assert-Match $lakeFormationMain 'resource\s+"aws_lakeformation_permissions"\s+"ml_engineer_database"[\s\S]*?for_each\s*=\s*local\.ml_engineer_databases[\s\S]*?principal\s*=\s*var\.ml_engineer_role_arn' "MLEngineer silver/gold database metadata grants are missing"
+if ($lakeFormationMain.Contains("var.rag_application_role_arn") -or $lakeFormationMain -match 'SELECT|DROP|table\s*\{|table_with_columns') {
+  Fail "RAGApplication and table/data permissions must not appear in Lake Formation grants"
+}
+Assert-Match $lakeFormationVariables 'length\(distinct\(concat\(' "Lake Formation workload/admin/access roles must be mutually distinct"
+if (([regex]::Matches($lakeFormationVariables, '\^arn:aws:iam::\$\{var\.account_id\}:role/')).Count -lt 6) {
+  Fail "every Lake Formation role input must be same-account and path-capable"
+}
+
+$monitoringMain = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/monitoring/main.tf") -Raw
+$monitoringVariables = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/monitoring/variables.tf") -Raw
+$monitoringResources = [regex]::Matches($monitoringMain, '(?im)^\s*resource\s+"([^"]+)"\s+"([^"]+)"')
+if ($monitoringResources.Count -ne 14) {
+  Fail "monitoring must declare exactly 14 resources for the complete audit chain"
+}
+foreach ($resourceType in @("aws_kms_key", "aws_kms_alias", "aws_s3_bucket", "aws_s3_bucket_versioning", "aws_s3_bucket_ownership_controls", "aws_s3_bucket_public_access_block", "aws_s3_bucket_server_side_encryption_configuration", "aws_s3_bucket_lifecycle_configuration", "aws_s3_bucket_policy", "aws_cloudwatch_log_group", "aws_iam_role", "aws_iam_role_policy", "aws_sns_topic", "aws_cloudtrail")) {
+  if (@($monitoringResources | Where-Object { $_.Groups[1].Value -eq $resourceType }).Count -ne 1) {
+    Fail "monitoring resource missing or duplicated: $resourceType"
+  }
+}
+if (([regex]::Matches($monitoringMain, 'Action\s*=\s*"kms:\*"')).Count -ne 1 -or
+    ([regex]::Matches($monitoringMain, 'Sid\s*=\s*"EnableAccountRootDelegation"')).Count -ne 1) {
+  Fail "monitoring KMS policy must have exactly one account-root kms:* delegation"
+}
+foreach ($kmsGrant in @("AllowCloudTrailGenerateDataKey", "AllowCloudTrailDescribeKey", "AllowCloudWatchLogsEncryption", "AllowSnsEncryption")) {
+  Assert-Match $monitoringMain ('Sid\s*=\s*"' + $kmsGrant + '"[\s\S]*?Condition\s*=\s*\{') "conditioned monitoring KMS grant missing: $kmsGrant"
+}
+$generateStart = $monitoringMain.IndexOf('Sid    = "AllowCloudTrailGenerateDataKey"')
+$describeStart = $monitoringMain.IndexOf('Sid    = "AllowCloudTrailDescribeKey"')
+$logsStart = $monitoringMain.IndexOf('Sid    = "AllowCloudWatchLogsEncryption"')
+if ($generateStart -lt 0 -or $describeStart -le $generateStart -or $logsStart -le $describeStart) {
+  Fail "CloudTrail KMS statements must be separate and ordered"
+}
+$generateStatement = $monitoringMain.Substring($generateStart, $describeStart - $generateStart)
+$describeStatement = $monitoringMain.Substring($describeStart, $logsStart - $describeStart)
+foreach ($required in @('Action   = "kms:GenerateDataKey*"', '"aws:SourceAccount"', '"aws:SourceArn"', '"kms:EncryptionContext:aws:cloudtrail:arn"')) {
+  if (-not $generateStatement.Contains($required)) {
+    Fail "CloudTrail GenerateDataKey statement missing binding: $required"
+  }
+}
+foreach ($required in @('Action   = "kms:DescribeKey"', '"aws:SourceAccount"', '"aws:SourceArn"')) {
+  if (-not $describeStatement.Contains($required)) {
+    Fail "CloudTrail DescribeKey statement missing binding: $required"
+  }
+}
+if ($describeStatement.Contains('kms:EncryptionContext:aws:cloudtrail:arn')) {
+  Fail "CloudTrail DescribeKey statement must not require encryption context"
+}
+foreach ($conditionKey in @("aws:SourceArn", "aws:SourceAccount", "kms:EncryptionContext:aws:cloudtrail:arn", "kms:EncryptionContext:aws:logs:arn")) {
+  if (-not $monitoringMain.Contains('"' + $conditionKey + '"')) {
+    Fail "monitoring KMS/delivery condition key missing: $conditionKey"
+  }
+}
+Assert-Match $monitoringMain 'enable_key_rotation\s*=\s*true' "monitoring KMS rotation is missing"
+Assert-Match $monitoringMain 'deletion_window_in_days\s*=\s*30' "monitoring KMS deletion window is missing"
+if (([regex]::Matches($monitoringMain, 'prevent_destroy\s*=\s*true')).Count -ne 2) {
+  Fail "monitoring KMS key and audit bucket must both have prevent_destroy"
+}
+Assert-Match $monitoringMain 'force_destroy\s*=\s*false' "audit bucket force_destroy must be false"
+Assert-Match $monitoringMain 'depends_on\s*=\s*\[aws_s3_bucket_versioning\.audit\]' "audit lifecycle must depend on versioning"
+Assert-Match $monitoringMain 'filter\s*\{\s*\}' "audit lifecycle must include an all-object filter"
+Assert-Match $monitoringMain 'noncurrent_days\s*=\s*var\.audit_noncurrent_retention_days' "audit noncurrent retention input is not wired"
+Assert-Match $monitoringMain 'expiration\s*\{[\s\S]*?days\s*=\s*var\.audit_retention_days' "audit current retention expiration is not wired"
+$auditRetentionBlock = [regex]::Match($monitoringVariables, '(?ms)^variable\s+"audit_retention_days"\s*\{(?<body>.*?)^\}').Groups['body'].Value
+if ([string]::IsNullOrWhiteSpace($auditRetentionBlock) -or $auditRetentionBlock -match '(?im)^\s*default\s*=') {
+  Fail "audit_retention_days must be required with no default"
+}
+Assert-Match $auditRetentionBlock 'var\.audit_retention_days\s*>=\s*var\.audit_noncurrent_retention_days' "current audit retention must be at least noncurrent retention"
+Assert-Match $monitoringMain 'kms_master_key_id\s*=\s*aws_kms_key\.audit\.arn' "audit bucket must use its dedicated KMS key"
+Assert-Match $monitoringMain 'object_ownership\s*=\s*"BucketOwnerEnforced"' "audit bucket ownership control is missing"
+foreach ($control in @("block_public_acls", "block_public_policy", "ignore_public_acls", "restrict_public_buckets")) {
+  Assert-Match $monitoringMain ($control + '\s*=\s*true') "audit public access block missing: $control"
+}
+foreach ($bucketSid in @("DenyInsecureTransport", "AllowCloudTrailBucketAclCheck", "AllowCloudTrailWrite")) {
+  Assert-Match $monitoringMain ('Sid\s*=\s*"' + $bucketSid + '"') "audit bucket policy statement missing: $bucketSid"
+}
+Assert-Match $monitoringMain '"s3:x-amz-acl"\s*=\s*"bucket-owner-full-control"' "CloudTrail writes must require bucket-owner-full-control"
+Assert-Match $monitoringMain 'resource\s+"aws_cloudwatch_log_group"[\s\S]*?retention_in_days\s*=\s*var\.log_retention_days[\s\S]*?kms_key_id\s*=\s*aws_kms_key\.audit\.arn' "CloudWatch log group retention/encryption is incomplete"
+Assert-Match $monitoringMain 'Resource\s*=\s*"\$\{aws_cloudwatch_log_group\.audit\.arn\}:log-stream:\*"' "CloudTrail delivery policy must be bound to target log streams"
+Assert-Match $monitoringMain 'resource\s+"aws_cloudtrail"\s+"management"[\s\S]*?is_multi_region_trail\s*=\s*false[\s\S]*?include_global_service_events\s*=\s*true[\s\S]*?enable_logging\s*=\s*true' "CloudTrail regional management configuration is incomplete"
+Assert-Match $monitoringMain 'event_selector\s*\{[\s\S]*?read_write_type\s*=\s*"All"[\s\S]*?include_management_events\s*=\s*true[\s\S]*?exclude_management_event_sources\s*=\s*\[\]' "CloudTrail management-only event selector is incomplete"
+if ($monitoringMain -match 'data_resource\s*\{' -or $monitoringMain -match '(?im)^\s*resource\s+"aws_(sns_topic_subscription|cloudwatch_metric_alarm)"') {
+  Fail "monitoring must contain no data resources, SNS subscriptions, or alarms"
+}
+
+foreach ($moduleName in @("iam", "glue", "lakeformation", "monitoring")) {
+  $variablesText = Get-Content -LiteralPath (Join-Path $terraformRoot "modules/$moduleName/variables.tf") -Raw
+  $tagsBlock = [regex]::Match($variablesText, '(?ms)^variable\s+"tags"\s*\{(?<body>.*)\}\s*$').Groups['body'].Value
+  if ([string]::IsNullOrWhiteSpace($tagsBlock) -or $tagsBlock -match '(?im)^\s*default\s*=') {
+    Fail "$moduleName tags must be required and have no default"
+  }
+  foreach ($tagKey in @("Project", "Environment", "Owner", "ManagedBy", "CostCenter", "DataClassification")) {
+    if (-not $tagsBlock.Contains('"' + $tagKey + '"')) {
+      Fail "$moduleName tag contract missing: $tagKey"
+    }
+  }
+}
+
 $secretPattern = '(?i)(aws_access_key_id|aws_secret_access_key|password\s*=|secret\s*=\s*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)'
 $scanFiles = @(Get-ChildItem -LiteralPath $terraformRoot, (Join-Path $repo "buildspecs"), (Join-Path $repo "tests/infrastructure") -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object {
@@ -424,4 +629,4 @@ foreach ($file in $scanFiles) {
   }
 }
 
-Write-Output "PASS: offline TASK-INF-001/002/003 infrastructure assertions. AWS changes performed: None."
+Write-Output "PASS: offline TASK-INF-001/002/003/004 infrastructure assertions. AWS changes performed: None."

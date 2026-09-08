@@ -90,6 +90,46 @@ is_allowed_resource() {
           ;;
       esac
       ;;
+    "$terraform_root/modules/iam"/*)
+      case "$type" in
+        aws_iam_role|aws_iam_role_policy)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in iam: $type"
+          ;;
+      esac
+      ;;
+    "$terraform_root/modules/glue"/*)
+      case "$type" in
+        aws_glue_catalog_database)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in glue: $type"
+          ;;
+      esac
+      ;;
+    "$terraform_root/modules/lakeformation"/*)
+      case "$type" in
+        aws_lakeformation_resource|aws_lakeformation_data_lake_settings|aws_lakeformation_permissions)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in lakeformation: $type"
+          ;;
+      esac
+      ;;
+    "$terraform_root/modules/monitoring"/*)
+      case "$type" in
+        aws_kms_key|aws_kms_alias|aws_s3_bucket|aws_s3_bucket_versioning|aws_s3_bucket_ownership_controls|aws_s3_bucket_public_access_block|aws_s3_bucket_server_side_encryption_configuration|aws_s3_bucket_lifecycle_configuration|aws_s3_bucket_policy|aws_cloudwatch_log_group|aws_iam_role|aws_iam_role_policy|aws_sns_topic|aws_cloudtrail)
+          return 0
+          ;;
+        *)
+          fail "resource type not allowed in monitoring: $type"
+          ;;
+      esac
+      ;;
     *)
       fail "resource outside an approved Phase 1 path: $file"
       ;;
@@ -309,10 +349,129 @@ if grep -Eiq 'Null[[:space:]]*=[[:space:]]*\{[[:space:]]*"s3:x-amz-server-side-e
   fail "S3 missing encryption headers must remain allowed for default SSE-KMS"
 fi
 
+# TASK-INF-004 IAM, Glue, Lake Formation, and monitoring assertions.
+iam_main="$terraform_root/modules/iam/main.tf"
+iam_variables="$terraform_root/modules/iam/variables.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$iam_main")" == '4' ]] || fail "IAM must declare exactly two roles and two inline policies"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"aws_iam_role"' "$iam_main")" == '2' ]] || fail "IAM role count must be two"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"aws_iam_role_policy"' "$iam_main")" == '2' ]] || fail "IAM inline policy count must be two"
+if grep -Eiq 'AdministratorAccess|PowerUser|Action[[:space:]]*=[[:space:]]*"\*"|"iam:\*"|"kms:\*"' "$iam_main"; then
+  fail "IAM contains a forbidden broad action or managed-policy name"
+fi
+[[ "$(grep -Ec 'Resource[[:space:]]*=[[:space:]]*"\*"' "$iam_main")" == '1' ]] || fail "IAM Resource=* must occur only for unsupported discovery APIs"
+for action in ec2:DescribeAvailabilityZones sts:GetCallerIdentity; do
+  grep -Fq "\"$action\"" "$iam_main" || fail "IAM unscoped discovery action missing: $action"
+done
+! grep -Fq '"s3:ListAllMyBuckets"' "$iam_main" || fail "Terraform review role must not include s3:ListAllMyBuckets"
+compact_iam="$(tr -d '\r\n' < "$iam_main")"
+grep -Eq 'Sid[[:space:]]*=[[:space:]]*"PassLakeFormationRegistrationRoleOnly".*Action[[:space:]]*=[[:space:]]*"iam:PassRole".*Resource[[:space:]]*=[[:space:]]*aws_iam_role\.lakeformation_registration\.arn.*"iam:PassedToService"[[:space:]]*=[[:space:]]*"lakeformation\.amazonaws\.com"' <<<"$compact_iam" || fail "PassRole must be role- and service-bound"
+grep -Eq 'Principal[[:space:]]*=[[:space:]]*\{[[:space:]]*AWS[[:space:]]*=[[:space:]]*var\.trusted_role_arns' <<<"$compact_iam" || fail "Terraform trust must use explicit roles"
+grep -Eq 'Principal[[:space:]]*=[[:space:]]*\{[[:space:]]*Service[[:space:]]*=[[:space:]]*"lakeformation\.amazonaws\.com"' <<<"$compact_iam" || fail "registration role trust must use Lake Formation"
+grep -Eiq 'length\(var\.trusted_role_arns\)[[:space:]]*>[[:space:]]*0' "$iam_variables" || fail "Terraform trust-role input must be non-empty"
+for scope in var.data_location_bucket_arns local.data_location_object_arns var.data_kms_key_arns; do
+  grep -Fq "Resource = $scope" "$iam_main" || fail "registration policy scope missing: $scope"
+done
+for action in kms:Encrypt kms:Decrypt 'kms:GenerateDataKey*' kms:DescribeKey 'kms:ReEncrypt*'; do
+  grep -Fq "\"$action\"" "$iam_main" || fail "registration KMS action missing: $action"
+done
+
+glue_main="$terraform_root/modules/glue/main.tf"
+glue_variables="$terraform_root/modules/glue/variables.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$glue_main")" == '1' ]] || fail "Glue must declare exactly one database resource"
+[[ "$(grep -Fc 'resource "aws_glue_catalog_database" "layer"' "$glue_main")" == '1' ]] || fail "Glue database declaration missing"
+for layer in bronze silver gold control; do
+  grep -Fq "$layer" "$glue_main" || fail "Glue layer mapping missing: $layer"
+done
+grep -Fq 'for_each = local.database_locations' "$glue_main" || fail "Glue must use the exact four-layer map"
+grep -Fq 'name         = "insurance_${var.environment}_${each.key}"' "$glue_main" || fail "Glue database naming contract is missing"
+grep -Fq '!contains([' "$glue_variables" || fail "Glue locations must be distinct"
+if grep -Eiq '^[[:space:]]*resource[[:space:]]+"aws_glue_(catalog_table|job|crawler)"' "$glue_main"; then
+  fail "Glue must not create tables, jobs, or crawlers"
+fi
+
+lf_main="$terraform_root/modules/lakeformation/main.tf"
+lf_variables="$terraform_root/modules/lakeformation/variables.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$lf_main")" == '5' ]] || fail "Lake Formation must declare registration, settings, and three permission resources"
+compact_lf="$(tr -d '\r\n' < "$lf_main")"
+grep -Eq 'resource[[:space:]]+"aws_lakeformation_resource"[[:space:]]+"location".*for_each[[:space:]]*=[[:space:]]*local\.registered_locations.*role_arn[[:space:]]*=[[:space:]]*var\.data_access_role_arn.*use_service_linked_role[[:space:]]*=[[:space:]]*false' <<<"$compact_lf" || fail "Lake Formation location registration must use the explicit role"
+grep -Eq 'resource[[:space:]]+"aws_lakeformation_data_lake_settings".*admins[[:space:]]*=[[:space:]]*var\.admin_role_arns' <<<"$compact_lf" || fail "Lake Formation explicit admins are missing"
+grep -Eq 'resource[[:space:]]+"aws_lakeformation_permissions"[[:space:]]+"data_engineer_database".*for_each[[:space:]]*=[[:space:]]*local\.data_engineer_databases.*principal[[:space:]]*=[[:space:]]*var\.data_engineer_role_arn' <<<"$compact_lf" || fail "DataEngineer four-database grant missing"
+grep -Fq 'permissions = ["ALTER", "CREATE_TABLE", "DESCRIBE"]' "$lf_main" || fail "DataEngineer permissions must exclude DROP"
+grep -Eq 'resource[[:space:]]+"aws_lakeformation_permissions"[[:space:]]+"analyst_gold_database".*principal[[:space:]]*=[[:space:]]*var\.analyst_role_arn.*name[[:space:]]*=[[:space:]]*var\.database_names\["gold"\]' <<<"$compact_lf" || fail "Analyst gold-only grant missing"
+grep -Eq 'resource[[:space:]]+"aws_lakeformation_permissions"[[:space:]]+"ml_engineer_database".*for_each[[:space:]]*=[[:space:]]*local\.ml_engineer_databases.*principal[[:space:]]*=[[:space:]]*var\.ml_engineer_role_arn' <<<"$compact_lf" || fail "MLEngineer silver/gold grants missing"
+if grep -Fq 'var.rag_application_role_arn' "$lf_main" || grep -Eq 'SELECT|DROP|table[[:space:]]*\{|table_with_columns' "$lf_main"; then
+  fail "RAGApplication and table/data permissions must not appear in grants"
+fi
+grep -Fq 'length(distinct(concat(' "$lf_variables" || fail "Lake Formation roles must be mutually distinct"
+[[ "$(grep -Fc '^arn:aws:iam::${var.account_id}:role/' "$lf_variables")" -ge '6' ]] || fail "every Lake Formation role must be same-account and path-capable"
+
+monitoring_main="$terraform_root/modules/monitoring/main.tf"
+monitoring_variables="$terraform_root/modules/monitoring/variables.tf"
+[[ "$(grep -Ec '^[[:space:]]*resource[[:space:]]+"' "$monitoring_main")" == '14' ]] || fail "monitoring must declare exactly 14 audit-chain resources"
+for type in aws_kms_key aws_kms_alias aws_s3_bucket aws_s3_bucket_versioning aws_s3_bucket_ownership_controls aws_s3_bucket_public_access_block aws_s3_bucket_server_side_encryption_configuration aws_s3_bucket_lifecycle_configuration aws_s3_bucket_policy aws_cloudwatch_log_group aws_iam_role aws_iam_role_policy aws_sns_topic aws_cloudtrail; do
+  [[ "$(grep -Ec "^[[:space:]]*resource[[:space:]]+\"${type}\"" "$monitoring_main")" == '1' ]] || fail "monitoring resource missing or duplicated: $type"
+done
+[[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$monitoring_main")" == '1' ]] || fail "monitoring KMS must have one root kms:* action"
+[[ "$(grep -Ec 'Sid[[:space:]]*=[[:space:]]*"EnableAccountRootDelegation"' "$monitoring_main")" == '1' ]] || fail "monitoring KMS root delegation must be unique"
+compact_monitoring="$(tr -d '\r\n' < "$monitoring_main")"
+for sid in AllowCloudTrailGenerateDataKey AllowCloudTrailDescribeKey AllowCloudWatchLogsEncryption AllowSnsEncryption; do
+  grep -Eq "Sid[[:space:]]*=[[:space:]]*\"${sid}\".*Condition[[:space:]]*=[[:space:]]*\{" <<<"$compact_monitoring" || fail "conditioned KMS grant missing: $sid"
+done
+generate_statement="$(sed -n '/Sid    = "AllowCloudTrailGenerateDataKey"/,/Sid    = "AllowCloudTrailDescribeKey"/p' "$monitoring_main")"
+describe_statement="$(sed -n '/Sid    = "AllowCloudTrailDescribeKey"/,/Sid    = "AllowCloudWatchLogsEncryption"/p' "$monitoring_main")"
+for binding in 'Action   = "kms:GenerateDataKey*"' '"aws:SourceAccount"' '"aws:SourceArn"' '"kms:EncryptionContext:aws:cloudtrail:arn"'; do
+  grep -Fq "$binding" <<<"$generate_statement" || fail "CloudTrail GenerateDataKey statement missing binding: $binding"
+done
+for binding in 'Action   = "kms:DescribeKey"' '"aws:SourceAccount"' '"aws:SourceArn"'; do
+  grep -Fq "$binding" <<<"$describe_statement" || fail "CloudTrail DescribeKey statement missing binding: $binding"
+done
+! grep -Fq 'kms:EncryptionContext:aws:cloudtrail:arn' <<<"$describe_statement" || fail "CloudTrail DescribeKey must not require encryption context"
+for key in aws:SourceArn aws:SourceAccount kms:EncryptionContext:aws:cloudtrail:arn kms:EncryptionContext:aws:logs:arn; do
+  grep -Fq "\"$key\"" "$monitoring_main" || fail "monitoring condition key missing: $key"
+done
+grep -Eiq 'enable_key_rotation[[:space:]]*=[[:space:]]*true' "$monitoring_main" || fail "monitoring KMS rotation missing"
+grep -Eiq 'deletion_window_in_days[[:space:]]*=[[:space:]]*30' "$monitoring_main" || fail "monitoring KMS deletion window missing"
+[[ "$(grep -Ec 'prevent_destroy[[:space:]]*=[[:space:]]*true' "$monitoring_main")" == '2' ]] || fail "audit key and bucket must have prevent_destroy"
+grep -Eiq 'force_destroy[[:space:]]*=[[:space:]]*false' "$monitoring_main" || fail "audit bucket force_destroy must be false"
+grep -Fq 'depends_on = [aws_s3_bucket_versioning.audit]' "$monitoring_main" || fail "audit lifecycle must depend on versioning"
+grep -Eq 'filter[[:space:]]*\{[[:space:]]*\}' "$monitoring_main" || fail "audit lifecycle filter missing"
+grep -Fq 'noncurrent_days = var.audit_noncurrent_retention_days' "$monitoring_main" || fail "audit retention input not wired"
+grep -Eq 'expiration[[:space:]]*\{[^}]*days[[:space:]]*=[[:space:]]*var\.audit_retention_days' <<<"$compact_monitoring" || fail "audit current retention expiration not wired"
+audit_retention_block="$(sed -n '/^variable "audit_retention_days"/,/^}/p' "$monitoring_variables")"
+[[ -n "$audit_retention_block" ]] || fail "audit_retention_days input missing"
+! grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$audit_retention_block" || fail "audit_retention_days must have no default"
+grep -Fq 'var.audit_retention_days >= var.audit_noncurrent_retention_days' <<<"$audit_retention_block" || fail "current audit retention must be at least noncurrent retention"
+grep -Fq 'kms_master_key_id = aws_kms_key.audit.arn' "$monitoring_main" || fail "audit bucket must use dedicated KMS key"
+grep -Fq 'object_ownership = "BucketOwnerEnforced"' "$monitoring_main" || fail "audit ownership control missing"
+for control in block_public_acls block_public_policy ignore_public_acls restrict_public_buckets; do
+  grep -Eiq "$control[[:space:]]*=[[:space:]]*true" "$monitoring_main" || fail "audit public block missing: $control"
+done
+for sid in DenyInsecureTransport AllowCloudTrailBucketAclCheck AllowCloudTrailWrite; do
+  grep -Fq "Sid" "$monitoring_main" && grep -Fq "\"$sid\"" "$monitoring_main" || fail "audit bucket policy Sid missing: $sid"
+done
+grep -Fq '"s3:x-amz-acl"      = "bucket-owner-full-control"' "$monitoring_main" || fail "CloudTrail ACL condition missing"
+grep -Eq 'resource[[:space:]]+"aws_cloudwatch_log_group".*retention_in_days[[:space:]]*=[[:space:]]*var\.log_retention_days.*kms_key_id[[:space:]]*=[[:space:]]*aws_kms_key\.audit\.arn' <<<"$compact_monitoring" || fail "CloudWatch retention/encryption incomplete"
+grep -Fq 'Resource = "${aws_cloudwatch_log_group.audit.arn}:log-stream:*"' "$monitoring_main" || fail "delivery policy must target only log streams"
+grep -Eq 'resource[[:space:]]+"aws_cloudtrail"[[:space:]]+"management".*is_multi_region_trail[[:space:]]*=[[:space:]]*false.*include_global_service_events[[:space:]]*=[[:space:]]*true.*enable_logging[[:space:]]*=[[:space:]]*true' <<<"$compact_monitoring" || fail "CloudTrail regional management configuration incomplete"
+grep -Eq 'event_selector[[:space:]]*\{.*read_write_type[[:space:]]*=[[:space:]]*"All".*include_management_events[[:space:]]*=[[:space:]]*true.*exclude_management_event_sources[[:space:]]*=[[:space:]]*\[\]' <<<"$compact_monitoring" || fail "CloudTrail management-only selector incomplete"
+if grep -Eq 'data_resource[[:space:]]*\{|^[[:space:]]*resource[[:space:]]+"aws_(sns_topic_subscription|cloudwatch_metric_alarm)"' "$monitoring_main"; then
+  fail "monitoring must contain no data resources, subscriptions, or alarms"
+fi
+
+for module_name in iam glue lakeformation monitoring; do
+  variables_file="$terraform_root/modules/$module_name/variables.tf"
+  tags_block="$(sed -n '/^variable "tags"/,$p' "$variables_file")"
+  [[ -n "$tags_block" ]] || fail "$module_name tags block missing"
+  ! grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$tags_block" || fail "$module_name tags must have no default"
+  for tag_key in Project Environment Owner ManagedBy CostCenter DataClassification; do
+    grep -Fq "\"$tag_key\"" <<<"$tags_block" || fail "$module_name tag contract missing: $tag_key"
+  done
+done
+
 secret_pattern='aws_access_key_id|aws_secret_access_key|password[[:space:]]*=|secret[[:space:]]*=[[:space:]]*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
 mapfile -d '' -t scan_files < <(find "$terraform_root" "$repo/buildspecs" "$repo/tests/infrastructure" -type f \( -name '*.tf*' -o -name '*.hcl*' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.ps1' -o -name '*.sh' \) ! -name 'validate.ps1' ! -name 'validate.sh' -not -path '*/.terraform/*' -print0)
 if ((${#scan_files[@]} > 0)) && grep -Eiq "$secret_pattern" "${scan_files[@]}"; then
   fail "possible credential material detected"
 fi
 
-echo "PASS: offline TASK-INF-001/002/003 infrastructure assertions. AWS changes performed: None."
+echo "PASS: offline TASK-INF-001/002/003/004 infrastructure assertions. AWS changes performed: None."

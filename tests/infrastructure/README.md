@@ -1,14 +1,13 @@
 # Infrastructure tests
 
 `validate.ps1` and `validate.sh` are offline-only, assertion-equivalent gates
-for the TASK-INF-001 baseline and TASK-INF-002 bootstrap. They intentionally
-avoid provider installation and every AWS operation.
+for TASK-INF-001 through TASK-INF-004. They intentionally avoid provider
+installation and every AWS operation.
 
 Both scripts check all `terraform/**/*.tf` resource declarations against an
-explicit phase scope/type allowlist. The TASK-INF-002 table permits only the
-state S3/KMS types below `terraform/bootstrap`; later approved foundation tasks
-must add their own path/type scope rather than disable the boundary. Both gates
-also check:
+explicit path/type allowlists. Bootstrap, networking, reusable KMS/S3, IAM,
+Glue, Lake Formation, and monitoring each have their own allowlist; resources
+in other paths fail. Both gates also check:
 
 - all four foundation/bootstrap DEV/PROD roots for the Sydney provider contract;
 - initialized-root validation when both Terraform and provider cache exist;
@@ -21,6 +20,11 @@ also check:
 - at least one same-account IAM role, valid role paths, and wildcard rejection;
 - canonical multiline HCL blocks, output descriptions, workspace prohibition,
   and credential/secret patterns (including `*.hcl.example`).
+- TASK-INF-003 network isolation, subnet derivation, tags, reusable KMS policy,
+  and reusable S3 naming/lifecycle/encryption semantics;
+- TASK-INF-004 IAM trust/action/resource and conditioned PassRole boundaries,
+  exact Glue databases, Lake Formation registration/metadata matrix/RAG zero
+  grants, and the complete conditioned KMS/S3/Logs/CloudTrail/SNS audit chain.
 
 The CodeBuild buildspec runs in a Linux Bash environment. Terraform, TFLint,
 Checkov, and the TFLint plugin should be pre-baked in the build image; the build
