@@ -1311,37 +1311,40 @@ A feature is DONE only when applicable requirements are satisfied:
 
 CURRENT PHASE:
 
-PHASE 0 — ARCHITECTURE AND PROJECT FOUNDATION
+PHASE 1 — TERRAFORM FOUNDATION
 
-Implementation must NOT begin yet.
+Gate 1 and the Phase 1 execution plan were approved by the Human Owner on 2026-09-08.
 
-The Manager should first prepare:
+The Manager may delegate and review:
 
-1. architecture/architecture.md
-2. architecture/service-decisions.md
-3. architecture/data-flow.md
-4. architecture/data-contracts.md
-5. docs/naming-standard.md
-6. docs/development-standard.md
-7. docs/cost-principles.md
-8. initial README.md
-9. initial implementation roadmap
+1. TASK-INF-001
+2. TASK-INF-002
+3. TASK-INF-003
+4. TASK-INF-004
+5. TASK-INF-005
 
-The Manager must review these documents for consistency.
+The approved scope and task contracts are defined in:
 
-After completing Phase 0:
+docs/phase-1-execution-plan.md
 
-STOP.
+Phase 1 implementation is limited to Terraform code, tests, documentation,
+offline validation, static analysis, and safe read-only planning.
 
 Do NOT create AWS resources.
 
-Do NOT start Terraform implementation.
+Do NOT modify or delete AWS resources.
 
-Do NOT start worker implementation.
+Do NOT execute terraform apply.
 
-Present the Gate 1 Architecture Review to the Human Owner.
+Do NOT deploy PROD resources.
 
-Wait for explicit approval before continuing.
+Before the first AWS-changing operation, STOP at:
+
+P1-CP1 — First AWS Change Approval
+
+Present the reviewed Terraform plan, security review, cost, tests, risks,
+rollback strategy, and unresolved issues to the Human Owner and wait for
+explicit approval.
 
 ---
 
