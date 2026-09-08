@@ -24,10 +24,14 @@ external to Terraform files.
 
 ## One-time sequence (P1-CP1 required for apply)
 
-1. Obtain the approved organization short name, account suffix, 12-digit
-   account ID, at least one explicit same-account execution-role ARN, and the
-   noncurrent retention period. Role paths are supported; wildcards and
-   cross-account role ARNs are rejected by input validation.
+V1 keeps the active DEV backend local so a bootstrap plan can exist before its
+own S3 bucket exists. The S3 partial backend template remains the approved V4
+migration target; no credential is stored in either configuration.
+
+1. Use the approved organization short name `aip`, account suffix `dev01`,
+   account ID `199476069493`, and approved retention inputs. V1 uses the
+   Human-approved root shortcut and does not require a fabricated execution-role
+   ARN. Role-path validation remains for the V3 migration.
 2. Keep initial bootstrap state local. Run `terraform init -backend=false`,
    then review a DEV plan. The exact plan must be reviewed by Manager and
    Human Owner at P1-CP1 before any apply command is permitted.
@@ -65,11 +69,11 @@ key and low-volume S3 storage/requests, subject to an official pricing review.
 PROD creates zero resources and has zero TASK-INF-002 runtime cost.
 
 KMS rotation, a 30-day deletion window, and deletion protection guard the key.
-KMS administration uses explicit same-account non-root admin role ARNs. No
-account-root principal is used as an execution identity or KMS administrator.
+V1 DEV explicitly permits the exact same-account root principal with a bounded
+set of KMS actions and no `kms:*`; PROD keeps the shortcut disabled. This is a
+Human-approved temporary exception. V3 must replace it with explicit
+same-account non-root execution and KMS administrator roles.
 
-Static review found the AWS provider 6.x resource shapes consistent with the
-declared resources, including an explicit empty lifecycle `filter {}` and the
-separate S3 versioning/encryption/ownership/public-access resources. Terraform
-and provider-backed validation remain NOT RUN on the current host because no
-Terraform executable or initialized provider cache is available.
+Terraform 1.16.1 with AWS provider 6.63.0 passes formatting and validation. The
+real DEV bootstrap plan contains exactly 9 creates, zero changes, and zero
+destroys. No apply has run.

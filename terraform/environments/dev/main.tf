@@ -34,12 +34,13 @@ module "networking" {
 module "platform_kms" {
   source = "../../modules/kms"
 
-  environment     = local.environment
-  purpose         = "platform-data"
-  account_id      = var.account_id
-  admin_role_arns = var.kms_admin_role_arns
-  user_role_arns  = []
-  tags            = module.common.tags
+  environment       = local.environment
+  purpose           = "platform-data"
+  account_id        = var.account_id
+  admin_role_arns   = var.kms_admin_role_arns
+  allow_root_for_v1 = var.allow_root_for_v1
+  user_role_arns    = []
+  tags              = module.common.tags
 }
 
 module "storage" {
@@ -54,20 +55,6 @@ module "storage" {
   tags                      = module.common.tags
 }
 
-module "iam" {
-  source = "../../modules/iam"
-
-  environment       = local.environment
-  account_id        = var.account_id
-  trusted_role_arns = var.terraform_trusted_role_arns
-  data_location_bucket_arns = [
-    module.storage["lakehouse"].bucket_arn,
-    module.storage["control"].bucket_arn,
-  ]
-  data_kms_key_arns = [module.platform_kms.key_arn]
-  tags              = module.common.tags
-}
-
 module "glue" {
   source = "../../modules/glue"
 
@@ -77,23 +64,6 @@ module "glue" {
   tags                   = module.common.tags
 }
 
-module "lakeformation" {
-  source = "../../modules/lakeformation"
-
-  environment              = local.environment
-  account_id               = var.account_id
-  lakehouse_location_arn   = "${module.storage["lakehouse"].bucket_arn}/lakehouse"
-  control_location_arn     = "${module.storage["control"].bucket_arn}/control"
-  data_access_role_arn     = module.iam.lakeformation_registration_role_arn
-  admin_role_arns          = var.lakeformation_admin_role_arns
-  data_engineer_role_arn   = var.data_engineer_role_arn
-  analyst_role_arn         = var.analyst_role_arn
-  ml_engineer_role_arn     = var.ml_engineer_role_arn
-  rag_application_role_arn = var.rag_application_role_arn
-  database_names           = module.glue.database_names
-  tags                     = module.common.tags
-}
-
 module "monitoring" {
   source = "../../modules/monitoring"
 
@@ -101,6 +71,7 @@ module "monitoring" {
   account_id                      = var.account_id
   bucket_name                     = "${var.org_short}-insurance-${local.environment}-audit-logs-${var.account_short}"
   kms_admin_role_arns             = var.kms_admin_role_arns
+  allow_root_for_v1               = var.allow_root_for_v1
   log_retention_days              = var.log_retention_days
   audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
   audit_retention_days            = var.audit_retention_days

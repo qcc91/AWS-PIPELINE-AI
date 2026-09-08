@@ -6,8 +6,10 @@
   state bootstrap; VPC/private subnets/S3 endpoint; KMS/S3 modules; basic IAM;
   Glue Catalog; Lake Formation and audit modules; static plan manifest/tests.
 - Complete locally: Terraform formatting and provider-backed DEV validation.
-- Partial/blocking: no AWS resources exist; real plans await a non-root AWS
-  session, account/VPC/IAM discovery and exact role ARNs.
+- Ready for Human review: authenticated discovery is complete and real DEV
+  bootstrap/foundation plans contain 9/62 creates respectively, with no
+  changes or destroys. V1 root use is explicitly Human-approved; role
+  separation is deferred to V3.
 - Not started: executable batch, CDC, streaming, Iceberg transformations,
   Athena/QuickSight, SageMaker and RAG paths.
 - Leave untouched unless blocking V1: existing remote-state, governance,

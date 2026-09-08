@@ -107,6 +107,7 @@ module "monitoring" {
   account_id                      = var.account_id
   bucket_name                     = "${var.org_short}-insurance-${local.environment}-audit-logs-${var.account_short}"
   kms_admin_role_arns             = var.kms_admin_role_arns
+  allow_root_for_v1               = false
   log_retention_days              = var.log_retention_days
   audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
   audit_retention_days            = var.audit_retention_days

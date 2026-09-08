@@ -41,12 +41,13 @@ variable "account_id" {
 }
 
 variable "terraform_role_arns" {
-  description = "At least one approved same-account DEV IAM role ARN; role paths are supported and wildcards are rejected."
+  description = "Optional V3 state-user roles; V1 uses the explicit root shortcut."
   type        = list(string)
+  default     = []
 
   validation {
     condition = (
-      length(var.terraform_role_arns) > 0 && alltrue([
+      alltrue([
         for arn in var.terraform_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -57,10 +58,11 @@ variable "terraform_role_arns" {
   }
 }
 variable "kms_admin_role_arns" {
-  description = "Explicit non-root KMS administrators."
+  description = "Optional V3 non-root KMS administrators; V1 uses the explicit root shortcut."
   type        = list(string)
+  default     = []
   validation {
-    condition     = length(var.kms_admin_role_arns) > 0 && alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
+    condition     = alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
     error_message = "Provide explicit same-account KMS admin role ARNs."
   }
 }

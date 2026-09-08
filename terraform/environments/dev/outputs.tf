@@ -10,7 +10,7 @@ output "deployment_enabled" {
 
 output "expected_resource_instance_count" {
   description = "Approved static DEV foundation instance count checked against reviewed plan JSON."
-  value       = 76
+  value       = 62
 }
 
 output "monthly_budget_review_threshold_usd" {
@@ -58,13 +58,13 @@ output "storage_bucket_ids" {
 }
 
 output "terraform_execution_role_arn" {
-  description = "ARN of the DEV Terraform execution role."
-  value       = module.iam.terraform_execution_role_arn
+  description = "Deferred until V3 least-privilege IAM hardening."
+  value       = null
 }
 
 output "lakeformation_registration_role_arn" {
-  description = "ARN of the DEV Lake Formation registration role."
-  value       = module.iam.lakeformation_registration_role_arn
+  description = "Deferred until V3 Lake Formation governance."
+  value       = null
 }
 
 output "glue_database_names" {
@@ -73,13 +73,13 @@ output "glue_database_names" {
 }
 
 output "lakeformation_registered_location_arns" {
-  description = "ARNs of the registered lakehouse and control locations."
-  value       = module.lakeformation.registered_location_arns
+  description = "Deferred until V3 Lake Formation governance."
+  value       = []
 }
 
 output "lakeformation_database_permission_matrix" {
-  description = "Database metadata permission matrix, including the explicit RAG zero-grant boundary."
-  value       = module.lakeformation.database_metadata_permission_matrix
+  description = "Deferred until V3 persona and PII governance."
+  value       = {}
 }
 
 output "audit_kms_key_arn" {

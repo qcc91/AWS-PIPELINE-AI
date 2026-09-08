@@ -227,12 +227,14 @@ fi
 
 grep -Eiq 'enable_key_rotation[[:space:]]*=[[:space:]]*true' "$module_main" || fail "KMS rotation is missing"
 grep -Eiq 'deletion_window_in_days[[:space:]]*=[[:space:]]*30' "$module_main" || fail "KMS deletion window is missing"
-! grep -Fq 'arn:aws:iam::${var.account_id}:root' "$module_main" || fail "state KMS policy must not use account-root principal"
+grep -Fq 'var.allow_root_for_v1 ?' "$module_main" || fail "state KMS root access must be guarded by the explicit V1 flag"
+grep -Fq 'arn:aws:iam::${var.account_id}:root' "$module_main" || fail "state KMS exact same-account root principal is missing"
+! grep -Eq 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$module_main" || fail "state KMS policy must not use kms:*"
 grep -Fq 'Sid    = "AllowTerraformRole${role_index}"' "$module_main" || fail "stable role KMS Sid is missing"
 
 hcl_role_pattern='^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$'
 grep -Fq "$hcl_role_pattern" "$module_variables" || fail "same-account IAM role validation with path support is missing"
-grep -Eiq 'length\(var\.terraform_role_arns\)[[:space:]]*>[[:space:]]*0' "$module_variables" || fail "at least one state-key role ARN must be required"
+grep -Fq 'var.allow_root_for_v1' "$module_variables" || fail "state roles may be omitted only under the V1 root shortcut"
 role_pattern='^arn:aws:iam::123456789012:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$'
 [[ 'arn:aws:iam::123456789012:role/platform/dev/TerraformExecution' =~ $role_pattern ]] || fail "role validation regression: a reasonable IAM role path must be accepted"
 for invalid_role in 'arn:aws:iam::210987654321:role/platform/dev/TerraformExecution' 'arn:aws:iam::123456789012:role/platform/*' 'arn:aws:iam::123456789012:role/'; do
@@ -298,7 +300,8 @@ grep -Eiq 'deletion_window_in_days[[:space:]]*=[[:space:]]*30' "$kms_main" || fa
 grep -Eiq 'prevent_destroy[[:space:]]*=[[:space:]]*true' "$kms_main" || fail "KMS key deletion protection is missing"
 grep -Fq 'target_key_id = aws_kms_key.this.key_id' "$kms_main" || fail "KMS alias target is missing"
 [[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$kms_main")" == '0' ]] || fail "KMS must not contain direct kms:*"
-! grep -Fq 'arn:aws:iam::${var.account_id}:root' "$kms_main" || fail "KMS must not use account-root principal"
+grep -Fq 'var.allow_root_for_v1 ?' "$kms_main" || fail "platform KMS root access must be guarded by the V1 flag"
+grep -Fq 'arn:aws:iam::${var.account_id}:root' "$kms_main" || fail "platform KMS exact same-account root principal is missing"
 for admin_action in kms:PutKeyPolicy kms:EnableKeyRotation kms:ScheduleKeyDeletion kms:CancelKeyDeletion kms:CreateGrant; do
   grep -Fq "\"$admin_action\"" "$kms_main" || fail "direct KMS administrator action missing: $admin_action"
 done
@@ -411,7 +414,8 @@ for type in aws_kms_key aws_kms_alias aws_s3_bucket aws_s3_bucket_versioning aws
   [[ "$(grep -Ec "^[[:space:]]*resource[[:space:]]+\"${type}\"" "$monitoring_main")" == '1' ]] || fail "monitoring resource missing or duplicated: $type"
 done
 [[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$monitoring_main")" == '0' ]] || fail "monitoring KMS must not contain direct kms:*"
-! grep -Fq 'arn:aws:iam::${var.account_id}:root' "$monitoring_main" || fail "monitoring KMS must not use account-root principal"
+grep -Fq 'var.allow_root_for_v1 ?' "$monitoring_main" || fail "monitoring KMS root access must be guarded by the V1 flag"
+grep -Fq 'arn:aws:iam::${var.account_id}:root' "$monitoring_main" || fail "monitoring KMS exact same-account root principal is missing"
 compact_monitoring="$(tr -d '\r\n' < "$monitoring_main")"
 for sid in AllowCloudTrailGenerateDataKey AllowCloudTrailDescribeKey AllowCloudWatchLogsEncryption AllowSnsEncryption; do
   grep -Eq "Sid[[:space:]]*=[[:space:]]*\"${sid}\".*Condition[[:space:]]*=[[:space:]]*\{" <<<"$compact_monitoring" || fail "conditioned KMS grant missing: $sid"
@@ -481,17 +485,23 @@ prod_backend="$prod_root/backend.hcl.example"
 dev_versions="$dev_root/versions.tf"
 prod_versions="$prod_root/versions.tf"
 
-grep -Eq 'backend[[:space:]]+"s3"[[:space:]]*\{[[:space:]]*\}' "$dev_versions" || fail "DEV partial S3 backend declaration is missing"
+! grep -Eq 'backend[[:space:]]+"s3"' "$dev_versions" || fail "DEV V1 must use local state until bootstrap exists; migration is deferred to V4"
 grep -Eq 'backend[[:space:]]+"s3"[[:space:]]*\{[[:space:]]*\}' "$prod_versions" || fail "PROD partial S3 backend declaration is missing"
 
 for root_entry in "DEV:$dev_main" "PROD:$prod_main"; do
   root_name="${root_entry%%:*}"
   root_main="${root_entry#*:}"
-  for module_name in common networking platform_kms storage iam glue lakeformation monitoring; do
+  if [[ "$root_name" == 'DEV' ]]; then
+    required_modules='common networking platform_kms storage glue monitoring'
+  else
+    required_modules='common networking platform_kms storage iam glue lakeformation monitoring'
+  fi
+  for module_name in $required_modules; do
     [[ "$(grep -Ec "^module[[:space:]]+\"${module_name}\"[[:space:]]*\{" "$root_main")" == '1' ]] || fail "$root_name must wire module $module_name exactly once"
   done
   ! grep -Eiq '^[[:space:]]*resource[[:space:]]+"|source[[:space:]]*=[[:space:]]*"[^\"]*(bedrock|rag|nat|internet-gateway)' "$root_main" || fail "$root_name root must use only approved foundation modules and no direct resources"
 done
+! grep -Eq '^module[[:space:]]+"(iam|lakeformation)"[[:space:]]*\{' "$dev_main" || fail "DEV V1 must defer IAM persona and Lake Formation governance to V3"
 
 purpose_block="$(sed -n '/for purpose in \[/,/^[[:space:]]*\][[:space:]]*:/p' "$dev_main")"
 for purpose in landing lakehouse control quarantine documents; do
@@ -502,11 +512,6 @@ compact_dev="$(tr -d '\r\n' < "$dev_main")"
 grep -Eq 'module[[:space:]]+"storage"[[:space:]]*\{.*for_each[[:space:]]*=[[:space:]]*local\.bucket_names' <<<"$compact_dev" || fail "DEV must instantiate five generic S3 modules"
 grep -Fq 'kms_key_arn               = module.platform_kms.key_arn' "$dev_main" || fail "DEV S3 must use the platform KMS key"
 grep -Eq 'module[[:space:]]+"platform_kms"[[:space:]]*\{.*user_role_arns[[:space:]]*=[[:space:]]*\[\]' <<<"$compact_dev" || fail "DEV platform KMS must not directly grant data-plane roles in Phase 1"
-for purpose in lakehouse control; do
-  grep -Fq "module.storage[\"$purpose\"].bucket_arn" "$dev_main" || fail "DEV IAM/Lake Formation wiring must use the $purpose bucket ARN"
-done
-grep -Fq 'data_access_role_arn       = module.iam.lakeformation_registration_role_arn' "$dev_main" || fail "DEV Lake Formation must use the registration role"
-grep -Fq 'database_names             = module.glue.database_names' "$dev_main" || fail "DEV Lake Formation must consume Glue database outputs"
 grep -Fq 'lakehouse_location_uri = "s3://${module.storage["lakehouse"].bucket_id}/lakehouse"' "$dev_main" || fail "DEV Glue lakehouse location wiring missing"
 grep -Fq 'control_location_uri   = "s3://${module.storage["control"].bucket_id}/control"' "$dev_main" || fail "DEV Glue control location wiring missing"
 
@@ -526,10 +531,10 @@ grep -Eiq 'condition[[:space:]]*=[[:space:]]*!var\.enable_deployment' <<<"$prod_
 [[ "$(grep -Ec 'try\(module\.(networking|platform_kms|iam|glue|lakeformation|monitoring)\[0\]' "$prod_outputs")" -ge '6' ]] || fail "PROD resource module outputs must be count-safe"
 compact_dev_outputs="$(tr -d '\r\n' < "$dev_outputs")"
 compact_prod_outputs="$(tr -d '\r\n' < "$prod_outputs")"
-grep -Eq 'output[[:space:]]+"expected_resource_instance_count".*value[[:space:]]*=[[:space:]]*76' <<<"$compact_dev_outputs" || fail "DEV expected instance output must be 76"
+grep -Eq 'output[[:space:]]+"expected_resource_instance_count".*value[[:space:]]*=[[:space:]]*62' <<<"$compact_dev_outputs" || fail "DEV expected V1 instance output must be 62"
 grep -Eq 'output[[:space:]]+"expected_resource_instance_count".*value[[:space:]]*=[[:space:]]*0' <<<"$compact_prod_outputs" || fail "PROD expected instance output must be zero"
 
-for required_input in account_id account_short org_short vpc_cidr availability_zones terraform_trusted_role_arns kms_admin_role_arns lakeformation_admin_role_arns data_engineer_role_arn analyst_role_arn ml_engineer_role_arn rag_application_role_arn data_noncurrent_retention_days audit_noncurrent_retention_days audit_retention_days log_retention_days monthly_budget_usd; do
+for required_input in account_id account_short org_short vpc_cidr availability_zones data_noncurrent_retention_days audit_noncurrent_retention_days audit_retention_days log_retention_days monthly_budget_usd; do
   input_block="$(sed -n "/^variable \"${required_input}\"/,/^}/p" "$dev_variables")"
   [[ -n "$input_block" ]] || fail "DEV explicit plan input missing: $required_input"
   ! grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$input_block" || fail "DEV plan input $required_input must have no default"
@@ -549,10 +554,10 @@ done
 ! cmp -s "$dev_backend" "$prod_backend" || fail "DEV and PROD foundation backend examples must differ"
 
 manifest="$repo/tests/infrastructure/approved-plan-manifest.json"
-grep -Fq '"expected_active_changes": 76' "$manifest" || fail "DEV manifest must require 76 active changes"
+grep -Fq '"expected_active_changes": 62' "$manifest" || fail "DEV V1 manifest must require 62 active changes"
 grep -Fq '"expected_active_changes": 0' "$manifest" || fail "PROD manifest must require zero active changes"
 manifest_pattern_sum="$(grep -Eo '"count":[[:space:]]*[0-9]+' "$manifest" | awk -F: '{gsub(/[[:space:]]/, "", $2); sum += $2} END {print sum + 0}')"
-[[ "$manifest_pattern_sum" == '76' ]] || fail "approved address-pattern counts must sum to 76"
+[[ "$manifest_pattern_sum" == '62' ]] || fail "approved V1 address-pattern counts must sum to 62"
 for forbidden_type in aws_internet_gateway aws_nat_gateway aws_sns_topic_subscription aws_cloudwatch_metric_alarm aws_bedrockagent_agent aws_bedrockagent_knowledge_base; do
   grep -Fq "\"$forbidden_type\"" "$manifest" || fail "approved manifest must reject $forbidden_type"
 done

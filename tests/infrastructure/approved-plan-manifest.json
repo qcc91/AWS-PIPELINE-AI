@@ -3,7 +3,7 @@
   "region": "ap-southeast-2",
   "environments": {
     "dev": {
-      "expected_active_changes": 76,
+      "expected_active_changes": 62,
       "allowed_actions": [
         "create"
       ],
@@ -22,14 +22,7 @@
         { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_server_side_encryption_configuration\\.this$", "count": 5 },
         { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_lifecycle_configuration\\.this$", "count": 5 },
         { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_policy\\.this$", "count": 5 },
-        { "pattern": "^module\\.iam\\.aws_iam_role\\.(terraform_execution|lakeformation_registration)$", "count": 2 },
-        { "pattern": "^module\\.iam\\.aws_iam_role_policy\\.(terraform_execution|lakeformation_registration)$", "count": 2 },
         { "pattern": "^module\\.glue\\.aws_glue_catalog_database\\.layer\\[\"(bronze|silver|gold|control)\"\\]$", "count": 4 },
-        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_resource\\.location\\[\"(lakehouse|control)\"\\]$", "count": 2 },
-        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_data_lake_settings\\.this$", "count": 1 },
-        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_permissions\\.data_engineer_database\\[\"(bronze|silver|gold|control)\"\\]$", "count": 4 },
-        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_permissions\\.analyst_gold_database$", "count": 1 },
-        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_permissions\\.ml_engineer_database\\[\"(silver|gold)\"\\]$", "count": 2 },
         { "pattern": "^module\\.monitoring\\.aws_kms_key\\.audit$", "count": 1 },
         { "pattern": "^module\\.monitoring\\.aws_kms_alias\\.audit$", "count": 1 },
         { "pattern": "^module\\.monitoring\\.aws_s3_bucket\\.audit$", "count": 1 },

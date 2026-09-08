@@ -46,6 +46,14 @@ None.
 - Added bootstrap runbook covering local state, `init -backend=false`, P1-CP1 boundary, migration, lock contention, and recovery.
 - PowerShell offline gate passed, including the phase resource allowlist, four-root/backend isolation, key/lock, KMS/S3 security, role-validation, secret-scan, and PROD design-only assertions.
 - AWS changes performed: None.
+
+## V1-INFRASTRUCTURE — final plan ready
+
+- The Human-approved root CLI session is visible in the same host context used by Terraform; region is `ap-southeast-2` and account is `199476069493`. No credential material was written or printed.
+- Read-only discovery confirmed no overlap between `172.31.0.0/16` and planned `10.20.0.0/16`, availability of `ap-southeast-2a`/`2b`, no matching project resources, and no existing non-shadow CloudTrail trail.
+- Real plans: bootstrap 9 create/0 change/0 destroy; foundation 62 create/0 change/0 destroy; combined 71 create/0 change/0 destroy. The foundation plan passed the exact address/action manifest validator.
+- Terraform 1.16.1/AWS provider 6.63.0 formatting, DEV validation, PowerShell static gate, and `git diff --check` pass. TFLint, Checkov, and Bash remain unavailable and are not claimed as passing.
+- DEV IAM persona and Lake Formation grant creation is deferred to V3. The V1 root switch is enabled only in DEV and disabled in PROD. No apply was run and no AWS resource was changed.
 - Correction attempt 1: synchronized Bash and PowerShell bootstrap assertions, validated all four roots, enforced same-account explicit role inputs, stable KMS policy Sids, prevent-destroy controls, lifecycle ordering, ARN backend placeholders, and clarified bootstrap documentation.
 - Correction attempt 2: PowerShell now validates all four roots; Bash scans all Terraform resources and enforces bootstrap allowlist; backend assertions are per environment; S3 policy rejects explicit non-KMS/wrong-key headers while allowing omitted headers; static checks cover safety controls and same-account role validation.
 

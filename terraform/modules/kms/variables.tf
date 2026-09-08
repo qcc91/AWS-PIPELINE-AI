@@ -32,10 +32,11 @@ variable "account_id" {
 variable "admin_role_arns" {
   description = "At least one explicit same-account KMS administrator role ARN; role paths are supported."
   type        = list(string)
+  default     = []
 
   validation {
     condition = (
-      length(var.admin_role_arns) > 0 && alltrue([
+      (var.allow_root_for_v1 || length(var.admin_role_arns) > 0) && alltrue([
         for arn in var.admin_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -44,6 +45,11 @@ variable "admin_role_arns" {
     )
     error_message = "admin_role_arns must contain at least one explicit same-account IAM role ARN without wildcards."
   }
+}
+variable "allow_root_for_v1" {
+  description = "Explicit temporary V1 root principal allowance; must be false for PROD."
+  type        = bool
+  default     = false
 }
 
 variable "user_role_arns" {

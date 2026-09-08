@@ -1,6 +1,7 @@
 # Replace every angle-bracket placeholder with approved, non-secret DEV values.
 aws_region       = "ap-southeast-2"
 enable_deployment = true
+allow_root_for_v1 = true
 account_id        = "<12_digit_dev_account_id>"
 account_short     = "dev01"
 org_short         = "aip"
@@ -14,19 +15,9 @@ private_subnet_newbits  = 8
 private_subnet_netnums  = [1, 2]
 availability_zones      = ["ap-southeast-2a", "ap-southeast-2b"]
 
-terraform_trusted_role_arns = [
-  "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/operator-role>",
-]
-kms_admin_role_arns = [
-  "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/kms-admin-role>",
-]
-lakeformation_admin_role_arns = [
-  "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/lakeformation-admin-role>",
-]
-data_engineer_role_arn   = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/data-engineer-role>"
-analyst_role_arn         = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/analyst-role>"
-ml_engineer_role_arn     = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/ml-engineer-role>"
-rag_application_role_arn = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/rag-application-role>"
+# V1 uses the Human-approved temporary root shortcut. These become explicit
+# non-root role ARNs during V3 security/governance hardening.
+kms_admin_role_arns = []
 
 data_noncurrent_retention_days  = 30
 audit_noncurrent_retention_days = 90

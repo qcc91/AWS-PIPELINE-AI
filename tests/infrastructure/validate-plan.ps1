@@ -91,4 +91,4 @@ if ($expectedFromPatterns -ne [int]$contract.expected_active_changes) {
   Fail "manifest pattern counts sum to $expectedFromPatterns, not $($contract.expected_active_changes)"
 }
 
-Write-Output "PASS: dev reviewed plan contains exactly 76 approved create actions, with zero update/delete/replace actions."
+Write-Output "PASS: dev reviewed plan contains exactly 62 approved create actions, with zero update/delete/replace actions."

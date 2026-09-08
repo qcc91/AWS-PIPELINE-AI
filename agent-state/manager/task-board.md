@@ -2,7 +2,7 @@
 
 | Package | Owner | Scope | Status | Human gate |
 |---|---|---|---|---|
-| V1-INFRASTRUCTURE | Sol Manager + Luna Infrastructure Worker | Continue TASK-INF-001–005 as one package: validation, discovery, identity preparation, bootstrap/foundation plans, security and cost review | In progress; local init/validate complete, AWS identity bootstrap required before real plan | P1-CP1 / Gate 2 Terraform Plan Approval |
+| V1-INFRASTRUCTURE | Sol Manager + Luna Infrastructure Worker | Continue TASK-INF-001–005 as one package: validation, discovery, Human-approved V1 root shortcut, bootstrap/foundation plans, security and cost review | Complete; reviewed plans are 9/0/0 bootstrap and 62/0/0 foundation; awaiting Human decision | P1-CP1 / Gate 2 Terraform Plan Approval |
 | DEV APPLY AND VERIFICATION | Luna Infrastructure Worker | Former TASK-INF-006; apply only the approved plans and verify controls | Not authorized | Requires explicit Gate 2 approval |
 | V1-BATCH-LAKEHOUSE | Data Engineering + Infrastructure Workers | CSV happy path and minimum Bronze/Silver/Gold Iceberg | Planned; not started | After approved DEV infrastructure |
 | V1-CDC | Data Engineering + Infrastructure Workers | RDS PostgreSQL, DMS full load/CDC and current-state lakehouse flow | Planned; not started | V1 integration review |

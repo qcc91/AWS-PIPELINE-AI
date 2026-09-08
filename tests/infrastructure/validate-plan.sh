@@ -82,4 +82,4 @@ for index in "${!patterns[@]}"; do
 done
 [[ "$pattern_sum" == "$expected" ]] || fail "manifest pattern counts sum to $pattern_sum, not $expected"
 
-echo "PASS: dev reviewed plan contains exactly 76 approved create actions, with zero update/delete/replace actions."
+echo "PASS: dev reviewed plan contains exactly 62 approved create actions, with zero update/delete/replace actions."

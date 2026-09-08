@@ -145,12 +145,13 @@ variable "availability_zones" {
 }
 
 variable "terraform_trusted_role_arns" {
-  description = "Explicit same-account operator roles trusted by the Terraform execution role."
+  description = "Deferred V3 Terraform trust roles; unused by the V1 DEV root."
   type        = list(string)
+  default     = []
 
   validation {
     condition = (
-      length(var.terraform_trusted_role_arns) > 0 && alltrue([
+      alltrue([
         for arn in var.terraform_trusted_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -164,10 +165,11 @@ variable "terraform_trusted_role_arns" {
 variable "kms_admin_role_arns" {
   description = "Explicit same-account administrators for platform and audit KMS keys."
   type        = list(string)
+  default     = []
 
   validation {
     condition = (
-      length(var.kms_admin_role_arns) > 0 && alltrue([
+      (var.allow_root_for_v1 || length(var.kms_admin_role_arns) > 0) && alltrue([
         for arn in var.kms_admin_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -177,14 +179,20 @@ variable "kms_admin_role_arns" {
     error_message = "kms_admin_role_arns must contain explicit same-account path-capable role ARNs."
   }
 }
+variable "allow_root_for_v1" {
+  description = "Temporary V1 root KMS allowance."
+  type        = bool
+  default     = true
+}
 
 variable "lakeformation_admin_role_arns" {
-  description = "Explicit same-account Lake Formation administrator roles."
+  description = "Deferred V3 Lake Formation administrator roles; unused by the V1 DEV root."
   type        = list(string)
+  default     = []
 
   validation {
     condition = (
-      length(var.lakeformation_admin_role_arns) > 0 && alltrue([
+      alltrue([
         for arn in var.lakeformation_admin_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -196,41 +204,49 @@ variable "lakeformation_admin_role_arns" {
 }
 
 variable "data_engineer_role_arn" {
-  description = "Explicit same-account DataEngineer role ARN."
+  description = "Deferred V3 DataEngineer role ARN; unused by the V1 DEV root."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.data_engineer_role_arn))
+    condition     = var.data_engineer_role_arn == null || can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.data_engineer_role_arn))
     error_message = "data_engineer_role_arn must be an explicit same-account path-capable role ARN."
   }
 }
 
 variable "analyst_role_arn" {
-  description = "Explicit same-account Analyst role ARN."
+  description = "Deferred V3 Analyst role ARN; unused by the V1 DEV root."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.analyst_role_arn))
+    condition     = var.analyst_role_arn == null || can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.analyst_role_arn))
     error_message = "analyst_role_arn must be an explicit same-account path-capable role ARN."
   }
 }
 
 variable "ml_engineer_role_arn" {
-  description = "Explicit same-account MLEngineer role ARN."
+  description = "Deferred V3 MLEngineer role ARN; unused by the V1 DEV root."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.ml_engineer_role_arn))
+    condition     = var.ml_engineer_role_arn == null || can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.ml_engineer_role_arn))
     error_message = "ml_engineer_role_arn must be an explicit same-account path-capable role ARN."
   }
 }
 
 variable "rag_application_role_arn" {
-  description = "Explicit same-account RAG role retained only as a zero-grant Lake Formation boundary."
+  description = "Deferred V3 RAGApplication role ARN; unused by the V1 DEV root."
   type        = string
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.rag_application_role_arn))
+    condition     = var.rag_application_role_arn == null || can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.rag_application_role_arn))
     error_message = "rag_application_role_arn must be an explicit same-account path-capable role ARN."
   }
 }

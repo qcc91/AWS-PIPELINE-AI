@@ -266,7 +266,8 @@ if ($moduleMain -match '(?is)Null\s*=\s*\{\s*"s3:x-amz-server-side-encryption(?:
 
 Assert-Match $moduleMain 'enable_key_rotation\s*=\s*true' "KMS rotation is missing"
 Assert-Match $moduleMain 'deletion_window_in_days\s*=\s*30' "KMS deletion window is missing"
-if ($moduleMain -match 'arn:aws:iam::\$\{var\.account_id\}:root') { Fail "state KMS policy must not use account-root principal" }
+Assert-Match $moduleMain 'var\.allow_root_for_v1\s*\?\s*\[\{[\s\S]*?arn:aws:iam::\$\{var\.account_id\}:root' "state KMS root access must be guarded by the explicit V1 flag"
+if ($moduleMain -match 'Action\s*=\s*"kms:\*"') { Fail "state KMS policy must not use kms:*" }
 foreach ($sid in [regex]::Matches($moduleMain, '(?im)^\s*Sid\s*=\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }) {
   $renderedSid = $sid.Replace('${role_index}', '0')
   if ($renderedSid -notmatch '^[A-Za-z0-9]+$') {
@@ -278,7 +279,7 @@ $hclRolePrefix = '^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A
 if (-not $moduleVariables.Contains($hclRolePrefix)) {
   Fail "same-account IAM role validation with path support is missing"
 }
-Assert-Match $moduleVariables 'length\(var\.terraform_role_arns\)\s*>\s*0' "at least one state-key role ARN must be required"
+Assert-Match $moduleVariables 'var\.allow_root_for_v1[\s\S]*?length\(var\.terraform_role_arns\)\s*>\s*0' "state roles may be omitted only under the V1 root shortcut"
 $rolePattern = '^arn:aws:iam::123456789012:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$'
 if ("arn:aws:iam::123456789012:role/platform/dev/TerraformExecution" -notmatch $rolePattern) {
   Fail "role validation regression: a reasonable IAM role path must be accepted"
@@ -375,9 +376,10 @@ Assert-Match $kmsMain 'enable_key_rotation\s*=\s*true' "KMS rotation is missing"
 Assert-Match $kmsMain 'deletion_window_in_days\s*=\s*30' "KMS 30-day deletion window is missing"
 Assert-Match $kmsMain 'prevent_destroy\s*=\s*true' "KMS key deletion protection is missing"
 Assert-Match $kmsMain 'target_key_id\s*=\s*aws_kms_key\.this\.key_id' "KMS alias target is missing"
-if ($kmsMain -match 'arn:aws:iam::\$\{var\.account_id\}:root' -or ([regex]::Matches($kmsMain, 'Action\s*=\s*"kms:\*"')).Count -gt 0) {
-  Fail "KMS must not contain account-root delegation or direct kms:*"
+if (([regex]::Matches($kmsMain, 'Action\s*=\s*"kms:\*"')).Count -gt 0) {
+  Fail "KMS must not contain direct kms:*"
 }
+Assert-Match $kmsMain 'var\.allow_root_for_v1\s*\?\s*\[\{[\s\S]*?arn:aws:iam::\$\{var\.account_id\}:root' "platform KMS root access must be guarded by the explicit V1 flag"
 $kmsAdmin = [regex]::Match($kmsMain, '(?s)for role_index, role_arn in var\.admin_role_arns\s*:\s*\{(?<body>.*?)\n\s*\}\n\s*\],').Groups['body'].Value
 $kmsUser = [regex]::Match($kmsMain, '(?s)for role_index, role_arn in var\.user_role_arns\s*:\s*\{(?<body>.*?)\n\s*\}\n\s*\],').Groups['body'].Value
 if ([string]::IsNullOrWhiteSpace($kmsAdmin) -or $kmsAdmin -match 'kms:\*') {
@@ -537,9 +539,10 @@ foreach ($resourceType in @("aws_kms_key", "aws_kms_alias", "aws_s3_bucket", "aw
     Fail "monitoring resource missing or duplicated: $resourceType"
   }
 }
-if ($monitoringMain -match 'arn:aws:iam::\$\{var\.account_id\}:root' -or ([regex]::Matches($monitoringMain, 'Action\s*=\s*"kms:\*"')).Count -gt 0) {
-  Fail "monitoring KMS must not contain account-root delegation or direct kms:*"
+if (([regex]::Matches($monitoringMain, 'Action\s*=\s*"kms:\*"')).Count -gt 0) {
+  Fail "monitoring KMS must not contain direct kms:*"
 }
+Assert-Match $monitoringMain 'var\.allow_root_for_v1\s*\?\s*\[\{[\s\S]*?arn:aws:iam::\$\{var\.account_id\}:root' "audit KMS root access must be guarded by the explicit V1 flag"
 foreach ($kmsGrant in @("AllowCloudTrailGenerateDataKey", "AllowCloudTrailDescribeKey", "AllowCloudWatchLogsEncryption", "AllowSnsEncryption")) {
   Assert-Match $monitoringMain ('Sid\s*=\s*"' + $kmsGrant + '"[\s\S]*?Condition\s*=\s*\{') "conditioned monitoring KMS grant missing: $kmsGrant"
 }
@@ -628,13 +631,14 @@ $prodBackend = Get-Content -LiteralPath (Join-Path $prodRoot "backend.hcl.exampl
 $devVersions = Get-Content -LiteralPath (Join-Path $devRoot "versions.tf") -Raw
 $prodVersions = Get-Content -LiteralPath (Join-Path $prodRoot "versions.tf") -Raw
 
-Assert-Match $devVersions 'backend\s+"s3"\s*\{\s*\}' "DEV partial S3 backend declaration is missing"
+if ($devVersions -match 'backend\s+"s3"') { Fail "DEV V1 must use local state until reviewed bootstrap resources exist; S3 migration is deferred to V4" }
 Assert-Match $prodVersions 'backend\s+"s3"\s*\{\s*\}' "PROD partial S3 backend declaration is missing"
 
 foreach ($rootEntry in @(@("DEV", $devMain), @("PROD", $prodMain))) {
   $rootName = $rootEntry[0]
   $rootMain = $rootEntry[1]
-  foreach ($moduleName in @("common", "networking", "platform_kms", "storage", "iam", "glue", "lakeformation", "monitoring")) {
+  $requiredModules = if ($rootName -eq "DEV") { @("common", "networking", "platform_kms", "storage", "glue", "monitoring") } else { @("common", "networking", "platform_kms", "storage", "iam", "glue", "lakeformation", "monitoring") }
+  foreach ($moduleName in $requiredModules) {
     if (([regex]::Matches($rootMain, '(?m)^module\s+"' + $moduleName + '"\s*\{')).Count -ne 1) {
       Fail "$rootName must wire module $moduleName exactly once"
     }
@@ -642,6 +646,9 @@ foreach ($rootEntry in @(@("DEV", $devMain), @("PROD", $prodMain))) {
   if ($rootMain -match '(?im)^\s*resource\s+"' -or $rootMain -match '(?i)source\s*=\s*"[^\"]*(bedrock|rag|nat|internet-gateway)') {
     Fail "$rootName root must use only the approved foundation modules and declare no resources directly"
   }
+}
+if ($devMain -match '(?m)^module\s+"(iam|lakeformation)"\s*\{') {
+  Fail "DEV V1 must defer IAM persona and Lake Formation governance modules to V3"
 }
 
 $bucketPurposeMatch = [regex]::Match($devMain, '(?ms)for purpose in \[(?<purposes>.*?)\]\s*:\s*purpose')
@@ -656,13 +663,6 @@ if (($devPurposes.Count -ne 5) -or (@(Compare-Object $approvedPurposes $devPurpo
 Assert-Match $devMain 'module\s+"storage"[\s\S]*?for_each\s*=\s*local\.bucket_names' "DEV must instantiate five generic S3 modules"
 Assert-Match $devMain 'kms_key_arn\s*=\s*module\.platform_kms\.key_arn' "DEV S3 must use the platform KMS key"
 Assert-Match $devMain 'module\s+"platform_kms"\s*\{[\s\S]*?user_role_arns\s*=\s*\[\]' "DEV platform KMS must not directly grant data-plane roles in Phase 1"
-foreach ($purpose in @("lakehouse", "control")) {
-  if (-not $devMain.Contains('module.storage["' + $purpose + '"].bucket_arn')) {
-    Fail "DEV IAM/Lake Formation wiring must use the $purpose bucket ARN"
-  }
-}
-Assert-Match $devMain 'data_access_role_arn\s*=\s*module\.iam\.lakeformation_registration_role_arn' "DEV Lake Formation must use the created registration role"
-Assert-Match $devMain 'database_names\s*=\s*module\.glue\.database_names' "DEV Lake Formation must consume Glue database outputs"
 Assert-Match $devMain 'lakehouse_location_uri\s*=\s*"s3://\$\{module\.storage\["lakehouse"\]\.bucket_id\}/lakehouse"' "DEV Glue lakehouse location wiring is missing"
 Assert-Match $devMain 'control_location_uri\s*=\s*"s3://\$\{module\.storage\["control"\]\.bucket_id\}/control"' "DEV Glue control location wiring is missing"
 
@@ -682,9 +682,9 @@ if (([regex]::Matches($prodOutputs, 'try\(module\.(networking|platform_kms|iam|g
   Fail "PROD resource-bearing module outputs must be count-safe"
 }
 Assert-Match $prodOutputs 'expected_resource_instance_count[\s\S]*?value\s*=\s*0' "PROD expected instance output must be zero"
-Assert-Match $devOutputs 'expected_resource_instance_count[\s\S]*?value\s*=\s*76' "DEV expected instance output must be 76"
+Assert-Match $devOutputs 'expected_resource_instance_count[\s\S]*?value\s*=\s*62' "DEV expected V1 instance output must be 62"
 
-foreach ($requiredInput in @("account_id", "account_short", "org_short", "vpc_cidr", "availability_zones", "terraform_trusted_role_arns", "kms_admin_role_arns", "lakeformation_admin_role_arns", "data_engineer_role_arn", "analyst_role_arn", "ml_engineer_role_arn", "rag_application_role_arn", "data_noncurrent_retention_days", "audit_noncurrent_retention_days", "audit_retention_days", "log_retention_days", "monthly_budget_usd")) {
+foreach ($requiredInput in @("account_id", "account_short", "org_short", "vpc_cidr", "availability_zones", "data_noncurrent_retention_days", "audit_noncurrent_retention_days", "audit_retention_days", "log_retention_days", "monthly_budget_usd")) {
   $inputBlock = [regex]::Match($devVariables, '(?ms)^variable\s+"' + $requiredInput + '"\s*\{(?<body>.*?)^\}').Groups['body'].Value
   if ([string]::IsNullOrWhiteSpace($inputBlock) -or $inputBlock -match '(?im)^\s*default\s*=') {
     Fail "DEV plan input $requiredInput must be explicit and have no default"
@@ -708,8 +708,8 @@ if ($devBackend -eq $prodBackend) {
 $manifestPath = Join-Path $repo "tests/infrastructure/approved-plan-manifest.json"
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $patternTotal = ($manifest.environments.dev.address_patterns | Measure-Object -Property count -Sum).Sum
-if ($manifest.environments.dev.expected_active_changes -ne 76 -or $patternTotal -ne 76) {
-  Fail "DEV approved manifest and address-pattern counts must both equal 76"
+if ($manifest.environments.dev.expected_active_changes -ne 62 -or $patternTotal -ne 62) {
+  Fail "DEV V1 approved manifest and address-pattern counts must both equal 62"
 }
 if ($manifest.environments.prod.expected_active_changes -ne 0 -or @($manifest.environments.prod.address_patterns).Count -ne 0) {
   Fail "PROD approved manifest must permit zero active changes"

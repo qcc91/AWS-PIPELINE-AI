@@ -1,44 +1,43 @@
-# DEV non-root identity bootstrap requirements
+# DEV identity roadmap
 
-## Security boundary
+## V1 override
 
-The AWS account root principal is discovery-only for the current preparation
-stage and must not be used as Terraform execution identity, operator, KMS
-administrator, Lake Formation administrator, DataEngineer, Analyst,
-MLEngineer, or RAGApplication. No credentials or session tokens belong in this
-repository.
+The Human Owner has approved temporary use of the existing authenticated AWS
+root CLI session for V1 planning and DEV deployment. This avoids blocking the
+happy path on IAM Identity Center and named persona roles. It does not authorize
+credential persistence, access-key creation, secret output, PROD deployment, or
+any apply before reviewed-plan approval.
 
-## Minimum prerequisite before a trustworthy plan
+Proper non-root least-privilege execution and DataEngineer, Analyst,
+MLEngineer, RAGApplication, KMS and Lake Formation role separation remain
+required in V3.
 
-Prefer an AWS IAM Identity Center human operator with MFA and short-lived CLI
-credentials. The session must be non-root and must expose its role ARN through
-`aws sts get-caller-identity`. If an existing non-root administrator/operator
-identity already exists, it may be used temporarily for DEV bootstrap and plan
-preparation after Human approval; no long-lived IAM access key is required.
+## Final security boundary
 
-The temporary DEV operator may also be nominated as KMS administrator for the
-bootstrap key. For the foundation plan, the current Terraform validation
-requires distinct Lake Formation administrator, registration, DataEngineer,
-Analyst, MLEngineer, and RAGApplication role ARNs. These identities may not be
-invented, replaced with root, or collapsed into one role.
+No credentials or session tokens belong in this repository. Outside the
+explicit V1 shortcut, the root principal must not be used as Terraform
+execution identity, operator, KMS administrator, Lake Formation administrator,
+or a data/application persona.
 
-If no suitable non-root operator exists, the Human Owner must use the AWS
-account recovery/root path once, outside this project automation, to enable IAM
-Identity Center or create a short-lived federated administrator path. Root
-credentials must then be closed and not supplied to Codex. This is the minimum
-account bootstrap needed before this project can safely discover or plan.
+## V1 execution state
 
-## Required read-only discovery
+The approved host execution context has verified region `ap-southeast-2`,
+account `199476069493`, and the exact same-account root caller. The V1 Terraform
+roots use an explicit `allow_root_for_v1` switch. DEV enables it; PROD locks it
+off. KMS policies scope root access to named management/data actions and do not
+use `kms:*`.
 
-Using the approved non-root session in `ap-southeast-2`, verify:
+V1 defers the Terraform execution role and Lake Formation persona/grant wiring
+to V3, so no fabricated role ARN is needed for the happy-path plan.
 
-- account ID and caller ARN;
-- all existing VPC CIDRs and overlap with `10.20.0.0/16`;
-- availability of two Sydney AZs;
-- exact existing role ARNs for operator, KMS admin, Lake Formation admin,
-  DataEngineer, Analyst, MLEngineer, and RAGApplication;
-- whether the operator can assume the intended DEV Terraform role.
+## V3 migration requirement
 
-Only exact discovered or Human-provided ARNs may enter a non-committed tfvars
-file. Plan/state artifacts remain ignored by Git and are retained for 90 days
-outside the repository. A plan does not authorize an apply.
+Replace the shortcut with an MFA-protected, short-lived IAM Identity Center or
+federated operator and distinct Terraform, KMS admin, Lake Formation admin,
+DataEngineer, Analyst, MLEngineer and RAGApplication roles. Disable
+`allow_root_for_v1`, update key policies, enable the retained IAM/Lake Formation
+modules, run negative access tests, and verify root is absent from operational
+use.
+
+Plan/state artifacts remain ignored by Git and are retained for 90 days outside
+the repository. A plan does not authorize an apply.

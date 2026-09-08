@@ -44,3 +44,8 @@ production-readiness documentation and final E2E validation.
 Design V1 choices so they do not unnecessarily block V2–V5, but do not add
 later-version complexity unless V1 technically requires it. Correct existing
 hardening remains in place without becoming a V1 perfection task.
+
+Temporary root execution is a Human-approved V1 shortcut for DEV Terraform
+planning and deployment only. No root credential may be stored or printed, and
+no access key may be created. Proper least-privilege IAM separation remains a
+required V3 outcome.

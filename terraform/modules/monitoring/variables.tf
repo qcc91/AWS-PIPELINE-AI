@@ -37,10 +37,11 @@ variable "bucket_name" {
 variable "kms_admin_role_arns" {
   description = "At least one explicit same-account administrator for the dedicated audit KMS key."
   type        = list(string)
+  default     = []
 
   validation {
     condition = (
-      length(var.kms_admin_role_arns) > 0 && alltrue([
+      (var.allow_root_for_v1 || length(var.kms_admin_role_arns) > 0) && alltrue([
         for arn in var.kms_admin_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -49,6 +50,11 @@ variable "kms_admin_role_arns" {
     )
     error_message = "kms_admin_role_arns must contain explicit same-account path-capable role ARNs without wildcards."
   }
+}
+variable "allow_root_for_v1" {
+  description = "Explicit V1 temporary root admin allowance."
+  type        = bool
+  default     = false
 }
 
 variable "log_retention_days" {
