@@ -77,3 +77,12 @@ None.
 - PowerShell gate passed with TASK-INF-001/002/003/004 output. Terraform/TFLint/Checkov were NOT RUN because tools/provider cache are unavailable; Bash was NOT RUN because the Windows Bash/WSL shim returns `E_ACCESSDENIED`.
 - Accepted paths remain zero-diff against `8f7ed17`. Manager accepted the task after independent review. AWS changes performed: None.
 - Manager-targeted correction: split the CloudTrail KMS grant so `GenerateDataKey*` alone requires the CloudTrail encryption context while `DescribeKey` retains exact source-account/source-ARN conditions without that context; added required current-object audit retention with `audit_retention_days >= audit_noncurrent_retention_days`; removed Lake Formation DataEngineer `DROP`; and removed Terraform review role `s3:ListAllMyBuckets`. PowerShell gate, `git diff --check`, and the accepted-path zero-diff check all passed after these changes.
+
+## TASK-INF-005 — Static integration complete and accepted
+
+- After the Luna implementation and two corrections returned without core wiring, Sol connected DEV common/networking/platform KMS/five generic S3/IAM/Glue/Lake Formation/monitoring modules without a dependency cycle.
+- DEV statically represents 76 instances: networking 7, platform KMS 2, five generic S3 modules 35, IAM 4, Glue 4, Lake Formation 10, and monitoring 14. PROD exposes the same interfaces but every resource-bearing module is validation-locked behind `enable_deployment=false`, yielding zero default instances and count-safe outputs.
+- Added isolated foundation backend/tfvars examples, the exact machine-readable 76-address contract, and PowerShell/Bash plan JSON validators for actions, approved addresses, public/interface networking, destructive buckets, and prohibited services.
+- PowerShell TASK-INF-001–005 offline gate passed. Terraform/provider validation, actual plan, TFLint, Checkov, and Bash execution remain NOT RUN because required local tools/provider cache are unavailable; no plan JSON was fabricated.
+- Cost remains USD 4–12/month: three KMS keys, 76 foundation instances, 9 bootstrap instances, and zero PROD instances. `git diff --check` passed. Manager accepted the static integration; actual Terraform plans remain NOT RUN. AWS changes performed: None.
+- Manager added partial S3 backend declarations, a USD 12 cost-review input, and removed direct data-role grants from the shared platform KMS key before acceptance.

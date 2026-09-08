@@ -95,7 +95,7 @@ Terraform S3 backend 的 `use_lockfile`、版本控制建议及权限要求依�
 | Foundation | Route tables | 1–2 | 最小路由，不建 IGW/NAT |
 | Foundation | S3 Gateway VPC Endpoint | 1 | 无小时费的 S3 私网路径 |
 | Foundation | Platform KMS key + alias | 1 | DEV data/log encryption；后续按职责证明需要才拆 key |
-| Foundation | S3 buckets | 最多 6 | landing、lakehouse、quarantine、documents、artifacts、audit-logs |
+| Foundation | S3 buckets | 最多 6 | Phase 1 为 landing、lakehouse、control、quarantine、documents、audit-logs；artifacts 延至 ML 阶段按需创建 |
 | Foundation | IAM roles/policies | 2–4 | Terraform plan/apply 与 CloudTrail logging；不预建业务角色 |
 | Foundation | Glue databases | 4 | bronze、silver、gold、control；表尚不创建 |
 | Foundation | Lake Formation registrations/grants | 1–4 | lakehouse/control location 与管理员基线；PII grants 后续细化 |

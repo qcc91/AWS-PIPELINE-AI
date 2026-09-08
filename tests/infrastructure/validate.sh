@@ -468,10 +468,104 @@ for module_name in iam glue lakeformation monitoring; do
   done
 done
 
+# TASK-INF-005 environment integration and reviewed-plan contract assertions.
+dev_root="$terraform_root/environments/dev"
+prod_root="$terraform_root/environments/prod"
+dev_main="$dev_root/main.tf"
+prod_main="$prod_root/main.tf"
+dev_variables="$dev_root/variables.tf"
+prod_variables="$prod_root/variables.tf"
+dev_outputs="$dev_root/outputs.tf"
+prod_outputs="$prod_root/outputs.tf"
+dev_backend="$dev_root/backend.hcl.example"
+prod_backend="$prod_root/backend.hcl.example"
+dev_versions="$dev_root/versions.tf"
+prod_versions="$prod_root/versions.tf"
+
+grep -Eq 'backend[[:space:]]+"s3"[[:space:]]*\{[[:space:]]*\}' "$dev_versions" || fail "DEV partial S3 backend declaration is missing"
+grep -Eq 'backend[[:space:]]+"s3"[[:space:]]*\{[[:space:]]*\}' "$prod_versions" || fail "PROD partial S3 backend declaration is missing"
+
+for root_entry in "DEV:$dev_main" "PROD:$prod_main"; do
+  root_name="${root_entry%%:*}"
+  root_main="${root_entry#*:}"
+  for module_name in common networking platform_kms storage iam glue lakeformation monitoring; do
+    [[ "$(grep -Ec "^module[[:space:]]+\"${module_name}\"[[:space:]]*\{" "$root_main")" == '1' ]] || fail "$root_name must wire module $module_name exactly once"
+  done
+  ! grep -Eiq '^[[:space:]]*resource[[:space:]]+"|source[[:space:]]*=[[:space:]]*"[^\"]*(bedrock|rag|nat|internet-gateway)' "$root_main" || fail "$root_name root must use only approved foundation modules and no direct resources"
+done
+
+purpose_block="$(sed -n '/for purpose in \[/,/^[[:space:]]*\][[:space:]]*:/p' "$dev_main")"
+for purpose in landing lakehouse control quarantine documents; do
+  [[ "$(grep -Fc "\"$purpose\"" <<<"$purpose_block")" == '1' ]] || fail "DEV storage purpose missing or duplicated: $purpose"
+done
+[[ "$(grep -Ec '^[[:space:]]*"(landing|lakehouse|control|quarantine|documents)",[[:space:]]*$' <<<"$purpose_block")" == '5' ]] || fail "DEV must define exactly five approved generic bucket purposes"
+compact_dev="$(tr -d '\r\n' < "$dev_main")"
+grep -Eq 'module[[:space:]]+"storage"[[:space:]]*\{.*for_each[[:space:]]*=[[:space:]]*local\.bucket_names' <<<"$compact_dev" || fail "DEV must instantiate five generic S3 modules"
+grep -Fq 'kms_key_arn               = module.platform_kms.key_arn' "$dev_main" || fail "DEV S3 must use the platform KMS key"
+grep -Eq 'module[[:space:]]+"platform_kms"[[:space:]]*\{.*user_role_arns[[:space:]]*=[[:space:]]*\[\]' <<<"$compact_dev" || fail "DEV platform KMS must not directly grant data-plane roles in Phase 1"
+for purpose in lakehouse control; do
+  grep -Fq "module.storage[\"$purpose\"].bucket_arn" "$dev_main" || fail "DEV IAM/Lake Formation wiring must use the $purpose bucket ARN"
+done
+grep -Fq 'data_access_role_arn       = module.iam.lakeformation_registration_role_arn' "$dev_main" || fail "DEV Lake Formation must use the registration role"
+grep -Fq 'database_names             = module.glue.database_names' "$dev_main" || fail "DEV Lake Formation must consume Glue database outputs"
+grep -Fq 'lakehouse_location_uri = "s3://${module.storage["lakehouse"].bucket_id}/lakehouse"' "$dev_main" || fail "DEV Glue lakehouse location wiring missing"
+grep -Fq 'control_location_uri   = "s3://${module.storage["control"].bucket_id}/control"' "$dev_main" || fail "DEV Glue control location wiring missing"
+
+dev_enable_block="$(sed -n '/^variable "enable_deployment"/,/^}/p' "$dev_variables")"
+grep -Eiq 'default[[:space:]]*=[[:space:]]*true' <<<"$dev_enable_block" || fail "DEV enable_deployment must default true"
+grep -Eiq 'condition[[:space:]]*=[[:space:]]*var\.enable_deployment' <<<"$dev_enable_block" || fail "DEV topology switch must be locked enabled"
+
+compact_prod="$(tr -d '\r\n' < "$prod_main")"
+for module_name in networking platform_kms iam glue lakeformation monitoring; do
+  grep -Eq "module[[:space:]]+\"${module_name}\"[[:space:]]*\{.*count[[:space:]]*=[[:space:]]*var\.enable_deployment[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0" <<<"$compact_prod" || fail "PROD resource module $module_name must be count-gated"
+done
+grep -Eq 'module[[:space:]]+"storage"[[:space:]]*\{.*for_each[[:space:]]*=[[:space:]]*var\.enable_deployment[[:space:]]*\?[[:space:]]*local\.bucket_names[[:space:]]*:[[:space:]]*\{\}' <<<"$compact_prod" || fail "PROD storage modules must be gated to an empty map"
+grep -Eq 'module[[:space:]]+"platform_kms"[[:space:]]*\{.*user_role_arns[[:space:]]*=[[:space:]]*\[\]' <<<"$compact_prod" || fail "PROD platform KMS design must not directly grant data-plane roles"
+prod_enable_block="$(sed -n '/^variable "enable_deployment"/,/^}/p' "$prod_variables")"
+grep -Eiq 'default[[:space:]]*=[[:space:]]*false' <<<"$prod_enable_block" || fail "PROD enable_deployment must default false"
+grep -Eiq 'condition[[:space:]]*=[[:space:]]*!var\.enable_deployment' <<<"$prod_enable_block" || fail "PROD deployment must be validation-locked off"
+[[ "$(grep -Ec 'try\(module\.(networking|platform_kms|iam|glue|lakeformation|monitoring)\[0\]' "$prod_outputs")" -ge '6' ]] || fail "PROD resource module outputs must be count-safe"
+compact_dev_outputs="$(tr -d '\r\n' < "$dev_outputs")"
+compact_prod_outputs="$(tr -d '\r\n' < "$prod_outputs")"
+grep -Eq 'output[[:space:]]+"expected_resource_instance_count".*value[[:space:]]*=[[:space:]]*76' <<<"$compact_dev_outputs" || fail "DEV expected instance output must be 76"
+grep -Eq 'output[[:space:]]+"expected_resource_instance_count".*value[[:space:]]*=[[:space:]]*0' <<<"$compact_prod_outputs" || fail "PROD expected instance output must be zero"
+
+for required_input in account_id account_short org_short vpc_cidr availability_zones terraform_trusted_role_arns kms_admin_role_arns lakeformation_admin_role_arns data_engineer_role_arn analyst_role_arn ml_engineer_role_arn rag_application_role_arn data_noncurrent_retention_days audit_noncurrent_retention_days audit_retention_days log_retention_days monthly_budget_usd; do
+  input_block="$(sed -n "/^variable \"${required_input}\"/,/^}/p" "$dev_variables")"
+  [[ -n "$input_block" ]] || fail "DEV explicit plan input missing: $required_input"
+  ! grep -Eq '^[[:space:]]*default[[:space:]]*=' <<<"$input_block" || fail "DEV plan input $required_input must have no default"
+done
+
+for backend_entry in "DEV:$dev_backend:dev" "PROD:$prod_backend:prod"; do
+  backend_name="${backend_entry%%:*}"
+  remainder="${backend_entry#*:}"
+  backend_file="${remainder%%:*}"
+  environment_name="${remainder##*:}"
+  for setting in 'key[[:space:]]*=[[:space:]]*"foundation/terraform.tfstate"' 'region[[:space:]]*=[[:space:]]*"ap-southeast-2"' 'encrypt[[:space:]]*=[[:space:]]*true' 'use_lockfile[[:space:]]*=[[:space:]]*true' 'kms_key_id[[:space:]]*=[[:space:]]*"arn:aws:kms:ap-southeast-2:<account_id>:key/<'; do
+    grep -Eq "$setting" "$backend_file" || fail "$backend_name foundation backend setting missing: $setting"
+  done
+  grep -Fq "bucket       = \"<org>-insurance-${environment_name}-tfstate-<account_short>\"" "$backend_file" || fail "$backend_name backend bucket is not environment-isolated"
+  grep -Fq "role_arn = \"arn:aws:iam::<account_id>:role/<${environment_name}_terraform_backend_role_path_and_name>\"" "$backend_file" || fail "$backend_name backend role is not environment-isolated"
+done
+! cmp -s "$dev_backend" "$prod_backend" || fail "DEV and PROD foundation backend examples must differ"
+
+manifest="$repo/tests/infrastructure/approved-plan-manifest.json"
+grep -Fq '"expected_active_changes": 76' "$manifest" || fail "DEV manifest must require 76 active changes"
+grep -Fq '"expected_active_changes": 0' "$manifest" || fail "PROD manifest must require zero active changes"
+manifest_pattern_sum="$(grep -Eo '"count":[[:space:]]*[0-9]+' "$manifest" | awk -F: '{gsub(/[[:space:]]/, "", $2); sum += $2} END {print sum + 0}')"
+[[ "$manifest_pattern_sum" == '76' ]] || fail "approved address-pattern counts must sum to 76"
+for forbidden_type in aws_internet_gateway aws_nat_gateway aws_sns_topic_subscription aws_cloudwatch_metric_alarm aws_bedrockagent_agent aws_bedrockagent_knowledge_base; do
+  grep -Fq "\"$forbidden_type\"" "$manifest" || fail "approved manifest must reject $forbidden_type"
+done
+plan_validator="$repo/tests/infrastructure/validate-plan.sh"
+for plan_rule in 'only create is allowed' 'PROD must have zero resource changes' 'map_public_ip_on_launch' 'vpc_endpoint_type' 'force_destroy=false' 'must match exactly one approved address pattern'; do
+  grep -Fq "$plan_rule" "$plan_validator" || fail "Bash plan validator missing rule: $plan_rule"
+done
+
 secret_pattern='aws_access_key_id|aws_secret_access_key|password[[:space:]]*=|secret[[:space:]]*=[[:space:]]*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
 mapfile -d '' -t scan_files < <(find "$terraform_root" "$repo/buildspecs" "$repo/tests/infrastructure" -type f \( -name '*.tf*' -o -name '*.hcl*' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.ps1' -o -name '*.sh' \) ! -name 'validate.ps1' ! -name 'validate.sh' -not -path '*/.terraform/*' -print0)
 if ((${#scan_files[@]} > 0)) && grep -Eiq "$secret_pattern" "${scan_files[@]}"; then
   fail "possible credential material detected"
 fi
 
-echo "PASS: offline TASK-INF-001/002/003/004 infrastructure assertions. AWS changes performed: None."
+echo "PASS: offline TASK-INF-001/002/003/004/005 infrastructure assertions. AWS changes performed: None."

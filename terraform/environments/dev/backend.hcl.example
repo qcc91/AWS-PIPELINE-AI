@@ -1,0 +1,10 @@
+bucket       = "<org>-insurance-dev-tfstate-<account_short>"
+key          = "foundation/terraform.tfstate"
+region       = "ap-southeast-2"
+encrypt      = true
+kms_key_id   = "arn:aws:kms:ap-southeast-2:<account_id>:key/<dev_state_kms_key_id>"
+use_lockfile = true
+
+assume_role = {
+  role_arn = "arn:aws:iam::<account_id>:role/<dev_terraform_backend_role_path_and_name>"
+}

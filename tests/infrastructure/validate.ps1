@@ -616,6 +616,118 @@ foreach ($moduleName in @("iam", "glue", "lakeformation", "monitoring")) {
   }
 }
 
+# TASK-INF-005 environment integration and reviewed-plan contract assertions.
+$devRoot = Join-Path $terraformRoot "environments/dev"
+$prodRoot = Join-Path $terraformRoot "environments/prod"
+$devMain = Get-Content -LiteralPath (Join-Path $devRoot "main.tf") -Raw
+$prodMain = Get-Content -LiteralPath (Join-Path $prodRoot "main.tf") -Raw
+$devVariables = Get-Content -LiteralPath (Join-Path $devRoot "variables.tf") -Raw
+$prodVariables = Get-Content -LiteralPath (Join-Path $prodRoot "variables.tf") -Raw
+$devOutputs = Get-Content -LiteralPath (Join-Path $devRoot "outputs.tf") -Raw
+$prodOutputs = Get-Content -LiteralPath (Join-Path $prodRoot "outputs.tf") -Raw
+$devBackend = Get-Content -LiteralPath (Join-Path $devRoot "backend.hcl.example") -Raw
+$prodBackend = Get-Content -LiteralPath (Join-Path $prodRoot "backend.hcl.example") -Raw
+$devVersions = Get-Content -LiteralPath (Join-Path $devRoot "versions.tf") -Raw
+$prodVersions = Get-Content -LiteralPath (Join-Path $prodRoot "versions.tf") -Raw
+
+Assert-Match $devVersions 'backend\s+"s3"\s*\{\s*\}' "DEV partial S3 backend declaration is missing"
+Assert-Match $prodVersions 'backend\s+"s3"\s*\{\s*\}' "PROD partial S3 backend declaration is missing"
+
+foreach ($rootEntry in @(@("DEV", $devMain), @("PROD", $prodMain))) {
+  $rootName = $rootEntry[0]
+  $rootMain = $rootEntry[1]
+  foreach ($moduleName in @("common", "networking", "platform_kms", "storage", "iam", "glue", "lakeformation", "monitoring")) {
+    if (([regex]::Matches($rootMain, '(?m)^module\s+"' + $moduleName + '"\s*\{')).Count -ne 1) {
+      Fail "$rootName must wire module $moduleName exactly once"
+    }
+  }
+  if ($rootMain -match '(?im)^\s*resource\s+"' -or $rootMain -match '(?i)source\s*=\s*"[^\"]*(bedrock|rag|nat|internet-gateway)') {
+    Fail "$rootName root must use only the approved foundation modules and declare no resources directly"
+  }
+}
+
+$bucketPurposeMatch = [regex]::Match($devMain, '(?ms)for purpose in \[(?<purposes>.*?)\]\s*:\s*purpose')
+if (-not $bucketPurposeMatch.Success) {
+  Fail "DEV five-bucket purpose map is missing"
+}
+$devPurposes = @([regex]::Matches($bucketPurposeMatch.Groups['purposes'].Value, '"([^\"]+)"') | ForEach-Object { $_.Groups[1].Value })
+$approvedPurposes = @("landing", "lakehouse", "control", "quarantine", "documents")
+if (($devPurposes.Count -ne 5) -or (@(Compare-Object $approvedPurposes $devPurposes).Count -ne 0)) {
+  Fail "DEV storage must contain exactly landing, lakehouse, control, quarantine, and documents"
+}
+Assert-Match $devMain 'module\s+"storage"[\s\S]*?for_each\s*=\s*local\.bucket_names' "DEV must instantiate five generic S3 modules"
+Assert-Match $devMain 'kms_key_arn\s*=\s*module\.platform_kms\.key_arn' "DEV S3 must use the platform KMS key"
+Assert-Match $devMain 'module\s+"platform_kms"\s*\{[\s\S]*?user_role_arns\s*=\s*\[\]' "DEV platform KMS must not directly grant data-plane roles in Phase 1"
+foreach ($purpose in @("lakehouse", "control")) {
+  if (-not $devMain.Contains('module.storage["' + $purpose + '"].bucket_arn')) {
+    Fail "DEV IAM/Lake Formation wiring must use the $purpose bucket ARN"
+  }
+}
+Assert-Match $devMain 'data_access_role_arn\s*=\s*module\.iam\.lakeformation_registration_role_arn' "DEV Lake Formation must use the created registration role"
+Assert-Match $devMain 'database_names\s*=\s*module\.glue\.database_names' "DEV Lake Formation must consume Glue database outputs"
+Assert-Match $devMain 'lakehouse_location_uri\s*=\s*"s3://\$\{module\.storage\["lakehouse"\]\.bucket_id\}/lakehouse"' "DEV Glue lakehouse location wiring is missing"
+Assert-Match $devMain 'control_location_uri\s*=\s*"s3://\$\{module\.storage\["control"\]\.bucket_id\}/control"' "DEV Glue control location wiring is missing"
+
+$devEnableBlock = [regex]::Match($devVariables, '(?ms)^variable\s+"enable_deployment"\s*\{(?<body>.*?)^\}').Groups['body'].Value
+Assert-Match $devEnableBlock 'default\s*=\s*true' "DEV enable_deployment must default true"
+Assert-Match $devEnableBlock 'condition\s*=\s*var\.enable_deployment' "DEV topology switch must be locked enabled"
+
+foreach ($moduleName in @("networking", "platform_kms", "iam", "glue", "lakeformation", "monitoring")) {
+  Assert-Match $prodMain ('module\s+"' + $moduleName + '"\s*\{[\s\S]*?count\s*=\s*var\.enable_deployment\s*\?\s*1\s*:\s*0') "PROD resource module $moduleName must be count-gated"
+}
+Assert-Match $prodMain 'module\s+"storage"\s*\{[\s\S]*?for_each\s*=\s*var\.enable_deployment\s*\?\s*local\.bucket_names\s*:\s*\{\}' "PROD storage modules must be gated to an empty map"
+Assert-Match $prodMain 'module\s+"platform_kms"\s*\{[\s\S]*?user_role_arns\s*=\s*\[\]' "PROD platform KMS design must not directly grant data-plane roles"
+$prodEnableBlock = [regex]::Match($prodVariables, '(?ms)^variable\s+"enable_deployment"\s*\{(?<body>.*?)^\}').Groups['body'].Value
+Assert-Match $prodEnableBlock 'default\s*=\s*false' "PROD enable_deployment must default false"
+Assert-Match $prodEnableBlock 'condition\s*=\s*!var\.enable_deployment' "PROD deployment must be validation-locked off in Phase 1"
+if (([regex]::Matches($prodOutputs, 'try\(module\.(networking|platform_kms|iam|glue|lakeformation|monitoring)\[0\]')).Count -lt 6) {
+  Fail "PROD resource-bearing module outputs must be count-safe"
+}
+Assert-Match $prodOutputs 'expected_resource_instance_count[\s\S]*?value\s*=\s*0' "PROD expected instance output must be zero"
+Assert-Match $devOutputs 'expected_resource_instance_count[\s\S]*?value\s*=\s*76' "DEV expected instance output must be 76"
+
+foreach ($requiredInput in @("account_id", "account_short", "org_short", "vpc_cidr", "availability_zones", "terraform_trusted_role_arns", "kms_admin_role_arns", "lakeformation_admin_role_arns", "data_engineer_role_arn", "analyst_role_arn", "ml_engineer_role_arn", "rag_application_role_arn", "data_noncurrent_retention_days", "audit_noncurrent_retention_days", "audit_retention_days", "log_retention_days", "monthly_budget_usd")) {
+  $inputBlock = [regex]::Match($devVariables, '(?ms)^variable\s+"' + $requiredInput + '"\s*\{(?<body>.*?)^\}').Groups['body'].Value
+  if ([string]::IsNullOrWhiteSpace($inputBlock) -or $inputBlock -match '(?im)^\s*default\s*=') {
+    Fail "DEV plan input $requiredInput must be explicit and have no default"
+  }
+}
+
+foreach ($backendEntry in @(@("DEV", $devBackend, "dev"), @("PROD", $prodBackend, "prod"))) {
+  $backendName = $backendEntry[0]
+  $backendText = $backendEntry[1]
+  $environmentName = $backendEntry[2]
+  foreach ($setting in @('key\s*=\s*"foundation/terraform\.tfstate"', 'region\s*=\s*"ap-southeast-2"', 'encrypt\s*=\s*true', 'use_lockfile\s*=\s*true', 'kms_key_id\s*=\s*"arn:aws:kms:ap-southeast-2:<account_id>:key/<')) {
+    Assert-Match $backendText $setting "$backendName foundation backend setting is missing: $setting"
+  }
+  Assert-Match $backendText ('bucket\s*=\s*"<org>-insurance-' + $environmentName + '-tfstate-<account_short>"') "$backendName foundation backend bucket is not environment-isolated"
+  Assert-Match $backendText ('role_arn\s*=\s*"arn:aws:iam::<account_id>:role/<' + $environmentName + '_terraform_backend_role_path_and_name>"') "$backendName backend role placeholder is not environment-isolated"
+}
+if ($devBackend -eq $prodBackend) {
+  Fail "DEV and PROD foundation backend examples must remain distinct"
+}
+
+$manifestPath = Join-Path $repo "tests/infrastructure/approved-plan-manifest.json"
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$patternTotal = ($manifest.environments.dev.address_patterns | Measure-Object -Property count -Sum).Sum
+if ($manifest.environments.dev.expected_active_changes -ne 76 -or $patternTotal -ne 76) {
+  Fail "DEV approved manifest and address-pattern counts must both equal 76"
+}
+if ($manifest.environments.prod.expected_active_changes -ne 0 -or @($manifest.environments.prod.address_patterns).Count -ne 0) {
+  Fail "PROD approved manifest must permit zero active changes"
+}
+foreach ($forbiddenType in @("aws_internet_gateway", "aws_nat_gateway", "aws_sns_topic_subscription", "aws_cloudwatch_metric_alarm", "aws_bedrockagent_agent", "aws_bedrockagent_knowledge_base")) {
+  if (@($manifest.forbidden_resource_types) -notcontains $forbiddenType) {
+    Fail "approved plan manifest must reject forbidden resource type: $forbiddenType"
+  }
+}
+$planValidator = Get-Content -LiteralPath (Join-Path $repo "tests/infrastructure/validate-plan.ps1") -Raw
+foreach ($planRule in @('only create is allowed', 'PROD must have zero resource changes', 'map_public_ip_on_launch', 'vpc_endpoint_type', 'force_destroy=false', 'must match exactly one approved address pattern')) {
+  if (-not $planValidator.Contains($planRule)) {
+    Fail "PowerShell plan validator is missing rule: $planRule"
+  }
+}
+
 $secretPattern = '(?i)(aws_access_key_id|aws_secret_access_key|password\s*=|secret\s*=\s*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)'
 $scanFiles = @(Get-ChildItem -LiteralPath $terraformRoot, (Join-Path $repo "buildspecs"), (Join-Path $repo "tests/infrastructure") -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object {
@@ -629,4 +741,4 @@ foreach ($file in $scanFiles) {
   }
 }
 
-Write-Output "PASS: offline TASK-INF-001/002/003/004 infrastructure assertions. AWS changes performed: None."
+Write-Output "PASS: offline TASK-INF-001/002/003/004/005 infrastructure assertions. AWS changes performed: None."

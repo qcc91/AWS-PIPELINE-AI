@@ -37,6 +37,7 @@ variable "purpose" {
     condition = contains([
       "landing",
       "lakehouse",
+      "control",
       "quarantine",
       "documents",
       "artifacts",

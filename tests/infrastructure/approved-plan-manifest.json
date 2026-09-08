@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "region": "ap-southeast-2",
+  "environments": {
+    "dev": {
+      "expected_active_changes": 76,
+      "allowed_actions": [
+        "create"
+      ],
+      "address_patterns": [
+        { "pattern": "^module\\.networking\\.aws_vpc\\.this$", "count": 1 },
+        { "pattern": "^module\\.networking\\.aws_subnet\\.private\\[[01]\\]$", "count": 2 },
+        { "pattern": "^module\\.networking\\.aws_route_table\\.private$", "count": 1 },
+        { "pattern": "^module\\.networking\\.aws_route_table_association\\.private\\[[01]\\]$", "count": 2 },
+        { "pattern": "^module\\.networking\\.aws_vpc_endpoint\\.s3$", "count": 1 },
+        { "pattern": "^module\\.platform_kms\\.aws_kms_key\\.this$", "count": 1 },
+        { "pattern": "^module\\.platform_kms\\.aws_kms_alias\\.this$", "count": 1 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket\\.this$", "count": 5 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_versioning\\.this$", "count": 5 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_ownership_controls\\.this$", "count": 5 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_public_access_block\\.this$", "count": 5 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_server_side_encryption_configuration\\.this$", "count": 5 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_lifecycle_configuration\\.this$", "count": 5 },
+        { "pattern": "^module\\.storage\\[\"(landing|lakehouse|control|quarantine|documents)\"\\]\\.aws_s3_bucket_policy\\.this$", "count": 5 },
+        { "pattern": "^module\\.iam\\.aws_iam_role\\.(terraform_execution|lakeformation_registration)$", "count": 2 },
+        { "pattern": "^module\\.iam\\.aws_iam_role_policy\\.(terraform_execution|lakeformation_registration)$", "count": 2 },
+        { "pattern": "^module\\.glue\\.aws_glue_catalog_database\\.layer\\[\"(bronze|silver|gold|control)\"\\]$", "count": 4 },
+        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_resource\\.location\\[\"(lakehouse|control)\"\\]$", "count": 2 },
+        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_data_lake_settings\\.this$", "count": 1 },
+        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_permissions\\.data_engineer_database\\[\"(bronze|silver|gold|control)\"\\]$", "count": 4 },
+        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_permissions\\.analyst_gold_database$", "count": 1 },
+        { "pattern": "^module\\.lakeformation\\.aws_lakeformation_permissions\\.ml_engineer_database\\[\"(silver|gold)\"\\]$", "count": 2 },
+        { "pattern": "^module\\.monitoring\\.aws_kms_key\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_kms_alias\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket_versioning\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket_ownership_controls\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket_public_access_block\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket_server_side_encryption_configuration\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket_lifecycle_configuration\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_s3_bucket_policy\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_cloudwatch_log_group\\.audit$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_iam_role\\.cloudtrail_delivery$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_iam_role_policy\\.cloudtrail_delivery$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_sns_topic\\.alerts$", "count": 1 },
+        { "pattern": "^module\\.monitoring\\.aws_cloudtrail\\.management$", "count": 1 }
+      ]
+    },
+    "prod": {
+      "expected_active_changes": 0,
+      "allowed_actions": [],
+      "address_patterns": []
+    }
+  },
+  "forbidden_resource_types": [
+    "aws_internet_gateway",
+    "aws_nat_gateway",
+    "aws_sns_topic_subscription",
+    "aws_cloudwatch_metric_alarm",
+    "aws_bedrockagent_agent",
+    "aws_bedrockagent_knowledge_base",
+    "aws_s3vectors_vector_bucket"
+  ]
+}

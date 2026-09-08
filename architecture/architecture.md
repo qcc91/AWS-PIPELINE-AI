@@ -66,6 +66,7 @@ RAG 的非结构化文档区与 Lakehouse 共用治理、安全、审计和生�
 |---|---|---|---|
 | landing | CSV、DMS full/CDC、Firehose 原始对象 | 追加、不可就地改写 | 版本控制、SSE-KMS、生命周期、来源前缀 |
 | lakehouse | Bronze/Silver/Gold Iceberg 数据 | 仅管道角色写 | Glue Catalog、Lake Formation、快照维护 |
+| control | pipeline run、reconciliation、quality 与审计控制数据 | 仅平台控制角色写 | 与业务数据分离、明确保留期、Lake Formation 注册 |
 | quarantine | schema/DQ/duplicate/parsing 失败 | 追加，按保留策略清理 | 严格访问、原因与原始记录 |
 | documents | RAG 原始文档及元数据 | 受控发布 | 版本、分类、来源、访问级别 |
 | artifacts | ML 模型/评估、作业临时产物、日志导出 | 工作负载管理 | 生命周期、模型版本、不可公开 |

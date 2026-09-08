@@ -1,0 +1,35 @@
+# Replace every angle-bracket placeholder with approved, non-secret DEV values.
+aws_region       = "ap-southeast-2"
+enable_deployment = true
+account_id        = "<12_digit_dev_account_id>"
+account_short     = "<dev_account_short>"
+org_short         = "<org_short>"
+
+owner               = "platform"
+cost_center         = "insurance-data-ai"
+data_classification = "restricted"
+
+vpc_cidr               = "<approved_non_conflicting_dev_rfc1918_cidr>"
+private_subnet_newbits  = 4
+private_subnet_netnums  = [0, 1]
+availability_zones      = ["ap-southeast-2a", "ap-southeast-2b"]
+
+terraform_trusted_role_arns = [
+  "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/operator-role>",
+]
+kms_admin_role_arns = [
+  "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/kms-admin-role>",
+]
+lakeformation_admin_role_arns = [
+  "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/lakeformation-admin-role>",
+]
+data_engineer_role_arn   = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/data-engineer-role>"
+analyst_role_arn         = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/analyst-role>"
+ml_engineer_role_arn     = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/ml-engineer-role>"
+rag_application_role_arn = "arn:aws:iam::<12_digit_dev_account_id>:role/<approved/rag-application-role>"
+
+data_noncurrent_retention_days  = 30
+audit_noncurrent_retention_days = 90
+audit_retention_days            = 365
+log_retention_days              = 90
+monthly_budget_usd              = 12
