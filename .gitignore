@@ -6,6 +6,9 @@
 
 # Local plans, variable values, and populated backend configuration
 *.tfplan
+__pycache__/
+*.py[cod]
+.pytest_cache/
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
