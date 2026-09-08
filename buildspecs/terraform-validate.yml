@@ -1,0 +1,31 @@
+version: 0.2
+
+# Validation only. No init, plan, apply, AWS CLI, or network-dependent command.
+phases:
+  build:
+    commands:
+      - bash tests/infrastructure/validate.sh
+      - |
+        if command -v tflint >/dev/null 2>&1; then
+          tflint --config terraform/.tflint.hcl --chdir terraform --recursive || {
+            echo 'TFLINT FAILED/NOT INITIALIZED; no --init or network download allowed'
+            exit 1
+          }
+        else
+          echo 'NOT RUN: tflint not installed'
+        fi
+      - |
+        if command -v checkov >/dev/null 2>&1; then
+          checkov --config-file terraform/.checkov.yaml --directory terraform --download-external-modules false || {
+            echo 'CHECKOV FAILED; offline validation did not pass'
+            exit 1
+          }
+        else
+          echo 'NOT RUN: checkov not installed'
+        fi
+
+artifacts:
+  files:
+    - terraform/**/*
+    - tests/infrastructure/**/*
+  discard-paths: no

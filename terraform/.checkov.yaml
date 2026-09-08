@@ -1,0 +1,9 @@
+framework:
+  - terraform
+quiet: true
+compact: true
+directory: .
+skip-path:
+  - .terraform
+  - terraform.tfstate.d
+download-external-modules: false

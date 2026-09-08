@@ -35,3 +35,10 @@
 
 - None for TASK-INF-001 offline implementation.
 - AWS account ID, execution role, CIDR conflict information, state retention, alert destination, and budget are required before applicable plan/apply checkpoints, not for TASK-INF-001.
+
+## Manager reviews
+
+- TASK-INF-001 accepted on 2026-09-08 after two focused Luna corrections.
+- Corrections addressed current tool/provider baselines, valid Terraform `-chdir` usage, Linux CodeBuild compatibility, recursive lint coverage, broader secret scanning, per-environment region checks, and YAML-safe buildspec commands.
+- Local offline PowerShell gate passed. Terraform, TFLint, Checkov, Bash, and YAML parser execution remain NOT RUN/unavailable and must not be represented as passing evidence.
+- AWS changes for TASK-INF-001: None.
