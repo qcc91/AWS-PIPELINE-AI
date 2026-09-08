@@ -64,3 +64,5 @@
 - 2026-09-08: Manager removed direct DataEngineer/Analyst/MLEngineer grants from the shared platform KMS key. Phase 1 uses an empty direct user list; future workload roles must receive scoped IAM and Lake Formation authorization for approved datasets.
 - 2026-09-08: DEV and PROD roots now declare partial S3 backends, and an explicit USD 12 monthly review threshold is captured as input only; no AWS Budgets resource is introduced.
 - P1-CP1 is reached as a stop point, but AWS-change approval is not yet safely actionable because provider-backed validation and exact bootstrap/foundation plans are unavailable.
+- 2026-09-08: Human accepted the P1-CP1 static review and authorized Plan Preparation only; `terraform apply` remains prohibited.
+- Read-only discovery found no local Terraform, AWS CLI, TFLint, Checkov, AWS credential environment indicators, AWS config/credentials files, or AWS PowerShell modules. STS identity discovery and real plan generation were therefore NOT RUN.
