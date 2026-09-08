@@ -227,8 +227,7 @@ fi
 
 grep -Eiq 'enable_key_rotation[[:space:]]*=[[:space:]]*true' "$module_main" || fail "KMS rotation is missing"
 grep -Eiq 'deletion_window_in_days[[:space:]]*=[[:space:]]*30' "$module_main" || fail "KMS deletion window is missing"
-grep -Fq 'AWS = "arn:aws:iam::${var.account_id}:root"' "$module_main" || fail "same-account root delegation is missing"
-grep -Fq 'Sid    = "EnableAccountRootDelegation"' "$module_main" || fail "stable account-root KMS Sid is missing"
+! grep -Fq 'arn:aws:iam::${var.account_id}:root' "$module_main" || fail "state KMS policy must not use account-root principal"
 grep -Fq 'Sid    = "AllowTerraformRole${role_index}"' "$module_main" || fail "stable role KMS Sid is missing"
 
 hcl_role_pattern='^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$'
@@ -298,8 +297,8 @@ grep -Eiq 'enable_key_rotation[[:space:]]*=[[:space:]]*true' "$kms_main" || fail
 grep -Eiq 'deletion_window_in_days[[:space:]]*=[[:space:]]*30' "$kms_main" || fail "KMS 30-day deletion window is missing"
 grep -Eiq 'prevent_destroy[[:space:]]*=[[:space:]]*true' "$kms_main" || fail "KMS key deletion protection is missing"
 grep -Fq 'target_key_id = aws_kms_key.this.key_id' "$kms_main" || fail "KMS alias target is missing"
-[[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$kms_main")" == '1' ]] || fail "KMS must contain exactly one kms:* action"
-[[ "$(grep -Ec 'Sid[[:space:]]*=[[:space:]]*"EnableAccountRootDelegation"' "$kms_main")" == '1' ]] || fail "KMS must contain exactly one account-root delegation Sid"
+[[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$kms_main")" == '0' ]] || fail "KMS must not contain direct kms:*"
+! grep -Fq 'arn:aws:iam::${var.account_id}:root' "$kms_main" || fail "KMS must not use account-root principal"
 for admin_action in kms:PutKeyPolicy kms:EnableKeyRotation kms:ScheduleKeyDeletion kms:CancelKeyDeletion kms:CreateGrant; do
   grep -Fq "\"$admin_action\"" "$kms_main" || fail "direct KMS administrator action missing: $admin_action"
 done
@@ -411,8 +410,8 @@ monitoring_variables="$terraform_root/modules/monitoring/variables.tf"
 for type in aws_kms_key aws_kms_alias aws_s3_bucket aws_s3_bucket_versioning aws_s3_bucket_ownership_controls aws_s3_bucket_public_access_block aws_s3_bucket_server_side_encryption_configuration aws_s3_bucket_lifecycle_configuration aws_s3_bucket_policy aws_cloudwatch_log_group aws_iam_role aws_iam_role_policy aws_sns_topic aws_cloudtrail; do
   [[ "$(grep -Ec "^[[:space:]]*resource[[:space:]]+\"${type}\"" "$monitoring_main")" == '1' ]] || fail "monitoring resource missing or duplicated: $type"
 done
-[[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$monitoring_main")" == '1' ]] || fail "monitoring KMS must have one root kms:* action"
-[[ "$(grep -Ec 'Sid[[:space:]]*=[[:space:]]*"EnableAccountRootDelegation"' "$monitoring_main")" == '1' ]] || fail "monitoring KMS root delegation must be unique"
+[[ "$(grep -Ec 'Action[[:space:]]*=[[:space:]]*"kms:\*"' "$monitoring_main")" == '0' ]] || fail "monitoring KMS must not contain direct kms:*"
+! grep -Fq 'arn:aws:iam::${var.account_id}:root' "$monitoring_main" || fail "monitoring KMS must not use account-root principal"
 compact_monitoring="$(tr -d '\r\n' < "$monitoring_main")"
 for sid in AllowCloudTrailGenerateDataKey AllowCloudTrailDescribeKey AllowCloudWatchLogsEncryption AllowSnsEncryption; do
   grep -Eq "Sid[[:space:]]*=[[:space:]]*\"${sid}\".*Condition[[:space:]]*=[[:space:]]*\{" <<<"$compact_monitoring" || fail "conditioned KMS grant missing: $sid"

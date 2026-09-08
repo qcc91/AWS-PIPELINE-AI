@@ -37,7 +37,7 @@ resource "aws_iam_role_policy" "terraform_execution" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid = "ReadUnscopedServiceMetadata"
+        Sid    = "ReadUnscopedServiceMetadata"
         Effect = "Allow"
         Action = [
           "ec2:DescribeAvailabilityZones",
@@ -46,7 +46,7 @@ resource "aws_iam_role_policy" "terraform_execution" {
         Resource = "*"
       },
       {
-        Sid = "InspectApprovedDataLocations"
+        Sid    = "InspectApprovedDataLocations"
         Effect = "Allow"
         Action = [
           "s3:GetBucketLocation",
@@ -59,7 +59,7 @@ resource "aws_iam_role_policy" "terraform_execution" {
         Resource = var.data_location_bucket_arns
       },
       {
-        Sid = "InspectApprovedDataKeys"
+        Sid    = "InspectApprovedDataKeys"
         Effect = "Allow"
         Action = [
           "kms:DescribeKey",
@@ -116,7 +116,7 @@ resource "aws_iam_role_policy" "lakeformation_registration" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid = "ListApprovedDataLocationBuckets"
+        Sid    = "ListApprovedDataLocationBuckets"
         Effect = "Allow"
         Action = [
           "s3:GetBucketLocation",
@@ -125,7 +125,7 @@ resource "aws_iam_role_policy" "lakeformation_registration" {
         Resource = var.data_location_bucket_arns
       },
       {
-        Sid = "ReadWriteApprovedDataLocationObjects"
+        Sid    = "ReadWriteApprovedDataLocationObjects"
         Effect = "Allow"
         Action = [
           "s3:DeleteObject",
@@ -135,7 +135,7 @@ resource "aws_iam_role_policy" "lakeformation_registration" {
         Resource = local.data_location_object_arns
       },
       {
-        Sid = "UseApprovedDataKeys"
+        Sid    = "UseApprovedDataKeys"
         Effect = "Allow"
         Action = [
           "kms:Decrypt",

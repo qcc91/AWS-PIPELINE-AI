@@ -13,10 +13,12 @@ variable "vpc_cidr" {
   type        = string
 
   validation {
-    condition = can(cidrhost(var.vpc_cidr, 0)) && can(regex(
-      "^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)",
-      var.vpc_cidr,
-    ))
+    condition = (
+      can(cidrhost(var.vpc_cidr, 0)) && can(regex(
+        "^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)",
+        var.vpc_cidr,
+      ))
+    )
     error_message = "vpc_cidr must be a valid RFC1918 IPv4 CIDR."
   }
 }
@@ -36,13 +38,15 @@ variable "private_subnet_netnums" {
   type        = list(number)
 
   validation {
-    condition = length(var.private_subnet_netnums) == 2 && alltrue([
-      for netnum in var.private_subnet_netnums :
-      netnum >= 0 &&
-      floor(netnum) == netnum &&
-      netnum < pow(2, var.private_subnet_newbits) &&
-      can(cidrsubnet(var.vpc_cidr, var.private_subnet_newbits, netnum))
-    ]) && var.private_subnet_netnums[0] != var.private_subnet_netnums[1]
+    condition = (
+      length(var.private_subnet_netnums) == 2 && alltrue([
+        for netnum in var.private_subnet_netnums :
+        netnum >= 0 &&
+        floor(netnum) == netnum &&
+        netnum < pow(2, var.private_subnet_newbits) &&
+        can(cidrsubnet(var.vpc_cidr, var.private_subnet_newbits, netnum))
+      ]) && var.private_subnet_netnums[0] != var.private_subnet_netnums[1]
+    )
     error_message = "private_subnet_netnums must contain two distinct non-negative integers below 2^private_subnet_newbits."
   }
 }
@@ -52,7 +56,8 @@ variable "availability_zones" {
   type        = list(string)
 
   validation {
-    condition = length(var.availability_zones) == 2 &&
+    condition = (
+      length(var.availability_zones) == 2 &&
       var.availability_zones[0] != var.availability_zones[1] &&
       alltrue([
         for availability_zone in var.availability_zones : can(regex(
@@ -60,6 +65,7 @@ variable "availability_zones" {
           availability_zone,
         ))
       ])
+    )
     error_message = "availability_zones must contain two distinct ap-southeast-2 availability-zone names."
   }
 }
@@ -69,21 +75,23 @@ variable "tags" {
   type        = map(string)
 
   validation {
-    condition = alltrue([
-      for key in [
-        "Project",
-        "Environment",
-        "Owner",
-        "ManagedBy",
-        "CostCenter",
-        "DataClassification",
-      ] : trimspace(lookup(var.tags, key, "")) != ""
+    condition = (
+      alltrue([
+        for key in [
+          "Project",
+          "Environment",
+          "Owner",
+          "ManagedBy",
+          "CostCenter",
+          "DataClassification",
+        ] : trimspace(lookup(var.tags, key, "")) != ""
       ]) && lookup(var.tags, "ManagedBy", "") == "terraform" &&
       contains(["dev", "prod"], lookup(var.tags, "Environment", "")) &&
       contains(
         ["public", "internal", "confidential", "restricted"],
         lookup(var.tags, "DataClassification", ""),
       )
+    )
     error_message = "tags must include non-empty Project, Environment, Owner, ManagedBy, CostCenter, and DataClassification; ManagedBy must be terraform and values must be approved."
   }
 }

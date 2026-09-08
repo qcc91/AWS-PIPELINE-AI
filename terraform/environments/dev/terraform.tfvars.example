@@ -2,16 +2,16 @@
 aws_region       = "ap-southeast-2"
 enable_deployment = true
 account_id        = "<12_digit_dev_account_id>"
-account_short     = "<dev_account_short>"
-org_short         = "<org_short>"
+account_short     = "dev01"
+org_short         = "aip"
 
 owner               = "platform"
 cost_center         = "insurance-data-ai"
 data_classification = "restricted"
 
-vpc_cidr               = "<approved_non_conflicting_dev_rfc1918_cidr>"
-private_subnet_newbits  = 4
-private_subnet_netnums  = [0, 1]
+vpc_cidr               = "10.20.0.0/16"
+private_subnet_newbits  = 8
+private_subnet_netnums  = [1, 2]
 availability_zones      = ["ap-southeast-2a", "ap-southeast-2b"]
 
 terraform_trusted_role_arns = [
@@ -31,5 +31,5 @@ rag_application_role_arn = "arn:aws:iam::<12_digit_dev_account_id>:role/<approve
 data_noncurrent_retention_days  = 30
 audit_noncurrent_retention_days = 90
 audit_retention_days            = 365
-log_retention_days              = 90
+log_retention_days              = 30
 monthly_budget_usd              = 12

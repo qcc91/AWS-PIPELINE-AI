@@ -52,6 +52,7 @@ module "storage" {
   kms_key_arn               = module.platform_kms[0].key_arn
   purpose                   = each.key
   noncurrent_retention_days = var.data_noncurrent_retention_days
+  current_retention_days    = each.key == "quarantine" ? 90 : null
   tags                      = module.common.tags
 }
 

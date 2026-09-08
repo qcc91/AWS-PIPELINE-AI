@@ -34,8 +34,10 @@ variable "control_location_arn" {
   type        = string
 
   validation {
-    condition = can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[^*]+)?$", var.control_location_arn)) &&
+    condition = (
+      can(regex("^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[^*]+)?$", var.control_location_arn)) &&
       var.control_location_arn != var.lakehouse_location_arn
+    )
     error_message = "control_location_arn must be an explicit non-wildcard S3 ARN different from lakehouse_location_arn."
   }
 }
@@ -45,10 +47,12 @@ variable "data_access_role_arn" {
   type        = string
 
   validation {
-    condition = can(regex(
-      "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-      var.data_access_role_arn,
-    ))
+    condition = (
+      can(regex(
+        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+        var.data_access_role_arn,
+      ))
+    )
     error_message = "data_access_role_arn must be an explicit same-account role ARN with no wildcard."
   }
 }
@@ -58,7 +62,8 @@ variable "admin_role_arns" {
   type        = list(string)
 
   validation {
-    condition = length(var.admin_role_arns) > 0 &&
+    condition = (
+      length(var.admin_role_arns) > 0 &&
       length(distinct(var.admin_role_arns)) == length(var.admin_role_arns) &&
       alltrue([
         for arn in var.admin_role_arns : can(regex(
@@ -66,6 +71,7 @@ variable "admin_role_arns" {
           arn,
         ))
       ])
+    )
     error_message = "admin_role_arns must contain unique explicit same-account role ARNs."
   }
 }
@@ -105,7 +111,8 @@ variable "rag_application_role_arn" {
   type        = string
 
   validation {
-    condition = can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.rag_application_role_arn)) &&
+    condition = (
+      can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", var.rag_application_role_arn)) &&
       length(distinct(concat(
         var.admin_role_arns,
         [
@@ -116,6 +123,7 @@ variable "rag_application_role_arn" {
           var.rag_application_role_arn,
         ],
       ))) == length(var.admin_role_arns) + 5
+    )
     error_message = "All Lake Formation admin, access, DataEngineer, Analyst, MLEngineer, and RAGApplication roles must be distinct explicit same-account roles."
   }
 }
@@ -125,10 +133,12 @@ variable "database_names" {
   type        = map(string)
 
   validation {
-    condition = length(var.database_names) == 4 && alltrue([
-      for layer in ["bronze", "silver", "gold", "control"] :
-      lookup(var.database_names, layer, "") == "insurance_${var.environment}_${layer}"
-    ])
+    condition = (
+      length(var.database_names) == 4 && alltrue([
+        for layer in ["bronze", "silver", "gold", "control"] :
+        lookup(var.database_names, layer, "") == "insurance_${var.environment}_${layer}"
+      ])
+    )
     error_message = "database_names must contain exactly the four environment-specific bronze, silver, gold, and control names."
   }
 }
@@ -138,12 +148,14 @@ variable "tags" {
   type        = map(string)
 
   validation {
-    condition = alltrue([
-      for key in ["Project", "Environment", "Owner", "ManagedBy", "CostCenter", "DataClassification"] :
-      trimspace(lookup(var.tags, key, "")) != ""
+    condition = (
+      alltrue([
+        for key in ["Project", "Environment", "Owner", "ManagedBy", "CostCenter", "DataClassification"] :
+        trimspace(lookup(var.tags, key, "")) != ""
       ]) && lookup(var.tags, "Environment", "") == var.environment &&
       lookup(var.tags, "ManagedBy", "") == "terraform" &&
       contains(["public", "internal", "confidential", "restricted"], lookup(var.tags, "DataClassification", ""))
+    )
     error_message = "tags must contain the complete non-empty project contract and approved environment/classification values."
   }
 }

@@ -86,3 +86,14 @@ None.
 - PowerShell TASK-INF-001–005 offline gate passed. Terraform/provider validation, actual plan, TFLint, Checkov, and Bash execution remain NOT RUN because required local tools/provider cache are unavailable; no plan JSON was fabricated.
 - Cost remains USD 4–12/month: three KMS keys, 76 foundation instances, 9 bootstrap instances, and zero PROD instances. `git diff --check` passed. Manager accepted the static integration; actual Terraform plans remain NOT RUN. AWS changes performed: None.
 - Manager added partial S3 backend declarations, a USD 12 cost-review input, and removed direct data-role grants from the shared platform KMS key before acceptance.
+
+## V1-INFRASTRUCTURE — plan preparation in progress
+
+- Consolidated the historical Phase 1 tasks into the V1 infrastructure package.
+- Terraform 1.16.1 initialized DEV bootstrap and foundation with signed AWS provider 6.63.0 and generated committed provider lockfiles.
+- Real recursive `terraform fmt -check`, DEV bootstrap `terraform validate`, DEV foundation `terraform validate`, PowerShell static assertions, and `git diff --check` pass.
+- TFLint, Checkov, and a usable Bash runtime are unavailable and are recorded as NOT RUN.
+- DEV inputs now encode `org_short=aip`, `account_short=dev01`, VPC `10.20.0.0/16`, `/24` subnets 1 and 2, operational logs 30 days, quarantine current objects 90 days, audit current objects 365 days, plan-artifact governance 90 days, and the USD 12 review threshold.
+- KMS policies reject account-root administration and direct `kms:*`; all administrators must be explicit same-account role ARNs. Bootstrap separates KMS administration from state-key data use.
+- AWS CLI discovery was attempted twice from the Codex process and returned `NoCredentials`. Account/VPC/IAM discovery and real bootstrap/foundation plans remain NOT RUN; no ARN or plan was fabricated.
+- AWS changes performed: None.

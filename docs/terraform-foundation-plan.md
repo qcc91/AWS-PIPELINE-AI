@@ -34,7 +34,11 @@ reverse dependencies, and never bypass `prevent_destroy` without explicit
 Human approval. Bootstrap state recovery uses prior S3 versions and lock
 contention investigation.
 
-Actual plan execution is **NOT RUN** because Terraform/provider dependencies
-are unavailable on this host. Plan review still requires approved account and
-role identities, a conflict-checked VPC CIDR and two Sydney AZs, retention
-values, and the budget assumption.
+Actual plan execution is **NOT RUN**. Terraform 1.16.1 and the signed HashiCorp
+AWS provider 6.63.0 are initialized locally; both DEV roots pass real
+`terraform validate` and recursive formatting checks. The remaining blocker is
+the AWS identity boundary: the Codex process has no AWS session, and the
+Human-reported root session is explicitly prohibited as a Terraform execution
+identity. Plan review still requires read-only discovery through an approved
+non-root short-lived session, explicit existing role ARNs, a conflict-checked
+VPC CIDR, and a Human-approved state noncurrent-version retention value.

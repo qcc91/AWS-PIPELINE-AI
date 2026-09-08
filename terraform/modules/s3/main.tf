@@ -60,6 +60,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
 
     filter {}
 
+    dynamic "expiration" {
+      for_each = var.current_retention_days == null ? [] : [var.current_retention_days]
+      content { days = expiration.value }
+    }
+
     noncurrent_version_expiration {
       noncurrent_days = var.noncurrent_retention_days
     }

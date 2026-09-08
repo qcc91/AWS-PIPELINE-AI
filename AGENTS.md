@@ -977,13 +977,16 @@ Do NOT introduce OpenSearch unless justified and approved.
 
 ---
 
-# 22. Worker Task Contract
+# 22. Worker Work-Package Contract
 
-The Manager must give workers clearly scoped tasks.
+The Manager must give workers clearly scoped, end-to-end engineering work packages.
+For this learning/portfolio project, prefer one complete package over a sequence
+of micro-tasks. A package includes implementation, tests, routine debugging,
+and a single consolidated Worker return.
 
-Every worker task should contain:
+Every worker package should contain:
 
-TASK ID
+PACKAGE ID
 
 OWNER
 
@@ -1095,7 +1098,10 @@ Major changes require Human Owner approval.
 
 # 24. Manager Review Requirements
 
-The Manager must review worker output before considering a task complete.
+The Manager must review worker output before considering a package complete.
+The Manager performs one consolidated package review and handles formatting,
+lint, provider download, local syntax, tests, and normal Worker rework
+autonomously. These routine issues do not require Human Owner review.
 
 Review should consider:
 
@@ -1141,18 +1147,19 @@ Wait for:
 APPROVED
 
 
-## Gate 2 — Core Infrastructure Ready
+## Gate 2 — Terraform Plan Approval
 
 Report:
 
-- Terraform foundation
-- AWS resources
-- IAM/security
-- estimated cost
-- terraform plan summary
-- known issues
+- trustworthy bootstrap and foundation Terraform plans
+- exact create/change/destroy counts
+- non-root execution identity and state strategy
+- expected AWS resources
+- IAM/KMS/Lake Formation impact
+- expected monthly cost
+- security risks, rollback, and known issues
 
-Wait for approval before major next-stage deployment.
+Wait for explicit approval before any AWS resource-changing operation.
 
 
 ## Gate 3 — Core Data Platform Ready
@@ -1307,28 +1314,57 @@ A feature is DONE only when applicable requirements are satisfied:
 
 ---
 
-# 29. Current Project Phase
+# 29. Iterative Version Roadmap
+
+The final project requirements and target architecture remain unchanged. The
+team designs for V5 but implements only the currently authorized version in one
+evolving codebase:
+
+- V1 — End-to-end happy path: functional DEV infrastructure, batch, CDC,
+  streaming, Bronze/Silver/Gold Iceberg, Athena/QuickSight, SageMaker batch ML,
+  and Bedrock Knowledge Bases with S3 Vectors.
+- V2 — Reliability and data quality: retries, idempotency, deduplication, DQ,
+  quarantine, audit metadata, reconciliation, and recovery.
+- V3 — Security and governance: least privilege, Lake Formation role/PII
+  controls, KMS refinement, Secrets Manager, audit, and security validation.
+- V4 — CI/CD and environment automation: independent remote DEV/PROD state,
+  GitHub integration, CodePipeline/CodeBuild, automated gates, and tests.
+- V5 — Production readiness: complete observability, alerting, failure/replay/
+  recovery tests, retention/cost/security review, runbooks, and final E2E proof.
+
+The roadmap is cumulative. Do not build five implementations, remove correct
+later-version code merely because it already exists, or prematurely perfect
+V2–V5 features during V1.
+
+---
+
+# 30. Current Project Phase
 
 CURRENT PHASE:
 
-PHASE 1 — TERRAFORM FOUNDATION
+V1 — END-TO-END HAPPY PATH / INFRASTRUCTURE PLAN PREPARATION
 
 Gate 1 and the Phase 1 execution plan were approved by the Human Owner on 2026-09-08.
 
-The Manager may delegate and review:
+The active consolidated work package is:
 
-1. TASK-INF-001
-2. TASK-INF-002
-3. TASK-INF-003
-4. TASK-INF-004
-5. TASK-INF-005
+`PHASE-1-INFRASTRUCTURE-PACKAGE`
+
+It covers completion of the existing Terraform code, fmt/init/validate,
+provider/module troubleshooting, DEV network discovery, secure non-root
+execution identity requirements, DEV bootstrap and foundation plans, exact
+action counts, security review, and cost review. Existing later-version
+hardening may remain when correct and non-blocking, but V2–V5 implementation is
+not authorized.
 
 The approved scope and task contracts are defined in:
 
 docs/phase-1-execution-plan.md
 
 Phase 1 implementation is limited to Terraform code, tests, documentation,
-offline validation, static analysis, and safe read-only planning.
+offline validation, static analysis, and safe read-only planning. Routine
+formatting, validation, lint, provider download, local syntax, test failures,
+and Worker rework are handled internally without Human checkpoints.
 
 Do NOT create AWS resources.
 
@@ -1340,15 +1376,22 @@ Do NOT deploy PROD resources.
 
 Before the first AWS-changing operation, STOP at:
 
-P1-CP1 — First AWS Change Approval
+P1-CP1 / Gate 2 — Terraform Plan Approval
 
 Present the reviewed Terraform plan, security review, cost, tests, risks,
 rollback strategy, and unresolved issues to the Human Owner and wait for
 explicit approval.
 
+Future consolidated packages are `PACKAGE-DATA-CSV`, `PACKAGE-DATA-CDC`,
+`PACKAGE-DATA-STREAMING`, `PACKAGE-LAKEHOUSE`, `PACKAGE-BI`, `PACKAGE-ML`,
+`PACKAGE-RAG`, and `PACKAGE-OBSERVABILITY`. Each follows:
+
+Manager scope -> Worker implementation and tests -> one consolidated Manager
+review -> internal rework as needed -> meaningful Human gate.
+
 ---
 
-# 30. Guiding Principle
+# 31. Guiding Principle
 
 Build the smallest architecture that demonstrates production-quality engineering.
 

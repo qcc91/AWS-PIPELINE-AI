@@ -3,7 +3,8 @@ variable "bucket_name" {
   type        = string
 
   validation {
-    condition = length(var.bucket_name) >= 3 &&
+    condition = (
+      length(var.bucket_name) >= 3 &&
       length(var.bucket_name) <= 63 &&
       can(regex("^[a-z0-9][a-z0-9.-]*[a-z0-9]$", var.bucket_name)) &&
       !strcontains(var.bucket_name, "..") &&
@@ -12,6 +13,7 @@ variable "bucket_name" {
       !can(regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$", var.bucket_name)) &&
       !can(regex("^(xn--|sthree-|amzn-s3-demo-)", var.bucket_name)) &&
       !can(regex("(-s3alias|--ol-s3|\\.mrap|--x-s3|--table-s3)$", var.bucket_name))
+    )
     error_message = "bucket_name must satisfy S3 naming rules and must not use reserved prefixes/suffixes, adjacent periods, dot-hyphen pairs, or IP-address format."
   }
 }
@@ -21,10 +23,12 @@ variable "kms_key_arn" {
   type        = string
 
   validation {
-    condition = can(regex(
-      "^arn:aws:kms:ap-southeast-2:[0-9]{12}:key/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-      var.kms_key_arn,
-    ))
+    condition = (
+      can(regex(
+        "^arn:aws:kms:ap-southeast-2:[0-9]{12}:key/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+        var.kms_key_arn,
+      ))
+    )
     error_message = "kms_key_arn must be an actual ap-southeast-2 KMS key ARN with a UUID key ID."
   }
 }
@@ -34,15 +38,17 @@ variable "purpose" {
   type        = string
 
   validation {
-    condition = contains([
-      "landing",
-      "lakehouse",
-      "control",
-      "quarantine",
-      "documents",
-      "artifacts",
-      "audit-logs",
-    ], var.purpose)
+    condition = (
+      contains([
+        "landing",
+        "lakehouse",
+        "control",
+        "quarantine",
+        "documents",
+        "artifacts",
+        "audit-logs",
+      ], var.purpose)
+    )
     error_message = "purpose must be an approved non-empty bucket purpose."
   }
 }
@@ -52,10 +58,23 @@ variable "noncurrent_retention_days" {
   type        = number
 
   validation {
-    condition = var.noncurrent_retention_days >= 7 &&
+    condition = (
+      var.noncurrent_retention_days >= 7 &&
       var.noncurrent_retention_days <= 3650 &&
       floor(var.noncurrent_retention_days) == var.noncurrent_retention_days
+    )
     error_message = "noncurrent_retention_days must be an integer between 7 and 3650."
+  }
+}
+
+variable "current_retention_days" {
+  description = "Optional current-object retention; only quarantine may set this."
+  type        = number
+  default     = null
+  nullable    = true
+  validation {
+    condition     = var.current_retention_days == null || (floor(var.current_retention_days) == var.current_retention_days && var.current_retention_days >= 1 && var.current_retention_days <= 3650)
+    error_message = "current_retention_days must be null or an integer from 1 through 3650."
   }
 }
 
@@ -64,21 +83,23 @@ variable "tags" {
   type        = map(string)
 
   validation {
-    condition = alltrue([
-      for key in [
-        "Project",
-        "Environment",
-        "Owner",
-        "ManagedBy",
-        "CostCenter",
-        "DataClassification",
-      ] : trimspace(lookup(var.tags, key, "")) != ""
+    condition = (
+      alltrue([
+        for key in [
+          "Project",
+          "Environment",
+          "Owner",
+          "ManagedBy",
+          "CostCenter",
+          "DataClassification",
+        ] : trimspace(lookup(var.tags, key, "")) != ""
       ]) && lookup(var.tags, "ManagedBy", "") == "terraform" &&
       contains(["dev", "prod"], lookup(var.tags, "Environment", "")) &&
       contains(
         ["public", "internal", "confidential", "restricted"],
         lookup(var.tags, "DataClassification", ""),
       )
+    )
     error_message = "tags must include non-empty Project, Environment, Owner, ManagedBy, CostCenter, and DataClassification; ManagedBy must be terraform and values must be approved."
   }
 }

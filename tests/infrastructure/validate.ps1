@@ -266,7 +266,7 @@ if ($moduleMain -match '(?is)Null\s*=\s*\{\s*"s3:x-amz-server-side-encryption(?:
 
 Assert-Match $moduleMain 'enable_key_rotation\s*=\s*true' "KMS rotation is missing"
 Assert-Match $moduleMain 'deletion_window_in_days\s*=\s*30' "KMS deletion window is missing"
-Assert-Match $moduleMain 'AWS\s*=\s*"arn:aws:iam::\$\{var\.account_id\}:root"' "same-account root delegation is missing"
+if ($moduleMain -match 'arn:aws:iam::\$\{var\.account_id\}:root') { Fail "state KMS policy must not use account-root principal" }
 foreach ($sid in [regex]::Matches($moduleMain, '(?im)^\s*Sid\s*=\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }) {
   $renderedSid = $sid.Replace('${role_index}', '0')
   if ($renderedSid -notmatch '^[A-Za-z0-9]+$') {
@@ -375,9 +375,8 @@ Assert-Match $kmsMain 'enable_key_rotation\s*=\s*true' "KMS rotation is missing"
 Assert-Match $kmsMain 'deletion_window_in_days\s*=\s*30' "KMS 30-day deletion window is missing"
 Assert-Match $kmsMain 'prevent_destroy\s*=\s*true' "KMS key deletion protection is missing"
 Assert-Match $kmsMain 'target_key_id\s*=\s*aws_kms_key\.this\.key_id' "KMS alias target is missing"
-if (([regex]::Matches($kmsMain, 'Action\s*=\s*"kms:\*"')).Count -ne 1 -or
-    ([regex]::Matches($kmsMain, 'Sid\s*=\s*"EnableAccountRootDelegation"')).Count -ne 1) {
-  Fail "KMS must contain exactly one account-root kms:* delegation statement"
+if ($kmsMain -match 'arn:aws:iam::\$\{var\.account_id\}:root' -or ([regex]::Matches($kmsMain, 'Action\s*=\s*"kms:\*"')).Count -gt 0) {
+  Fail "KMS must not contain account-root delegation or direct kms:*"
 }
 $kmsAdmin = [regex]::Match($kmsMain, '(?s)for role_index, role_arn in var\.admin_role_arns\s*:\s*\{(?<body>.*?)\n\s*\}\n\s*\],').Groups['body'].Value
 $kmsUser = [regex]::Match($kmsMain, '(?s)for role_index, role_arn in var\.user_role_arns\s*:\s*\{(?<body>.*?)\n\s*\}\n\s*\],').Groups['body'].Value
@@ -538,9 +537,8 @@ foreach ($resourceType in @("aws_kms_key", "aws_kms_alias", "aws_s3_bucket", "aw
     Fail "monitoring resource missing or duplicated: $resourceType"
   }
 }
-if (([regex]::Matches($monitoringMain, 'Action\s*=\s*"kms:\*"')).Count -ne 1 -or
-    ([regex]::Matches($monitoringMain, 'Sid\s*=\s*"EnableAccountRootDelegation"')).Count -ne 1) {
-  Fail "monitoring KMS policy must have exactly one account-root kms:* delegation"
+if ($monitoringMain -match 'arn:aws:iam::\$\{var\.account_id\}:root' -or ([regex]::Matches($monitoringMain, 'Action\s*=\s*"kms:\*"')).Count -gt 0) {
+  Fail "monitoring KMS must not contain account-root delegation or direct kms:*"
 }
 foreach ($kmsGrant in @("AllowCloudTrailGenerateDataKey", "AllowCloudTrailDescribeKey", "AllowCloudWatchLogsEncryption", "AllowSnsEncryption")) {
   Assert-Match $monitoringMain ('Sid\s*=\s*"' + $kmsGrant + '"[\s\S]*?Condition\s*=\s*\{') "conditioned monitoring KMS grant missing: $kmsGrant"

@@ -89,10 +89,12 @@ variable "vpc_cidr" {
   type        = string
 
   validation {
-    condition = can(cidrhost(var.vpc_cidr, 0)) && can(regex(
-      "^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)",
-      var.vpc_cidr,
-    ))
+    condition = (
+      can(cidrhost(var.vpc_cidr, 0)) && can(regex(
+        "^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)",
+        var.vpc_cidr,
+      ))
+    )
     error_message = "vpc_cidr must be a valid RFC1918 IPv4 CIDR."
   }
 }
@@ -114,12 +116,14 @@ variable "private_subnet_netnums" {
   default     = [0, 1]
 
   validation {
-    condition = length(var.private_subnet_netnums) == 2 &&
+    condition = (
+      length(var.private_subnet_netnums) == 2 &&
       length(distinct(var.private_subnet_netnums)) == 2 &&
       alltrue([
         for netnum in var.private_subnet_netnums :
         floor(netnum) == netnum && netnum >= 0 && netnum < pow(2, var.private_subnet_newbits)
       ])
+    )
     error_message = "private_subnet_netnums must contain two distinct valid integers for private_subnet_newbits."
   }
 }
@@ -129,11 +133,13 @@ variable "availability_zones" {
   type        = list(string)
 
   validation {
-    condition = length(var.availability_zones) == 2 &&
+    condition = (
+      length(var.availability_zones) == 2 &&
       length(distinct(var.availability_zones)) == 2 &&
       alltrue([
         for availability_zone in var.availability_zones : can(regex("^ap-southeast-2[a-z]$", availability_zone))
       ])
+    )
     error_message = "availability_zones must contain two distinct ap-southeast-2 zones."
   }
 }
@@ -143,12 +149,14 @@ variable "terraform_trusted_role_arns" {
   type        = list(string)
 
   validation {
-    condition = length(var.terraform_trusted_role_arns) > 0 && alltrue([
-      for arn in var.terraform_trusted_role_arns : can(regex(
-        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-        arn,
-      ))
-    ])
+    condition = (
+      length(var.terraform_trusted_role_arns) > 0 && alltrue([
+        for arn in var.terraform_trusted_role_arns : can(regex(
+          "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+          arn,
+        ))
+      ])
+    )
     error_message = "terraform_trusted_role_arns must contain explicit same-account path-capable role ARNs."
   }
 }
@@ -158,12 +166,14 @@ variable "kms_admin_role_arns" {
   type        = list(string)
 
   validation {
-    condition = length(var.kms_admin_role_arns) > 0 && alltrue([
-      for arn in var.kms_admin_role_arns : can(regex(
-        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-        arn,
-      ))
-    ])
+    condition = (
+      length(var.kms_admin_role_arns) > 0 && alltrue([
+        for arn in var.kms_admin_role_arns : can(regex(
+          "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+          arn,
+        ))
+      ])
+    )
     error_message = "kms_admin_role_arns must contain explicit same-account path-capable role ARNs."
   }
 }
@@ -173,12 +183,14 @@ variable "lakeformation_admin_role_arns" {
   type        = list(string)
 
   validation {
-    condition = length(var.lakeformation_admin_role_arns) > 0 && alltrue([
-      for arn in var.lakeformation_admin_role_arns : can(regex(
-        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-        arn,
-      ))
-    ])
+    condition = (
+      length(var.lakeformation_admin_role_arns) > 0 && alltrue([
+        for arn in var.lakeformation_admin_role_arns : can(regex(
+          "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+          arn,
+        ))
+      ])
+    )
     error_message = "lakeformation_admin_role_arns must contain explicit same-account path-capable role ARNs."
   }
 }
@@ -248,9 +260,11 @@ variable "audit_retention_days" {
   type        = number
 
   validation {
-    condition = floor(var.audit_retention_days) == var.audit_retention_days &&
+    condition = (
+      floor(var.audit_retention_days) == var.audit_retention_days &&
       var.audit_retention_days >= var.audit_noncurrent_retention_days &&
       var.audit_retention_days <= 3650
+    )
     error_message = "audit_retention_days must be an integer no shorter than noncurrent retention and no longer than 3650 days."
   }
 }
@@ -260,25 +274,27 @@ variable "log_retention_days" {
   type        = number
 
   validation {
-    condition = contains([
-      30,
-      60,
-      90,
-      120,
-      150,
-      180,
-      365,
-      400,
-      545,
-      731,
-      1096,
-      1827,
-      2192,
-      2557,
-      2922,
-      3288,
-      3653,
-    ], var.log_retention_days)
+    condition = (
+      contains([
+        30,
+        60,
+        90,
+        120,
+        150,
+        180,
+        365,
+        400,
+        545,
+        731,
+        1096,
+        1827,
+        2192,
+        2557,
+        2922,
+        3288,
+        3653,
+      ], var.log_retention_days)
+    )
     error_message = "log_retention_days must be an AWS-supported value from 30 through 3653."
   }
 }

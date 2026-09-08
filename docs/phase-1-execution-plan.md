@@ -1,5 +1,11 @@
 # Phase 1 执行计划 — Terraform Foundation
 
+> 2026-09-09 执行模型更新：下列历史 TASK-INF-001–005 合并为一个
+> `PHASE-1-INFRASTRUCTURE-PACKAGE`。Manager 定义整包范围，Luna Worker 完成实现、
+> 测试和常规排错，Manager 只做一次整合审核。格式、lint、provider 下载、语法、
+> 测试失败及普通返工均不触发 Human checkpoint。Human 仅在可信 Terraform plan
+> 审批、重大架构/安全/成本决策及后续项目 Gate 介入。
+
 ## 1. 状态与授权边界
 
 - 状态：Human Owner 于 2026-09-08 批准；TASK-INF-001 至 005 可实施，TASK-INF-006 未授权
@@ -285,7 +291,7 @@ RDS/DMS 将在后续 ingestion phase 成为主要持续成本，不计入 Phase 
 
 Human Owner 已于 2026-09-08 批准：Phase 1 scope/non-scope、bootstrap/state isolation、预期资源上限、任务契约、USD 4–12/月计划成本边界。Manager 可委派 TASK-INF-001 至 005；仍不授权 AWS apply。
 
-### P1-CP1 — First AWS Change Approval
+### P1-CP1 / Gate 2 — Terraform Plan Approval
 
 在任何资源创建前，Manager 提交：bootstrap/foundation 精确 Terraform plan、create/change/destroy、IAM/KMS/LF 安全摘要、正式成本、执行 identity、state recovery 与 rollback。Human 必须明确批准后才允许 TASK-INF-006。计划变化需重新审批。
 

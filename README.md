@@ -1,6 +1,6 @@
 # AWS Insurance Data & AI Platform
 
-本仓库用于设计并逐步实现一个低数据量、生产工程质量、成本受控的 AWS 保险数据与 AI 平台。Gate 1 已于 2026-09-08 获 Human Owner 批准；当前处于 **Phase 1 execution plan review**，尚未创建任何 AWS 资源，也没有 Terraform 或业务流水线实现。
+本仓库用于设计并逐步实现一个低数据量、生产工程质量、成本受控的 AWS 保险数据与 AI 平台。Gate 1 已于 2026-09-08 获 Human Owner 批准；当前只授权 **V1 end-to-end happy path**。Terraform 基础代码已存在并进入真实 plan 准备，但尚未创建任何 AWS 资源，业务流水线也尚未实现。
 
 ## 业务场景
 
@@ -31,6 +31,8 @@ Documents ─> S3 ─> Bedrock KB ─> S3 Vectors                 ├─> SageMa
 - [数据契约](architecture/data-contracts.md)
 - [实施路线图](docs/implementation-roadmap.md)
 - [Phase 1 执行计划](docs/phase-1-execution-plan.md)
+- [V1–V5 累计版本路线图](docs/version-roadmap.md)
+- [V1 实施计划与现状映射](docs/v1-implementation-plan.md)
 
 ## 环境与交付原则
 
@@ -55,6 +57,8 @@ sample-data/     后续阶段的非敏感合成样例
 
 ## 当前状态与下一步
 
-Phase 0 与 Gate 1 已完成。Phase 1 执行计划正在 Human Owner 审阅；在该计划获批前，不开始 Terraform 编码、Worker 委派或 AWS 部署。
+Phase 0、Gate 1 和基础设施实施计划已完成审批。当前继续 V1
+基础设施 plan 准备；任何 `terraform apply` 必须先经过 Human 对真实 plan
+的明确批准。V2–V5 仅作为路线图，不在当前授权范围内。
 
 后续阶段的安装、部署、运行、BI、ML、RAG、测试、监控和清理命令将在对应实现完成且通过审批后补充，当前不提供不可执行的占位命令。

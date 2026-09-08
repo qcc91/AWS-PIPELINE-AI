@@ -11,11 +11,8 @@ an explicit set of key-management actions and never `kms:*`. Direct users
 receive only `Encrypt`, `Decrypt`, `GenerateDataKey*`, `DescribeKey`, and
 `ReEncrypt*` data-plane operations.
 
-The one `EnableAccountRootDelegation` statement intentionally uses the account
-principal with `kms:*`. This is the standard KMS delegation model: IAM policies
-in that same account can delegate key permissions. It does not mean that only
-the explicit module role lists can use the key. Execution-role IAM policies
-must therefore be reviewed together with this key policy before deployment.
+KMS administration uses explicit same-account non-root admin role ARNs and
+never grants account-root delegation.
 
 The complete project tag contract has no defaults. Required values must be
 non-empty, the tag environment must match the module environment,

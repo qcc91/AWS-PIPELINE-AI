@@ -21,17 +21,13 @@ resource "aws_kms_key" "state" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      [
-        {
-          Sid    = "EnableAccountRootDelegation"
-          Effect = "Allow"
-          Principal = {
-            AWS = "arn:aws:iam::${var.account_id}:root"
-          }
-          Action   = "kms:*"
-          Resource = "*"
-        }
-      ],
+      [for role_index, role_arn in var.kms_admin_role_arns : {
+        Sid       = "AllowStateAdmin${role_index}"
+        Effect    = "Allow"
+        Principal = { AWS = role_arn }
+        Action    = ["kms:PutKeyPolicy", "kms:DescribeKey", "kms:EnableKey", "kms:DisableKey", "kms:ScheduleKeyDeletion", "kms:CancelKeyDeletion", "kms:TagResource", "kms:UntagResource"]
+        Resource  = "*"
+      }],
       [
         for role_index, role_arn in var.terraform_role_arns : {
           Sid    = "AllowTerraformRole${role_index}"

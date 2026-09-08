@@ -65,12 +65,8 @@ key and low-volume S3 storage/requests, subject to an official pricing review.
 PROD creates zero resources and has zero TASK-INF-002 runtime cost.
 
 KMS rotation, a 30-day deletion window, and deletion protection guard the key.
-The `EnableAccountRootDelegation` statement is the standard account-principal
-delegation model: it allows IAM policies in the same target account to delegate
-KMS access. It does not restrict use exclusively to the module's explicit role
-list. Each explicit same-account role also receives only the key operations
-needed for state encryption/decryption. Any broader IAM delegation must be
-reviewed with the execution-role policies at P1-CP1.
+KMS administration uses explicit same-account non-root admin role ARNs. No
+account-root principal is used as an execution identity or KMS administrator.
 
 Static review found the AWS provider 6.x resource shapes consistent with the
 declared resources, including an explicit empty lifecycle `filter {}` and the

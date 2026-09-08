@@ -8,9 +8,9 @@ output "registered_location_arns" {
 output "database_metadata_permission_matrix" {
   description = "Database-level metadata permission scope; no table, column, or SELECT grants are created."
   value = {
-    DataEngineer = sort(keys(local.data_engineer_databases))
-    Analyst      = ["gold"]
-    MLEngineer   = sort(keys(local.ml_engineer_databases))
+    DataEngineer   = sort(keys(local.data_engineer_databases))
+    Analyst        = ["gold"]
+    MLEngineer     = sort(keys(local.ml_engineer_databases))
     RAGApplication = []
   }
 }

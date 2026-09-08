@@ -1,12 +1,12 @@
-# Manager Task Board
+# Manager Work-Package Board
 
-| Task | Owner | Model | Dependencies | Status | Manager review | Next action |
-|---|---|---|---|---|---|---|
-| TASK-INF-001 | Infrastructure Worker | GPT-5.6 Luna | Phase 1 plan approval | Complete | Accepted after 2 corrections | Committed `9e6d433` |
-| TASK-INF-002 | Infrastructure Worker | Luna → Sol escalation | TASK-INF-001 | Complete | Accepted after Sol correction | Committed `2462f78` |
-| TASK-INF-003 | Infrastructure Worker | Luna → Sol escalation | TASK-INF-001 | Complete | Accepted after Sol correction | Committed `8f7ed17` |
-| TASK-INF-004 | Infrastructure Worker | Luna → Sol escalation | TASK-INF-001; interface integration with TASK-INF-003 | Complete | Accepted after Sol correction and targeted review fix | Committed `ac00b70` |
-| TASK-INF-005 | Infrastructure Worker | Luna → Sol escalation | TASK-INF-002/003/004 | Static work complete; plan blocked | Static integration accepted; real plan NOT RUN | Install tools and supply approved DEV inputs |
-| TASK-INF-006 | Infrastructure Worker | Not assigned | TASK-INF-005 + Human AWS-change approval | Not authorized | Not started | Stop at P1-CP1 |
+| Package | Owner | Scope | Status | Human gate |
+|---|---|---|---|---|
+| V1-INFRASTRUCTURE | Sol Manager + Luna Infrastructure Worker | Continue TASK-INF-001–005 as one package: validation, discovery, identity preparation, bootstrap/foundation plans, security and cost review | In progress; local init/validate complete, AWS identity bootstrap required before real plan | P1-CP1 / Gate 2 Terraform Plan Approval |
+| DEV APPLY AND VERIFICATION | Luna Infrastructure Worker | Former TASK-INF-006; apply only the approved plans and verify controls | Not authorized | Requires explicit Gate 2 approval |
+| V1-BATCH-LAKEHOUSE | Data Engineering + Infrastructure Workers | CSV happy path and minimum Bronze/Silver/Gold Iceberg | Planned; not started | After approved DEV infrastructure |
+| V1-CDC | Data Engineering + Infrastructure Workers | RDS PostgreSQL, DMS full load/CDC and current-state lakehouse flow | Planned; not started | V1 integration review |
+| V1-STREAMING | Data Engineering + Infrastructure Workers | Python producer, Kinesis, Firehose and event lakehouse flow | Planned; not started | V1 integration review |
+| V1-BI / V1-ML / V1-RAG | Domain Workers | Minimum working downstream happy paths | Planned; not started | V1 completion review |
 
-No Data Engineering or AI Engineering implementation task is authorized in Phase 1.
+Routine rework stays internal to each package. V1 is authorized; V2–V5 are not.

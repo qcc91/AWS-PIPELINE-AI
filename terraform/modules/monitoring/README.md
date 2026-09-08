@@ -6,8 +6,8 @@ group, CloudTrail delivery role/policy, regional management-event CloudTrail,
 and one encrypted SNS topic. It creates zero subscriptions and zero alarms.
 
 The KMS key has rotation, a 30-day deletion window, and `prevent_destroy`.
-Its only `kms:*` statement is same-account root delegation. Direct admins use
-explicit management actions. CloudTrail `GenerateDataKey*` is bound to the
+It has no account-root delegation; explicit same-account non-root admins use
+management actions. CloudTrail `GenerateDataKey*` is bound to the
 exact trail SourceArn/account and encryption context. CloudTrail `DescribeKey`
 is a separate exact SourceArn/account grant without an encryption-context
 condition, because that API call does not reliably carry the encryption

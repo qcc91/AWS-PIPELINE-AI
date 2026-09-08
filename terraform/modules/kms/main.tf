@@ -6,17 +6,7 @@ resource "aws_kms_key" "this" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      [
-        {
-          Sid    = "EnableAccountRootDelegation"
-          Effect = "Allow"
-          Principal = {
-            AWS = "arn:aws:iam::${var.account_id}:root"
-          }
-          Action   = "kms:*"
-          Resource = "*"
-        }
-      ],
+      [],
       [
         for role_index, role_arn in var.admin_role_arns : {
           Sid    = "AllowKeyAdministrator${role_index}"

@@ -15,17 +15,7 @@ resource "aws_kms_key" "audit" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
-      [
-        {
-          Sid    = "EnableAccountRootDelegation"
-          Effect = "Allow"
-          Principal = {
-            AWS = "arn:aws:iam::${var.account_id}:root"
-          }
-          Action   = "kms:*"
-          Resource = "*"
-        }
-      ],
+      [],
       [
         for role_index, role_arn in var.kms_admin_role_arns : {
           Sid    = "AllowAuditKeyAdministrator${role_index}"
@@ -70,7 +60,7 @@ resource "aws_kms_key" "audit" {
               "aws:SourceAccount" = var.account_id
             }
             ArnEquals = {
-              "aws:SourceArn"                               = local.trail_arn
+              "aws:SourceArn"                            = local.trail_arn
               "kms:EncryptionContext:aws:cloudtrail:arn" = local.trail_arn
             }
           }

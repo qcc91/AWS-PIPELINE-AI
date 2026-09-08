@@ -34,12 +34,14 @@ variable "admin_role_arns" {
   type        = list(string)
 
   validation {
-    condition = length(var.admin_role_arns) > 0 && alltrue([
-      for arn in var.admin_role_arns : can(regex(
-        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-        arn,
-      ))
-    ])
+    condition = (
+      length(var.admin_role_arns) > 0 && alltrue([
+        for arn in var.admin_role_arns : can(regex(
+          "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+          arn,
+        ))
+      ])
+    )
     error_message = "admin_role_arns must contain at least one explicit same-account IAM role ARN without wildcards."
   }
 }
@@ -50,12 +52,14 @@ variable "user_role_arns" {
   default     = []
 
   validation {
-    condition = alltrue([
-      for arn in var.user_role_arns : can(regex(
-        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-        arn,
-      ))
-    ])
+    condition = (
+      alltrue([
+        for arn in var.user_role_arns : can(regex(
+          "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+          arn,
+        ))
+      ])
+    )
     error_message = "user_role_arns must contain only explicit same-account IAM role ARNs without wildcards."
   }
 }
@@ -65,21 +69,23 @@ variable "tags" {
   type        = map(string)
 
   validation {
-    condition = alltrue([
-      for key in [
-        "Project",
-        "Environment",
-        "Owner",
-        "ManagedBy",
-        "CostCenter",
-        "DataClassification",
-      ] : trimspace(lookup(var.tags, key, "")) != ""
+    condition = (
+      alltrue([
+        for key in [
+          "Project",
+          "Environment",
+          "Owner",
+          "ManagedBy",
+          "CostCenter",
+          "DataClassification",
+        ] : trimspace(lookup(var.tags, key, "")) != ""
       ]) && lookup(var.tags, "ManagedBy", "") == "terraform" &&
       lookup(var.tags, "Environment", "") == var.environment &&
       contains(
         ["public", "internal", "confidential", "restricted"],
         lookup(var.tags, "DataClassification", ""),
       )
+    )
     error_message = "tags must include non-empty Project, Environment, Owner, ManagedBy, CostCenter, and DataClassification; Environment must match, ManagedBy must be terraform, and classification must be approved."
   }
 }

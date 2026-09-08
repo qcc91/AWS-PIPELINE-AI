@@ -45,13 +45,23 @@ variable "terraform_role_arns" {
   type        = list(string)
 
   validation {
-    condition = length(var.terraform_role_arns) > 0 && alltrue([
-      for arn in var.terraform_role_arns : can(regex(
-        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
-        arn,
-      ))
-    ])
+    condition = (
+      length(var.terraform_role_arns) > 0 && alltrue([
+        for arn in var.terraform_role_arns : can(regex(
+          "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+          arn,
+        ))
+      ])
+    )
     error_message = "Provide at least one explicit same-account Terraform role ARN."
+  }
+}
+variable "kms_admin_role_arns" {
+  description = "Explicit non-root KMS administrators."
+  type        = list(string)
+  validation {
+    condition     = length(var.kms_admin_role_arns) > 0 && alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
+    error_message = "Provide explicit same-account KMS admin role ARNs."
   }
 }
 

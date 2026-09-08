@@ -1,5 +1,10 @@
 # 初始实施路线图
 
+> 当前交付策略改为累计版本 V1–V5；完整定义见
+> `docs/version-roadmap.md`，当前 V1 工作包见
+> `docs/v1-implementation-plan.md`。本文原阶段划分作为最终能力映射保留，
+> 不再表示要先完成全部生产强化才打通 happy path。
+
 ## 1. 使用方式
 
 本路线图是 Gate 1 后的计划，不是实施授权。每个阶段由 Manager 创建 Worker Task Contract，审查交付并在 AGENTS.md 定义的 gate 停止。PROD 始终需要 Gate 6 单独批准。
@@ -62,4 +67,5 @@ Gate 1 后、Gate 2 前仍需明确：AWS account/执行身份、预算阈值、
 
 ## 6. 当前停止点
 
-Gate 1 已批准。当前停在 Phase 1 execution plan review；未获得下一次明确授权前，不委派实施任务、不编写 Terraform、不创建 AWS 资源。
+Gate 1 与基础设施实施计划已批准。当前只授权 V1；正在延续现有 Terraform
+计划准备。真实 plan 获 Human 批准前不得执行任何 AWS 资源变更。

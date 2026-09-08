@@ -50,6 +50,7 @@ module "storage" {
   kms_key_arn               = module.platform_kms.key_arn
   purpose                   = each.key
   noncurrent_retention_days = var.data_noncurrent_retention_days
+  current_retention_days    = each.key == "quarantine" ? 90 : null
   tags                      = module.common.tags
 }
 
@@ -79,18 +80,18 @@ module "glue" {
 module "lakeformation" {
   source = "../../modules/lakeformation"
 
-  environment                = local.environment
-  account_id                 = var.account_id
-  lakehouse_location_arn     = "${module.storage["lakehouse"].bucket_arn}/lakehouse"
-  control_location_arn       = "${module.storage["control"].bucket_arn}/control"
-  data_access_role_arn       = module.iam.lakeformation_registration_role_arn
-  admin_role_arns            = var.lakeformation_admin_role_arns
-  data_engineer_role_arn     = var.data_engineer_role_arn
-  analyst_role_arn           = var.analyst_role_arn
-  ml_engineer_role_arn       = var.ml_engineer_role_arn
-  rag_application_role_arn   = var.rag_application_role_arn
-  database_names             = module.glue.database_names
-  tags                       = module.common.tags
+  environment              = local.environment
+  account_id               = var.account_id
+  lakehouse_location_arn   = "${module.storage["lakehouse"].bucket_arn}/lakehouse"
+  control_location_arn     = "${module.storage["control"].bucket_arn}/control"
+  data_access_role_arn     = module.iam.lakeformation_registration_role_arn
+  admin_role_arns          = var.lakeformation_admin_role_arns
+  data_engineer_role_arn   = var.data_engineer_role_arn
+  analyst_role_arn         = var.analyst_role_arn
+  ml_engineer_role_arn     = var.ml_engineer_role_arn
+  rag_application_role_arn = var.rag_application_role_arn
+  database_names           = module.glue.database_names
+  tags                     = module.common.tags
 }
 
 module "monitoring" {
