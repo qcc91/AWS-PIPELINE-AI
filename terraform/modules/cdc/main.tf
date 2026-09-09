@@ -252,7 +252,7 @@ resource "aws_dms_endpoint" "postgres" {
   extra_connection_attributes     = "secretsManagerEndpointOverride=${aws_vpc_endpoint.secrets_manager.dns_entry[0].dns_name}"
   postgres_settings {
     slot_name   = "insurance_${var.environment}_cdc_slot"
-    plugin_name = "test_decoding"
+    plugin_name = "test-decoding"
   }
   tags = merge(var.tags, { Purpose = "cdc-postgres-source-endpoint" })
   depends_on = [

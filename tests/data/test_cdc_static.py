@@ -13,7 +13,7 @@ MUTATIONS = (ROOT / "sql/cdc/003_mutations.sql").read_text(encoding="utf-8")
 def test_dms_postgres_full_load_cdc_and_s3_mapping():
     assert 'migration_type           = "full-load-and-cdc"' in MODULE
     assert re.search(r'engine_name\s*=\s*"postgres"', MODULE)
-    assert re.search(r'plugin_name\s*=\s*"test_decoding"', MODULE)
+    assert re.search(r'plugin_name\s*=\s*"test-decoding"', MODULE)
     assert 'name = "claims"' in MODULE or '"table-name" = table_name' in MODULE
     for table in ("customers", "policies", "products", "claims", "payments"):
         assert table in MODULE
