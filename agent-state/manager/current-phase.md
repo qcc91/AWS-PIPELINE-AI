@@ -1,30 +1,27 @@
 # Manager Current Phase
 
-- Phase: V1 — End-to-End Happy Path
-- Status: V1 Batch deployed and verified; CDC, Streaming, BI, ML, and RAG unified real plan ready for Human review
-- Human approvals:
-  - Gate 1 approved on 2026-09-08
-  - Phase 1 execution plan approved on 2026-09-08
-  - P1-CP1 static review accepted on 2026-09-08; no apply authorized
-  - P1-CP1 / Gate 2 DEV apply approved on 2026-09-09
-  - V1 Batch 14/0/0 plan and DEV apply approved on 2026-09-09
-- Default AWS Region: `ap-southeast-2`
-- Active environment: DEV
-- PROD: design only; no resources may be deployed
-- Current packages: V1-CDC, V1-STREAMING, V1-BI, V1-ML, and V1-RAG at Terraform Plan Approval; Batch is complete
-- Authorized work: V1 happy-path code, tests, Terraform implementation, read-only discovery, plan preparation, and verification of the deployed foundation
-- Prohibited work: unreviewed additional AWS resource changes; PROD deployment; V2–V5 hardening; silent cross-region use
-- Next Human checkpoint: approve or reject unified DEV plan `78 create / 1 change / 0 destroy` and its material cost
-- Local evidence: Terraform 1.16.1 and AWS CLI 2.36.40 available; DEV bootstrap/foundation `init -backend=false` and `validate` pass with AWS provider 6.63.0; `fmt -check` passes; tflint/checkov unavailable
-- Identity status: Human-approved V1 root shortcut is visible only through the approved host execution context; V3 must replace it with least-privilege identities
-- Network discovery: account `199476069493`; existing default VPC `172.31.0.0/16` does not conflict with `10.20.0.0/16`; `ap-southeast-2a` and `ap-southeast-2b` are available
-- Audit discovery: no existing non-shadow CloudTrail trail; the planned regional management-events trail is the first ongoing management-event copy
-- Deployed state: bootstrap 9 resources plus foundation/batch 76 resources; both refreshed plans return zero drift (85 Terraform-managed resources total)
-- AWS verification: seven S3 buckets use versioning/SSE-KMS/full public block; three KMS keys rotate; VPC/subnets/S3 endpoint, four Glue databases, CloudTrail, encrypted Logs/SNS, and CloudTrail delivery role are present
-- Apply deviation: V1 root KMS policy required additional explicit Terraform read/tag/alias actions; recovery used in-place policy updates only and created no extra resources
-- Batch evidence: 14/0/0 applied; EventBridge-triggered Step Functions execution and Glue run succeeded; Bronze, Silver, `fact_claim`, and `claim_daily_summary` are Iceberg; Athena counts are 3/3/3 and Gold total claim amount is 5290.50
-- Parallel V1 evidence: full DEV Terraform validates; 31 local tests pass; Python compiles; secret scan and infrastructure static gate pass. Sydney exposes Titan Text Embeddings V2, Nova Micro, and S3 Vectors. QuickSight is not subscribed.
-- Unified plan evidence: 78 creates (CDC 39, Streaming 18, ML 10, RAG 8, BI 3), one scoped platform KMS policy update, zero destroys, and 75 existing no-op resources. QuickSight remains disabled.
-- Cost decision: the new always-on baseline is about USD 90.32/month before small usage charges, exceeding the USD 12/month review threshold. No downstream apply is authorized.
-- Version authorization: V1 only; V2–V5 are roadmap context and must not be implemented yet
-- Last updated: 2026-09-09
+- Phase: V1 — End-to-End Happy Path / Account Blocker Resolution.
+- Status: Foundation, Batch, CDC, and Athena complete; Streaming, ML, and RAG
+  await external account actions.
+- Default AWS Region: `ap-southeast-2`.
+- Active environment: DEV. PROD remains design-only and prohibited.
+- Account: `199476069493`, Human-approved temporary V1 root execution, current
+  plan `FREE`; no credentials are persisted.
+- Streaming blocker: Kinesis `ListStreams` and Firehose
+  `ListDeliveryStreams` return `SubscriptionRequiredException`. Four Terraform
+  creates remain. Human must upgrade the account to `PAID` before resuming.
+- ML blocker: `ml.m5.large` training quota `L-611FA074=0` and transform quota
+  `L-236AE59F=0`; both need value `1`. No training instance quota is nonzero.
+- RAG blocker: Knowledge Base and S3 Vectors are deployed; Titan Text
+  Embeddings V2 is available/authorized, but on-demand RPM quota
+  `L-26C560CE=0` is non-adjustable. No more ingestion retries until resolved.
+- Latest Terraform refresh plan: 4 create/0 change/0 destroy, all Streaming.
+- Tests: Terraform DEV validation, infrastructure static gate, secret checks,
+  and 34 Python tests pass. TFLint and Checkov are unavailable.
+- Fixed-cost estimate: about USD 76.89/month before usage. RDS, DMS, and the
+  two-AZ Secrets Manager endpoint continue charging while idle.
+- QuickSight remains intentionally deferred and unsubscribed.
+- V2–V5 are not authorized.
+- Next Human checkpoint: complete the single consolidated account actions,
+  then resume this same package for real Streaming, ML, and RAG runtime proof.
+- Last updated: 2026-09-10.

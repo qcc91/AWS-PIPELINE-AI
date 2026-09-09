@@ -10,6 +10,15 @@ no nonzero SageMaker training-instance quota in the region. No training job or
 training charge was created. Resume only after an appropriate training quota
 is nonzero; do not cycle through instance types blindly.
 
+The live Sydney account quotas are:
+
+- `ml.m5.large for training job usage`: `L-611FA074`, current `0`, required `1`.
+- `ml.m5.large for transform job usage`: `L-236AE59F`, current `0`, required `1`.
+
+Both are adjustable account-level quotas and neither has a request in history.
+All discovered SageMaker training-job instance quotas currently have value
+zero, so there is no already-authorized low-cost instance substitution.
+
 The V1 ML branch consumes the approved Gold `fact_claim` snapshot (or an
 equivalent Athena export) and writes a reusable Gold `claim_risk` dataset.
 Only on-demand SageMaker XGBoost Training and Batch Transform are used; no

@@ -1360,12 +1360,15 @@ Athena BI is functional. QuickSight remains disabled because the account is
 not subscribed. Streaming, ML, and RAG implementations and infrastructure are
 prepared, but their runtime proofs are blocked by account capabilities:
 
-- Kinesis returns `SubscriptionRequiredException`; no Streaming resources were
-  created.
-- SageMaker Training has zero instance quota in `ap-southeast-2`; no training
-  job or charge was created.
-- Bedrock Knowledge Base and S3 Vectors resources are deployed, but Titan Text
-  Embeddings V2 ingestion returns persistent HTTP 429 throttling.
+- The account plan is `FREE`; Kinesis and Firehose return
+  `SubscriptionRequiredException`. Four Streaming resources remain unapplied
+  until the Human Owner upgrades the billing plan to `PAID`.
+- SageMaker `ml.m5.large` training quota `L-611FA074` and transform quota
+  `L-236AE59F` are both zero; each requires value one. No training job or
+  charge was created.
+- Bedrock Knowledge Base and S3 Vectors resources are deployed and the Titan
+  model is authorized, but Titan Text Embeddings V2 on-demand RPM quota
+  `L-26C560CE` is zero and non-adjustable, causing nested runtime HTTP 429.
 
 Do not retry these branches until a read-only account capability check shows
 that the relevant subscription or quota is available. Existing later-version

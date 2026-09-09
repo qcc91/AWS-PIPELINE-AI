@@ -19,6 +19,18 @@ The Knowledge Base remains `ACTIVE`, but retrieval acceptance cannot be claimed
 until ingestion succeeds. Do not retry until model quota/access preflight shows
 the account can invoke the embedding model.
 
+The outer API failure is Bedrock Agent `StartIngestionJob`
+`ValidationException`; its message identifies the nested operation as
+BedrockRuntime embedding-model invocation and returns HTTP 429 `Too many
+requests, please wait before trying again`. The model is
+`amazon.titan-embed-text-v2:0` in `ap-southeast-2`, with no inference profile.
+Live model discovery reports `AVAILABLE`, `AUTHORIZED`, and entitled, so this
+is not an access-denied or model-opt-in failure. The relevant on-demand RPM
+quota `L-26C560CE` is `0` and non-adjustable; TPM quota `L-DE641971` is also
+`0` and non-adjustable. Titan embeddings are RPM-throttled, making the zero RPM
+quota the direct blocker. No further ingestion retry is allowed until the
+account quota changes.
+
 ## Mandatory Sydney discovery (read-only)
 
 Run with the intended non-root identity and explicit region before planning:

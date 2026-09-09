@@ -9,6 +9,13 @@ Terraform therefore has not created the four remaining Streaming resources
 policy). Do not retry apply until a read-only Kinesis capability preflight
 succeeds.
 
+Live account discovery on 2026-09-10 confirmed `accountPlanType=FREE`. Both
+Kinesis `ListStreams` and Firehose `ListDeliveryStreams` return: `The AWS Access
+Key Id needs a subscription for the service`. AWS lists Kinesis Data Streams
+and Amazon Data Firehose as Paid Plan services for this account type. The Human
+Owner must upgrade the AWS account to `PAID`; this billing-plan change is not an
+autonomous engineering action.
+
 ## Flow
 
 `src/streaming/producer.py` creates schema-version-1 JSON envelopes and sends
