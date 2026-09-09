@@ -40,7 +40,10 @@ module "platform_kms" {
   admin_role_arns   = var.kms_admin_role_arns
   allow_root_for_v1 = var.allow_root_for_v1
   user_role_arns    = []
-  tags              = module.common.tags
+  s3vectors_bucket_arns = [
+    "arn:aws:s3vectors:${var.aws_region}:${var.account_id}:bucket/${var.org_short}-insurance-${local.environment}-vectors-${var.account_short}",
+  ]
+  tags = module.common.tags
 }
 
 module "storage" {

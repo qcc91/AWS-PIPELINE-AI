@@ -1,5 +1,22 @@
 # Infrastructure Worker Status
 
+## Current V1 snapshot — 2026-09-10
+
+- DEV foundation and Batch are deployed and verified.
+- CDC is deployed and its real RDS -> DMS -> S3 -> orchestration -> Glue ->
+  Iceberg -> Athena happy path passed.
+- RAG Knowledge Base and S3 Vectors infrastructure are deployed; ingestion is
+  blocked by persistent Titan Embeddings HTTP 429.
+- Streaming has four unapplied resources because Kinesis returns
+  `SubscriptionRequiredException` for this account.
+- SageMaker infrastructure is deployed, but no training job was created because
+  every discovered Sydney training-instance quota is zero.
+- The latest read-only Terraform refresh plan is 4 create/0 change/0 destroy,
+  all belonging to the blocked Streaming branch.
+- DocuVera cleanup is complete; the post-delete reviewed-service inventory is
+  empty for DocuVera-named resources.
+- No production resources were deployed. TFLint and Checkov remain unavailable.
+
 ## TASK-INF-001 — complete and Manager accepted
 
 - Added Terraform version/provider constraints and explicit `ap-southeast-2` providers.

@@ -1,5 +1,15 @@
 # V1 ML — Claim Fraud Batch Prediction
 
+## Current runtime status
+
+The SageMaker control-plane API is available in Sydney, and the V1 training,
+validation, inference, and claim-ID fixtures are uploaded under the encrypted
+control-bucket `ml/` prefix. Training did not start: the account-level quota
+for `ml.m5.large` training usage is zero, and read-only quota discovery found
+no nonzero SageMaker training-instance quota in the region. No training job or
+training charge was created. Resume only after an appropriate training quota
+is nonzero; do not cycle through instance types blindly.
+
 The V1 ML branch consumes the approved Gold `fact_claim` snapshot (or an
 equivalent Athena export) and writes a reusable Gold `claim_risk` dataset.
 Only on-demand SageMaker XGBoost Training and Batch Transform are used; no
@@ -39,8 +49,8 @@ small V1 dataset. Training and transform are charged only while running. The
 SageMaker role is limited to Gold reads, ML/control writes, the platform KMS
 key, and scoped CloudWatch metrics. No credentials or customer PII are logged.
 
-Terraform plan/apply remains governed by P1-CP1 / Gate 2; this package performs
-no AWS writes itself until explicitly run after approval.
+Terraform resources for this branch were deployed under the approved V1
+package. Runtime training remains blocked only by the account quota above.
 
 ## Reproducible run
 

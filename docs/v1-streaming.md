@@ -1,5 +1,14 @@
 # V1 streaming happy path
 
+## Current runtime status
+
+Implementation and offline validation are complete, but the DEV account returns
+`SubscriptionRequiredException` for the Kinesis API in `ap-southeast-2`.
+Terraform therefore has not created the four remaining Streaming resources
+(Kinesis stream, Firehose delivery stream, Firehose policy, and producer
+policy). Do not retry apply until a read-only Kinesis capability preflight
+succeeds.
+
 ## Flow
 
 `src/streaming/producer.py` creates schema-version-1 JSON envelopes and sends
@@ -24,8 +33,7 @@ terraform -chdir=terraform/environments/dev validate
 ```
 
 Terraform validation may require the already-approved provider cache and
-backend configuration. These checks are read-only; do not run `terraform
-apply` until P1-CP1/Gate 2 approval.
+backend configuration. These checks are read-only.
 
 ## Athena verification after approved DEV deployment
 

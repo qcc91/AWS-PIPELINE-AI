@@ -56,6 +56,22 @@ resource "aws_kms_key" "this" {
           Resource = "*"
         }
       ],
+      [
+        for bucket_index, bucket_arn in var.s3vectors_bucket_arns : {
+          Sid       = "AllowS3VectorsIndexing${bucket_index}"
+          Effect    = "Allow"
+          Principal = { Service = "indexing.s3vectors.amazonaws.com" }
+          Action    = ["kms:Decrypt"]
+          Resource  = "*"
+          Condition = {
+            ArnLike      = { "aws:SourceArn" = "${bucket_arn}/*" }
+            StringEquals = { "aws:SourceAccount" = var.account_id }
+            "ForAnyValue:StringEquals" = {
+              "kms:EncryptionContextKeys" = ["aws:s3vectors:arn", "aws:s3vectors:resource-id"]
+            }
+          }
+        }
+      ],
     )
   })
 

@@ -132,6 +132,11 @@ output "cdc_dms_task_id" {
   value       = module.cdc.dms_task_id
 }
 
+output "cdc_dms_task_arn" {
+  description = "V1 DMS full-load-and-CDC task ARN used by operational commands."
+  value       = module.cdc.dms_task_arn
+}
+
 output "cdc_seed_job_name" {
   description = "Glue VPC job used to initialize/mutate the private RDS source."
   value       = module.cdc.seed_job_name

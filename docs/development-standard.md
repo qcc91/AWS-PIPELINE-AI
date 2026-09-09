@@ -2,7 +2,7 @@
 
 ## 1. 适用范围与阶段纪律
 
-本标准覆盖后续 Terraform、数据、ML、RAG 和 CI/CD 工作。Gate 1 已批准，当前停在 Phase 1 execution plan review；计划获批前不得委派实施或编写 Terraform，任何 AWS 资源创建仍需单独的 reviewed-plan 人工授权。
+本标准覆盖后续 Terraform、数据、ML、RAG 和 CI/CD 工作。V1 使用工作包级授权：工作包获批后，Manager 与 Worker 可自主完成其中的常规非破坏性实施、调试、复验和 Git 检查点；只有破坏性操作、超范围服务、重大架构/安全/成本变化及生产部署才需要新的人工批准。
 
 ## 2. 工作流程
 
@@ -11,6 +11,13 @@
 3. PR 必须小而可评审，关联 task/ADR，说明风险、成本和回滚。
 4. 自动检查通过后由 Manager 审查正确性、架构、安全、成本、幂等、失败处理、监控、文档。
 5. `main` 可进入 DEV 部署与集成测试；PROD plan 与 apply 之间必须人工批准。
+
+### AWS 账户能力预检
+
+每个 AWS 工作包在进入 Terraform 创建或更新前，先用只读 API 验证目标区域、
+服务订阅状态、配额与实例可用性、模型访问和当前调用身份权限。若返回
+`SubscriptionRequiredException` 或等价账户级阻塞，应立即隔离该分支并记录，
+不得通过反复 `terraform apply` 重试。
 
 ## 3. Definition of Done
 

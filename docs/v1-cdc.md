@@ -1,5 +1,18 @@
 # V1 PostgreSQL CDC happy path
 
+## Runtime result
+
+This package is complete in DEV. DMS completed full load for all five tables
+with zero table errors, S3 EventBridge started the orchestration path, and the
+Glue current-state job completed successfully. Athena verified `clm_7003` was
+inserted, `clm_7001` became `APPROVED` with approved amount `450.00`, and
+deleted payment `pay_8001` is absent.
+
+The working source endpoint intentionally leaves PostgreSQL `SlotName`
+unset so DMS creates and manages its default replication slot. An earlier
+custom-slot endpoint remains as unused V1 technical debt because removing it is
+a destructive Terraform action; it has no replication compute of its own.
+
 This package adds a small private PostgreSQL DEV source and replicates the
 five contract tables (`customers`, `products`, `policies`, `claims`, and
 `payments`) with AWS DMS `full-load-and-cdc` into the existing landing bucket
@@ -31,7 +44,7 @@ security group path, so a developer workstation does not need private network
 access. DMS and Glue reach the secret through a private Secrets Manager interface
 endpoint in both CDC subnets:
 
-1. Apply only after a separate Human-approved CDC plan gate.
+1. Apply after the Human-approved CDC package plan.
 2. Run the `cdc_seed_job_name` Glue job with `--ACTION schema_seed`.
 3. Start the DMS task and wait for full load to reach `load complete`.
 4. Run the CDC Glue job once to materialize Bronze/Silver/Gold.
@@ -60,8 +73,8 @@ The always-on cost drivers are one `db.t4g.micro` RDS instance, one
 endpoint. AWS Price List discovery in Sydney found RDS compute at USD 0.025/hour
 (about USD 18.25/730 hours) and single-AZ DMS compute at USD 0.056/hour (about
 USD 40.88/730 hours), before storage, endpoint, Secrets Manager, and request
-charges. This exceeds the USD 12/month review threshold and requires a Human
-cost decision before apply. Glue is on-demand, two G.1X workers, and 15 minutes per
+charges. This exceeded the USD 12/month review threshold and was explicitly
+approved by the Human Owner. Glue is on-demand, two G.1X workers, and 15 minutes per
 run (roughly USD 0.22 at USD 0.44/DPU-hour). Stop or destroy the DEV package
 only through an approved Terraform change; the module protects the RDS from
 accidental destroy.

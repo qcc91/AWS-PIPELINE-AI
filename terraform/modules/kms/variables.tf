@@ -70,6 +70,22 @@ variable "user_role_arns" {
   }
 }
 
+variable "s3vectors_bucket_arns" {
+  description = "Explicit same-account S3 Vectors bucket ARNs allowed to use this key for background indexing."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.s3vectors_bucket_arns : can(regex(
+        "^arn:aws:s3vectors:[a-z0-9-]+:${var.account_id}:bucket/[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+        arn,
+      ))
+    ])
+    error_message = "s3vectors_bucket_arns must contain explicit same-account S3 Vectors bucket ARNs."
+  }
+}
+
 variable "tags" {
   description = "Complete project tag contract; no defaults are supplied."
   type        = map(string)

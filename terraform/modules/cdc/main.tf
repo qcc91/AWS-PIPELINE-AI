@@ -8,6 +8,7 @@ locals {
   seed_job_name        = "insurance-${var.environment}-cdc-sql-bootstrap"
   state_machine_name   = "insurance-${var.environment}-cdc-iceberg"
   glue_catalog_arn     = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
+  glue_connection_arn  = "arn:aws:glue:${var.aws_region}:${var.account_id}:connection/${local.name}-rds-connection"
   glue_database_arns   = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names[layer]}"]
   glue_table_arns      = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names[layer]}/*"]
 }
@@ -176,7 +177,7 @@ resource "aws_iam_role_policy" "dms_s3" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = local.landing_bucket_arn },
-      { Effect = "Allow", Action = ["s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:PutObject"], Resource = "${local.landing_bucket_arn}/${local.dms_prefix}/*" },
+      { Effect = "Allow", Action = ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:ListMultipartUploadParts", "s3:PutObject", "s3:PutObjectTagging"], Resource = "${local.landing_bucket_arn}/${local.dms_prefix}/*" },
       { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*"], Resource = var.kms_key_arn },
     ]
   })
@@ -214,7 +215,7 @@ resource "aws_vpc_endpoint" "secrets_manager" {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { AWS = [aws_iam_role.dms_secrets.arn, aws_iam_role.glue.arn] }
+      Principal = "*"
       Action    = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"]
       Resource  = aws_secretsmanager_secret.source.arn
     }]
@@ -251,10 +252,32 @@ resource "aws_dms_endpoint" "postgres" {
   secrets_manager_arn             = aws_secretsmanager_secret.source.arn
   extra_connection_attributes     = "secretsManagerEndpointOverride=${aws_vpc_endpoint.secrets_manager.dns_entry[0].dns_name}"
   postgres_settings {
-    slot_name   = "insurance_${var.environment}_cdc_slot"
     plugin_name = "test-decoding"
+    slot_name   = "insurance_${var.environment}_cdc_slot"
   }
   tags = merge(var.tags, { Purpose = "cdc-postgres-source-endpoint" })
+  depends_on = [
+    aws_secretsmanager_secret_version.source,
+    aws_vpc_endpoint.secrets_manager,
+  ]
+}
+
+# V1 uses a fresh endpoint without SlotName so DMS owns the logical slot and
+# chooses the CDC start position. The original endpoint is retained because
+# the DMS API cannot clear a previously configured SlotName in place.
+resource "aws_dms_endpoint" "postgres_auto" {
+  endpoint_id                     = replace("${local.name}-postgres-auto", "-", "")
+  endpoint_type                   = "source"
+  engine_name                     = "postgres"
+  database_name                   = var.database_name
+  ssl_mode                        = "require"
+  secrets_manager_access_role_arn = aws_iam_role.dms_secrets.arn
+  secrets_manager_arn             = aws_secretsmanager_secret.source.arn
+  extra_connection_attributes     = "secretsManagerEndpointOverride=${aws_vpc_endpoint.secrets_manager.dns_entry[0].dns_name}"
+  postgres_settings {
+    plugin_name = "test-decoding"
+  }
+  tags = merge(var.tags, { Purpose = "cdc-postgres-auto-slot-source-endpoint" })
   depends_on = [
     aws_secretsmanager_secret_version.source,
     aws_vpc_endpoint.secrets_manager,
@@ -282,12 +305,12 @@ resource "aws_dms_replication_task" "source" {
   replication_task_id      = replace(local.name, "-", "")
   migration_type           = "full-load-and-cdc"
   replication_instance_arn = aws_dms_replication_instance.source.replication_instance_arn
-  source_endpoint_arn      = aws_dms_endpoint.postgres.endpoint_arn
+  source_endpoint_arn      = aws_dms_endpoint.postgres_auto.endpoint_arn
   target_endpoint_arn      = aws_dms_s3_endpoint.s3.endpoint_arn
   table_mappings = jsonencode({
     rules = [
-      for table_name in ["customers", "policies", "products", "claims", "payments"] : {
-        "rule-type"      = "selection", "rule-id" = table_name, "rule-name" = table_name,
+      for rule_index, table_name in ["customers", "policies", "products", "claims", "payments"] : {
+        "rule-type"      = "selection", "rule-id" = tostring(rule_index + 1), "rule-name" = table_name,
         "object-locator" = { "schema-name" = "public", "table-name" = table_name }, "rule-action" = "include"
       }
     ]
@@ -384,8 +407,10 @@ resource "aws_iam_role_policy" "glue" {
       { Effect = "Allow", Action = ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = ["${local.lakehouse_bucket_arn}/*", "${local.control_bucket_arn}/*"] },
       { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*"], Resource = var.kms_key_arn },
       { Effect = "Allow", Action = ["glue:CreateTable", "glue:DeleteTable", "glue:GetDatabase", "glue:GetTable", "glue:GetTables", "glue:UpdateTable"], Resource = concat([local.glue_catalog_arn], local.glue_database_arns, local.glue_table_arns) },
+      { Effect = "Allow", Action = ["glue:GetConnection"], Resource = [local.glue_catalog_arn, local.glue_connection_arn] },
       { Effect = "Allow", Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"], Resource = aws_secretsmanager_secret.source.arn },
       { Effect = "Allow", Action = ["ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeRouteTables"], Resource = "*" },
+      { Effect = "Allow", Action = ["ec2:CreateTags", "ec2:DeleteTags"], Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:network-interface/*", Condition = { "ForAllValues:StringEquals" = { "aws:TagKeys" = ["aws-glue-service-resource"] } } },
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = [aws_cloudwatch_log_group.cdc.arn, "${aws_cloudwatch_log_group.cdc.arn}:*", aws_cloudwatch_log_group.seed.arn, "${aws_cloudwatch_log_group.seed.arn}:*"] },
     ]
   })
@@ -395,7 +420,7 @@ resource "aws_glue_connection" "rds" {
   name            = "${local.name}-rds-connection"
   connection_type = "JDBC"
   connection_properties = {
-    JDBC_CONNECTION_URL = "jdbc:postgresql://${aws_db_instance.source.address}:5432/${var.database_name}"
+    JDBC_CONNECTION_URL = "jdbc:postgresql://${aws_db_instance.source.address}:5432/${var.database_name}?sslmode=require"
     SECRET_ID           = aws_secretsmanager_secret.source.arn
   }
   physical_connection_requirements {
@@ -429,6 +454,8 @@ resource "aws_glue_job" "cdc" {
     "--enable-continuous-cloudwatch-log" = "true"
     "--continuous-log-logGroup"          = aws_cloudwatch_log_group.cdc.name
     "--CDC_PREFIX"                       = local.dms_prefix
+    "--CDC_OBJECT_KEY"                   = "manual"
+    "--RUN_ID"                           = "manual"
     "--LANDING_BUCKET"                   = var.landing_bucket_name
     "--LAKEHOUSE_BUCKET"                 = var.lakehouse_bucket_name
     "--BRONZE_DATABASE"                  = var.glue_database_names["bronze"]
@@ -462,12 +489,13 @@ resource "aws_glue_job" "seed" {
     "--enable-continuous-cloudwatch-log" = "true"
     "--continuous-log-logGroup"          = aws_cloudwatch_log_group.seed.name
     "--RDS_SECRET_ARN"                   = aws_secretsmanager_secret.source.arn
-    "--RDS_JDBC_URL"                     = "jdbc:postgresql://${aws_db_instance.source.address}:5432/${var.database_name}"
+    "--RDS_JDBC_URL"                     = "jdbc:postgresql://${aws_db_instance.source.address}:5432/${var.database_name}?sslmode=require"
     "--CONTROL_BUCKET"                   = var.control_bucket_name
     "--ACTION"                           = "schema_seed"
     "--SCHEMA_SQL_KEY"                   = aws_s3_object.schema_sql.key
     "--SEED_SQL_KEY"                     = aws_s3_object.seed_sql.key
     "--MUTATION_SQL_KEY"                 = aws_s3_object.mutation_sql.key
+    "--SLOT_NAME"                        = "insurance_${var.environment}_cdc_slot"
   }
   execution_property {
     max_concurrent_runs = 1

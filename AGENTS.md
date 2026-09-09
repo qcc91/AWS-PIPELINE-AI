@@ -1342,7 +1342,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V1 — END-TO-END HAPPY PATH / PARALLEL PIPELINE PLAN PREPARATION
+V1 — END-TO-END HAPPY PATH / FINAL INTEGRATION WITH ACCOUNT BLOCKERS
 
 Gate 1 and the Phase 1 execution plan were approved by the Human Owner on 2026-09-08.
 
@@ -1351,39 +1351,42 @@ verified after explicit Human plan/apply approvals. The Batch path is complete:
 S3 Landing -> EventBridge -> Step Functions -> Glue -> Bronze/Silver/Gold
 Iceberg -> Athena.
 
-The active work is one unified plan-preparation package for V1 CDC, Streaming,
-BI, ML, and RAG. Their implementations may proceed in parallel where contracts
-are stable. Existing later-version hardening may remain when correct and
-non-blocking, but V2–V5 implementation is not authorized.
+The CDC package has also completed its real DEV happy path: RDS PostgreSQL ->
+DMS full load/CDC -> S3 -> EventBridge -> Step Functions -> Glue ->
+Bronze/Silver/Gold Iceberg -> Athena. Athena confirmed the expected insert,
+update, and delete results.
+
+Athena BI is functional. QuickSight remains disabled because the account is
+not subscribed. Streaming, ML, and RAG implementations and infrastructure are
+prepared, but their runtime proofs are blocked by account capabilities:
+
+- Kinesis returns `SubscriptionRequiredException`; no Streaming resources were
+  created.
+- SageMaker Training has zero instance quota in `ap-southeast-2`; no training
+  job or charge was created.
+- Bedrock Knowledge Base and S3 Vectors resources are deployed, but Titan Text
+  Embeddings V2 ingestion returns persistent HTTP 429 throttling.
+
+Do not retry these branches until a read-only account capability check shows
+that the relevant subscription or quota is available. Existing later-version
+hardening may remain when correct and non-blocking, but V2–V5 implementation is
+not authorized.
 
 The approved scope and task contracts are defined in:
 
 docs/phase-1-execution-plan.md
 
-Current downstream implementation is limited to Terraform code, tests,
-documentation, offline validation, static analysis, and safe read-only
-planning. Routine formatting, validation, lint, provider download, local
-syntax, test failures, and Worker rework are handled internally without Human
-checkpoints.
-
-Do NOT create, modify, or delete additional AWS resources until the next
-trustworthy Terraform plan is reviewed and explicitly approved.
-
-Do NOT execute the next terraform apply before that approval.
+Routine formatting, validation, lint, provider download, local syntax, test
+failures, and Worker rework are handled internally without Human checkpoints.
+Any future AWS-changing operation must remain inside an approved V1 package;
+destructive actions, new services, material architecture/security/cost changes,
+and all production operations require Human approval.
 
 Do NOT deploy PROD resources.
 
-Before the next AWS-changing operation, STOP at:
-
-P1-CP1 / Gate 2 — Terraform Plan Approval
-
-Present the reviewed Terraform plan, security review, cost, tests, risks,
-rollback strategy, and unresolved issues to the Human Owner and wait for
-explicit approval.
-
-The remaining consolidated packages are `PACKAGE-DATA-CDC`,
-`PACKAGE-DATA-STREAMING`, `PACKAGE-BI`, `PACKAGE-ML`, `PACKAGE-RAG`, and later
-`PACKAGE-OBSERVABILITY`. Each follows:
+The remaining V1 work is limited to resolving the three account-level blockers,
+then proving `PACKAGE-DATA-STREAMING`, `PACKAGE-ML`, and `PACKAGE-RAG` at runtime.
+`PACKAGE-OBSERVABILITY` and V2–V5 remain out of scope. Each package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager
 review -> internal rework as needed -> meaningful Human gate.

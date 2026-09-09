@@ -11,6 +11,17 @@ from .citations import build_cited_answer
 DEFAULT_MODEL_ARN = "arn:aws:bedrock:ap-southeast-2::foundation-model/amazon.nova-micro-v1:0"
 
 
+def citation_uris(citations: list[dict]) -> list[str]:
+    """Flatten and de-duplicate every S3 reference returned by Bedrock."""
+    uris: list[str] = []
+    for citation in citations:
+        for reference in citation.get("retrievedReferences", []):
+            uri = reference.get("location", {}).get("s3Location", {}).get("uri", "")
+            if uri and uri not in uris:
+                uris.append(uri)
+    return uris
+
+
 def run(region: str, knowledge_base_id: str, data_source_id: str, question: str, model_arn: str, timeout: int) -> str:
     agent = boto3.client("bedrock-agent", region_name=region)
     runtime = boto3.client("bedrock-agent-runtime", region_name=region)
@@ -22,7 +33,13 @@ def run(region: str, knowledge_base_id: str, data_source_id: str, question: str,
         if status == "COMPLETE":
             break
         if status in {"FAILED", "STOPPED"}:
-            raise RuntimeError(f"ingestion job ended with {status}")
+            details = agent.get_ingestion_job(
+                knowledgeBaseId=knowledge_base_id,
+                dataSourceId=data_source_id,
+                ingestionJobId=job_id,
+            )["ingestionJob"]
+            reasons = "; ".join(details.get("failureReasons", []))
+            raise RuntimeError(f"ingestion job ended with {status}: {reasons or 'no failure reason returned'}")
         time.sleep(5)
     else:
         raise TimeoutError("ingestion job did not complete before timeout")
@@ -38,9 +55,7 @@ def run(region: str, knowledge_base_id: str, data_source_id: str, question: str,
         },
     )
     output = response["output"]["text"]
-    citations = response.get("citations", [])
-    uris = [c.get("retrievedReferences", [{}])[0].get("location", {}).get("s3Location", {}).get("uri", "") for c in citations]
-    uris = [uri for uri in uris if uri]
+    uris = citation_uris(response.get("citations", []))
     if not output.strip() or not uris:
         raise RuntimeError("RetrieveAndGenerate response failed citation validation")
     return build_cited_answer(output, [{"uri": uri} for uri in uris])
