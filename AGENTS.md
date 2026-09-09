@@ -1342,39 +1342,38 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V1 — END-TO-END HAPPY PATH / INFRASTRUCTURE PLAN PREPARATION
+V1 — END-TO-END HAPPY PATH / PARALLEL PIPELINE PLAN PREPARATION
 
 Gate 1 and the Phase 1 execution plan were approved by the Human Owner on 2026-09-08.
 
-The active consolidated work package is:
+The DEV bootstrap, foundation, and V1 Batch happy path have been deployed and
+verified after explicit Human plan/apply approvals. The Batch path is complete:
+S3 Landing -> EventBridge -> Step Functions -> Glue -> Bronze/Silver/Gold
+Iceberg -> Athena.
 
-`PHASE-1-INFRASTRUCTURE-PACKAGE`
-
-It covers completion of the existing Terraform code, fmt/init/validate,
-provider/module troubleshooting, DEV network discovery, secure non-root
-execution identity requirements, DEV bootstrap and foundation plans, exact
-action counts, security review, and cost review. Existing later-version
-hardening may remain when correct and non-blocking, but V2–V5 implementation is
-not authorized.
+The active work is one unified plan-preparation package for V1 CDC, Streaming,
+BI, ML, and RAG. Their implementations may proceed in parallel where contracts
+are stable. Existing later-version hardening may remain when correct and
+non-blocking, but V2–V5 implementation is not authorized.
 
 The approved scope and task contracts are defined in:
 
 docs/phase-1-execution-plan.md
 
-Phase 1 implementation is limited to Terraform code, tests, documentation,
-offline validation, static analysis, and safe read-only planning. Routine
-formatting, validation, lint, provider download, local syntax, test failures,
-and Worker rework are handled internally without Human checkpoints.
+Current downstream implementation is limited to Terraform code, tests,
+documentation, offline validation, static analysis, and safe read-only
+planning. Routine formatting, validation, lint, provider download, local
+syntax, test failures, and Worker rework are handled internally without Human
+checkpoints.
 
-Do NOT create AWS resources.
+Do NOT create, modify, or delete additional AWS resources until the next
+trustworthy Terraform plan is reviewed and explicitly approved.
 
-Do NOT modify or delete AWS resources.
-
-Do NOT execute terraform apply.
+Do NOT execute the next terraform apply before that approval.
 
 Do NOT deploy PROD resources.
 
-Before the first AWS-changing operation, STOP at:
+Before the next AWS-changing operation, STOP at:
 
 P1-CP1 / Gate 2 — Terraform Plan Approval
 
@@ -1382,9 +1381,9 @@ Present the reviewed Terraform plan, security review, cost, tests, risks,
 rollback strategy, and unresolved issues to the Human Owner and wait for
 explicit approval.
 
-Future consolidated packages are `PACKAGE-DATA-CSV`, `PACKAGE-DATA-CDC`,
-`PACKAGE-DATA-STREAMING`, `PACKAGE-LAKEHOUSE`, `PACKAGE-BI`, `PACKAGE-ML`,
-`PACKAGE-RAG`, and `PACKAGE-OBSERVABILITY`. Each follows:
+The remaining consolidated packages are `PACKAGE-DATA-CDC`,
+`PACKAGE-DATA-STREAMING`, `PACKAGE-BI`, `PACKAGE-ML`, `PACKAGE-RAG`, and later
+`PACKAGE-OBSERVABILITY`. Each follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager
 review -> internal rework as needed -> meaningful Human gate.

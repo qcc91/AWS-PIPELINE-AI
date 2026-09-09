@@ -324,3 +324,35 @@ variable "monthly_budget_usd" {
     error_message = "monthly_budget_usd must be at least the approved USD 12 Phase 1 upper estimate and no more than USD 100 without a new cost review."
   }
 }
+
+variable "enable_quicksight" {
+  type        = bool
+  default     = false
+  description = "Enable optional QuickSight dataset resources after account-level prerequisites are approved."
+}
+
+variable "quicksight_account_id" {
+  type        = string
+  default     = null
+  nullable    = true
+  description = "Explicit QuickSight account ID; never infer or fabricate."
+}
+
+variable "quicksight_user_arn" {
+  type        = string
+  default     = null
+  nullable    = true
+  description = "Approved QuickSight user/group ARN."
+}
+
+variable "quicksight_namespace" {
+  type    = string
+  default = "default"
+}
+
+variable "quicksight_edition" {
+  type        = string
+  default     = null
+  nullable    = true
+  description = "Subscribed QuickSight edition (STANDARD or ENTERPRISE), recorded for the plan."
+}

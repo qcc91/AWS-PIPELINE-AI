@@ -37,8 +37,9 @@
 
 ## Current blockers
 
-- None for TASK-INF-001 offline implementation.
-- AWS account ID, execution role, CIDR conflict information, state retention, alert destination, and budget are required before applicable plan/apply checkpoints, not for TASK-INF-001.
+- A fresh AWS CLI login in the Terraform execution context is required to refresh the deployed state and produce a trustworthy unified V1 plan.
+- CDC recurring compute alone is estimated at about USD 59.13/month before storage and PrivateLink, above the approved USD 12/month review threshold. Apply therefore requires an explicit Human cost decision at the Terraform Plan Approval gate.
+- QuickSight is not subscribed. V1 BI can proceed with Athena while QuickSight remains disabled; enabling QuickSight requires a separate edition/subscription cost decision.
 
 ## Manager reviews
 
@@ -84,3 +85,8 @@
 - 2026-09-09: Human approved the reviewed V1 Batch plan and accelerated real Batch execution. Terraform applied exactly 14 creates, zero changes, and zero destroys. No additional service or destructive operation was required.
 - 2026-09-09: V1 Batch Happy Path is COMPLETE. EventBridge started Step Functions execution `2d7cdc10-e77b-ca90-16fb-515c38629245_9b70b01d-6953-28c8-edc7-1b7645fcf452`; Glue run `jr_b811c71548f596a7b60b3125ec8e20e36bcfa19e2adcbb5c2c1384a9c0a815ba` succeeded in 82 seconds. Athena verified 3 Bronze rows, 3 Silver rows, 3 Gold facts, total claim amount 5290.50, and the expected three daily status summaries.
 - 2026-09-09: Post-apply Terraform refresh reports zero drift. State contains 9 bootstrap resources and 76 foundation/batch resources. The next authorized work is V1 CDC implementation and plan preparation; CDC apply remains subject to Terraform plan review.
+- 2026-09-09: Human directed parallel V1 execution. Manager launched BI, ML, and RAG Workers concurrently once the Batch Gold contract stabilized, then launched Streaming when a Worker slot became available. All five remaining V1 packages are integrated into the cumulative DEV root for a unified plan; none has been applied.
+- 2026-09-09: Manager read-only discovery confirmed PostgreSQL 16.15 on `db.t4g.micro`, DMS 3.6.1 on minimum available `dms.t3.small`, the existing `dms-vpc-role` and `dms-cloudwatch-logs-role`, Secrets Manager PrivateLink, Titan Text Embeddings V2, Nova Micro, and S3 Vectors in Sydney. QuickSight is not subscribed in account `199476069493`.
+- 2026-09-09: CDC Manager corrections add a two-AZ Secrets Manager endpoint, DMS-compatible secret, delete-event preservation, Glue self-referencing security group and ENI permissions, and AWS-resource-scoped KMS grant creation. The generated password is sensitive local Terraform state plus Secrets Manager only; V3/V4 must remove this local-state security shortcut.
+- 2026-09-09: Official Price List discovery found recurring CDC compute alone at roughly USD 59.13/month (RDS 18.25 plus DMS 40.88 for 730 hours), before storage and PrivateLink. This is a material cost increase above the USD 12/month threshold and requires Human approval; no apply is authorized.
+- 2026-09-09: Consolidated Manager review accepted the local CDC, Streaming, BI, ML, and RAG implementations for real plan preparation. `terraform fmt -check`, DEV `terraform validate`, 31 Python tests, Python compilation, the infrastructure static gate, `git diff --check`, and the repository secret scan pass. This acceptance authorizes planning only, not apply.

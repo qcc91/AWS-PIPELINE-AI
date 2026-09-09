@@ -1,0 +1,5 @@
+claim_id,claim_amount,approved_amount,incident_date,submitted_at,claim_status,fraud_label
+ml-train-1,100,0,2026-09-01,2026-09-02T00:00:00Z,SUBMITTED,1
+ml-train-2,80,75,2026-09-01,2026-09-02T00:00:00Z,APPROVED,0
+ml-train-3,300,0,2026-09-01,2026-09-05T00:00:00Z,UNDER_REVIEW,1
+ml-train-4,50,50,2026-09-01,2026-09-01T00:00:00Z,APPROVED,0

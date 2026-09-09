@@ -1,7 +1,7 @@
 # Manager Current Phase
 
 - Phase: V1 — End-to-End Happy Path
-- Status: DEV bootstrap/foundation and V1 Batch Happy Path deployed and verified; V1 CDC is next
+- Status: V1 Batch deployed and verified; CDC, Streaming, BI, ML, and RAG code packages integrated and awaiting unified real plan
 - Human approvals:
   - Gate 1 approved on 2026-09-08
   - Phase 1 execution plan approved on 2026-09-08
@@ -11,7 +11,7 @@
 - Default AWS Region: `ap-southeast-2`
 - Active environment: DEV
 - PROD: design only; no resources may be deployed
-- Current package: V1-CDC plan preparation; Batch is complete
+- Current packages: V1-CDC, V1-STREAMING, V1-BI, V1-ML, and V1-RAG plan preparation in parallel; Batch is complete
 - Authorized work: V1 happy-path code, tests, Terraform implementation, read-only discovery, plan preparation, and verification of the deployed foundation
 - Prohibited work: unreviewed additional AWS resource changes; PROD deployment; V2–V5 hardening; silent cross-region use
 - Next Human checkpoint: Terraform plan approval for the next V1 resource-changing package
@@ -23,5 +23,7 @@
 - AWS verification: seven S3 buckets use versioning/SSE-KMS/full public block; three KMS keys rotate; VPC/subnets/S3 endpoint, four Glue databases, CloudTrail, encrypted Logs/SNS, and CloudTrail delivery role are present
 - Apply deviation: V1 root KMS policy required additional explicit Terraform read/tag/alias actions; recovery used in-place policy updates only and created no extra resources
 - Batch evidence: 14/0/0 applied; EventBridge-triggered Step Functions execution and Glue run succeeded; Bronze, Silver, `fact_claim`, and `claim_daily_summary` are Iceberg; Athena counts are 3/3/3 and Gold total claim amount is 5290.50
+- Parallel V1 evidence: full DEV Terraform validates; 31 local tests pass; Python compiles; secret scan and infrastructure static gate pass. Sydney exposes Titan Text Embeddings V2, Nova Micro, and S3 Vectors. QuickSight is not subscribed.
+- Cost decision: Sydney RDS compute is about USD 18.25/month and DMS `dms.t3.small` compute about USD 40.88/month before storage/endpoints, exceeding the USD 12/month review threshold. No CDC apply is authorized.
 - Version authorization: V1 only; V2–V5 are roadmap context and must not be implemented yet
 - Last updated: 2026-09-09

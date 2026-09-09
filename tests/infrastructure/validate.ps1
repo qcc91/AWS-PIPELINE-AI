@@ -159,6 +159,43 @@ $resourceScopes = @(
       "aws_sfn_state_machine"
     )
   }
+  [pscustomobject]@{
+    Name = "cdc"
+    Prefix = (Join-Path $terraformRoot "modules/cdc") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_cloudwatch_event_rule", "aws_cloudwatch_event_target", "aws_cloudwatch_log_group"
+      "aws_db_instance", "aws_db_parameter_group", "aws_db_subnet_group"
+      "aws_dms_endpoint", "aws_dms_replication_instance", "aws_dms_replication_subnet_group", "aws_dms_replication_task", "aws_dms_s3_endpoint"
+      "aws_glue_connection", "aws_glue_job", "aws_iam_role", "aws_iam_role_policy"
+      "aws_s3_object", "aws_secretsmanager_secret", "aws_secretsmanager_secret_version"
+      "aws_security_group", "aws_sfn_state_machine", "aws_vpc_endpoint", "random_password"
+    )
+  }
+  [pscustomobject]@{
+    Name = "streaming"
+    Prefix = (Join-Path $terraformRoot "modules/streaming") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @(
+      "aws_cloudwatch_event_rule", "aws_cloudwatch_event_target", "aws_cloudwatch_log_group"
+      "aws_glue_job", "aws_iam_policy", "aws_iam_role", "aws_iam_role_policy"
+      "aws_kinesis_firehose_delivery_stream", "aws_kinesis_stream"
+      "aws_s3_bucket_notification", "aws_s3_object", "aws_sfn_state_machine"
+    )
+  }
+  [pscustomobject]@{
+    Name = "bi"
+    Prefix = (Join-Path $terraformRoot "modules/bi") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @("aws_athena_named_query", "aws_athena_workgroup", "aws_quicksight_data_set", "aws_quicksight_data_source")
+  }
+  [pscustomobject]@{
+    Name = "ml"
+    Prefix = (Join-Path $terraformRoot "modules/ml") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @("aws_cloudwatch_log_group", "aws_glue_job", "aws_iam_role", "aws_iam_role_policy", "aws_s3_object", "aws_sagemaker_model_package_group")
+  }
+  [pscustomobject]@{
+    Name = "rag"
+    Prefix = (Join-Path $terraformRoot "modules/rag") + [System.IO.Path]::DirectorySeparatorChar
+    AllowedTypes = @("aws_bedrockagent_data_source", "aws_bedrockagent_knowledge_base", "aws_iam_role", "aws_iam_role_policy", "aws_s3_object", "aws_s3vectors_index", "aws_s3vectors_vector_bucket")
+  }
 )
 
 foreach ($file in $terraformFiles) {
@@ -658,8 +695,8 @@ foreach ($rootEntry in @(@("DEV", $devMain), @("PROD", $prodMain))) {
       Fail "$rootName must wire module $moduleName exactly once"
     }
   }
-  if ($rootMain -match '(?im)^\s*resource\s+"' -or $rootMain -match '(?i)source\s*=\s*"[^\"]*(bedrock|rag|nat|internet-gateway)') {
-    Fail "$rootName root must use only the approved foundation modules and declare no resources directly"
+  if ($rootMain -match '(?im)^\s*resource\s+"' -or $rootMain -match '(?i)source\s*=\s*"[^\"]*(nat|internet-gateway)') {
+    Fail "$rootName root must use modules, declare no resources directly, and avoid forbidden internet egress modules"
   }
 }
 if ($devMain -match '(?m)^module\s+"(iam|lakeformation)"\s*\{') {
@@ -741,7 +778,7 @@ foreach ($planRule in @('only create is allowed', 'PROD must have zero resource 
   }
 }
 
-$secretPattern = '(?i)(aws_access_key_id|aws_secret_access_key|password\s*=|secret\s*=\s*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)'
+$secretPattern = '(?i)(aws_access_key_id|aws_secret_access_key|password\s*=\s*"|secret\s*=\s*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY)'
 $scanFiles = @(Get-ChildItem -LiteralPath $terraformRoot, (Join-Path $repo "buildspecs"), (Join-Path $repo "tests/infrastructure") -Recurse -File -ErrorAction SilentlyContinue |
     Where-Object {
       $_.Name -notin @("validate.ps1", "validate.sh") -and

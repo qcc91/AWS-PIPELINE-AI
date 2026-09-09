@@ -121,3 +121,101 @@ output "batch_event_rule_arn" {
   description = "V1 broker claim CSV EventBridge rule."
   value       = module.batch_ingestion.event_rule_arn
 }
+
+output "cdc_rds_endpoint" {
+  description = "Private V1 CDC PostgreSQL endpoint."
+  value       = module.cdc.rds_endpoint
+}
+
+output "cdc_dms_task_id" {
+  description = "V1 DMS full-load-and-CDC task identifier."
+  value       = module.cdc.dms_task_id
+}
+
+output "cdc_seed_job_name" {
+  description = "Glue VPC job used to initialize/mutate the private RDS source."
+  value       = module.cdc.seed_job_name
+}
+
+output "cdc_glue_job_name" {
+  description = "V1 DMS S3 CDC Iceberg materialization Glue job."
+  value       = module.cdc.cdc_job_name
+}
+
+output "cdc_state_machine_arn" {
+  description = "V1 CDC Step Functions state machine."
+  value       = module.cdc.cdc_state_machine_arn
+}
+
+output "streaming_kinesis_stream_name" {
+  value       = module.streaming.stream_name
+  description = "V1 Kinesis stream for insurance event envelopes."
+}
+
+output "streaming_firehose_name" {
+  value       = module.streaming.firehose_name
+  description = "V1 Firehose delivery stream writing stream/ JSON to lakehouse S3."
+}
+
+output "streaming_glue_job_name" {
+  value       = module.streaming.glue_job_name
+  description = "V1 Glue job materializing streaming Bronze/Silver/Gold Iceberg tables."
+}
+
+output "streaming_producer_policy_arn" {
+  value       = module.streaming.producer_policy_arn
+  description = "Scoped PutRecord/PutRecords policy for an approved producer identity."
+}
+
+output "streaming_state_machine_arn" {
+  value       = module.streaming.state_machine_arn
+  description = "V1 Firehose object-triggered streaming Glue state machine."
+}
+
+output "streaming_event_rule_arn" {
+  value       = module.streaming.event_rule_arn
+  description = "V1 lakehouse stream/ EventBridge rule."
+}
+
+output "bi_athena_workgroup_name" {
+  value       = module.bi.athena_workgroup_name
+  description = "V1 BI Athena workgroup with enforced encrypted results."
+}
+
+output "bi_named_query_ids" {
+  description = "V1 BI Athena named-query IDs for the two Gold contracts."
+  value = {
+    fact_claim          = module.bi.fact_claim_named_query_id
+    claim_daily_summary = module.bi.claim_daily_summary_named_query_id
+  }
+}
+
+output "bi_quicksight_enabled" {
+  value       = module.bi.quicksight_enabled
+  description = "Whether optional QuickSight resources are enabled."
+}
+
+output "ml_sagemaker_role_arn" {
+  description = "V1 on-demand SageMaker training and Batch Transform role."
+  value       = module.ml.sagemaker_role_arn
+}
+
+output "ml_model_package_group_name" {
+  description = "V1 claim-fraud model registry group."
+  value       = module.ml.model_package_group_name
+}
+
+output "rag_knowledge_base_id" {
+  description = "V1 Bedrock Knowledge Base ID."
+  value       = module.rag.knowledge_base_id
+}
+
+output "rag_data_source_id" {
+  description = "V1 approved-document data source ID."
+  value       = module.rag.data_source_id
+}
+
+output "rag_vector_index_arn" {
+  description = "V1 S3 Vectors index ARN."
+  value       = module.rag.vector_index_arn
+}
