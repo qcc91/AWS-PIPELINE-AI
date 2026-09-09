@@ -31,12 +31,16 @@ The optimized Step Functions Glue integration requires the Glue polling/start
 permissions on `Resource="*"` (including `GetJobRuns`); this is an AWS service
 integration limitation and is intentionally documented for the V1 scope.
 
-## Deploy and run
+## Deployed and verified
 
-Terraform apply is intentionally controlled by the Manager. After the module
-is applied in DEV, copy `data/sample/broker_claims.csv` to the landing bucket
-with the `s3://.../batch/` prefix. Monitor the Step Functions execution and
-query the Gold tables through Athena after Glue succeeds.
+The Human-approved 14/0/0 plan was applied in DEV on 2026-09-09. The synthetic
+file was uploaded to
+`s3://aip-insurance-dev-landing-dev01/batch/broker_claims-v1.csv`. EventBridge
+started Step Functions, the Glue job completed in 82 seconds, and the four
+Iceberg tables were registered in the Glue Catalog. Athena returned 3 Bronze
+rows, 3 Silver rows, 3 `fact_claim` rows, total claim amount 5290.50, total
+approved amount 800.00, and one expected row for each APPROVED, SUBMITTED, and
+UNDER_REVIEW daily summary group.
 
 ## V1 boundary and cost assumptions
 
@@ -55,7 +59,7 @@ module. The expected incremental spend is normally a few cents per demo run
 (Glue DPU-seconds, S3 requests/storage, CloudWatch logs, EventBridge,
 Step Functions); exact pricing depends on run duration and AWS regional rates.
 
-## Reviewed Terraform plan
+## Reviewed Terraform plan and apply
 
 The real DEV plan generated on 2026-09-09 contains 14 creates, zero changes,
 and zero destroys. Every action is under `module.batch_ingestion`; the deployed
@@ -64,5 +68,8 @@ three IAM roles and policies, two log groups, one Glue job, one Standard state
 machine, one EventBridge rule/target, one landing-bucket EventBridge
 notification configuration, and one versioned Glue script object.
 
-No batch apply has run. The saved binary plan is Git-ignored and requires
-explicit Human approval before execution.
+The approved plan was applied without resource-count deviation: 14 created,
+zero changed, and zero destroyed. A post-apply refresh plan reports no changes.
+The combined foundation/batch state contains 76 resources; the separate
+bootstrap state contains 9. Saved binary plans and Terraform state remain
+Git-ignored.

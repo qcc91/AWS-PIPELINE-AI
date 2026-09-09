@@ -1,10 +1,10 @@
 # Data Engineering Worker Status
 
 - Worker role: ingestion / Glue / Iceberg / Bronze / Silver / Gold / data quality
-- Current task: V1-BATCH-LAKEHOUSE
-- Status: Implemented and Manager-reviewed; real DEV plan 14/0/0 pending Human approval
-- Completed tasks: V1 batch claim CSV -> EventBridge -> Step Functions -> Glue -> Bronze/Silver/Gold Iceberg
+- Current task: V1-CDC preparation
+- Status: V1 Batch Happy Path COMPLETE in real DEV; CDC is next
+- Completed tasks: Real broker claim CSV -> EventBridge -> Step Functions -> Glue -> Bronze/Silver/Gold Iceberg -> Athena
 - Blockers: None
-- Validation: Terraform fmt/validate pass; 10 Python tests pass; plan actions are confined to the batch module
-- Next action: after Human plan approval, apply the 14-resource package and execute the synthetic CSV happy path
+- Validation: Glue and Step Functions succeeded; four Iceberg tables exist; Athena results match the three input claims; Terraform reports zero drift; 10 Python tests pass
+- Next action: implement and prepare a trustworthy V1 CDC plan; do not apply CDC resources before review
 - Last updated: 2026-09-09

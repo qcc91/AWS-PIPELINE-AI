@@ -1,16 +1,17 @@
 # Manager Current Phase
 
 - Phase: V1 — End-to-End Happy Path
-- Status: DEV bootstrap/foundation deployed and verified; V1 batch/lakehouse code and real plan ready for review
+- Status: DEV bootstrap/foundation and V1 Batch Happy Path deployed and verified; V1 CDC is next
 - Human approvals:
   - Gate 1 approved on 2026-09-08
   - Phase 1 execution plan approved on 2026-09-08
   - P1-CP1 static review accepted on 2026-09-08; no apply authorized
   - P1-CP1 / Gate 2 DEV apply approved on 2026-09-09
+  - V1 Batch 14/0/0 plan and DEV apply approved on 2026-09-09
 - Default AWS Region: `ap-southeast-2`
 - Active environment: DEV
 - PROD: design only; no resources may be deployed
-- Current package: V1-BATCH-LAKEHOUSE; real plan is 14 create/0 change/0 destroy and awaits Human approval
+- Current package: V1-CDC plan preparation; Batch is complete
 - Authorized work: V1 happy-path code, tests, Terraform implementation, read-only discovery, plan preparation, and verification of the deployed foundation
 - Prohibited work: unreviewed additional AWS resource changes; PROD deployment; V2–V5 hardening; silent cross-region use
 - Next Human checkpoint: Terraform plan approval for the next V1 resource-changing package
@@ -18,9 +19,9 @@
 - Identity status: Human-approved V1 root shortcut is visible only through the approved host execution context; V3 must replace it with least-privilege identities
 - Network discovery: account `199476069493`; existing default VPC `172.31.0.0/16` does not conflict with `10.20.0.0/16`; `ap-southeast-2a` and `ap-southeast-2b` are available
 - Audit discovery: no existing non-shadow CloudTrail trail; the planned regional management-events trail is the first ongoing management-event copy
-- Deployed state: bootstrap 9 resources and foundation 62 resources; both refreshed plans return zero drift and exact state counts
+- Deployed state: bootstrap 9 resources plus foundation/batch 76 resources; both refreshed plans return zero drift (85 Terraform-managed resources total)
 - AWS verification: seven S3 buckets use versioning/SSE-KMS/full public block; three KMS keys rotate; VPC/subnets/S3 endpoint, four Glue databases, CloudTrail, encrypted Logs/SNS, and CloudTrail delivery role are present
 - Apply deviation: V1 root KMS policy required additional explicit Terraform read/tag/alias actions; recovery used in-place policy updates only and created no extra resources
-- Batch evidence: Terraform validation passes; 10 Python tests pass; all 14 plan actions are confined to `module.batch_ingestion`; no batch apply has run
+- Batch evidence: 14/0/0 applied; EventBridge-triggered Step Functions execution and Glue run succeeded; Bronze, Silver, `fact_claim`, and `claim_daily_summary` are Iceberg; Athena counts are 3/3/3 and Gold total claim amount is 5290.50
 - Version authorization: V1 only; V2–V5 are roadmap context and must not be implemented yet
 - Last updated: 2026-09-09
