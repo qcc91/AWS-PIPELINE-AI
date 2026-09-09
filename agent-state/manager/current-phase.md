@@ -7,14 +7,18 @@
 - Active environment: DEV. PROD remains design-only and prohibited.
 - Account: `199476069493`, Human-approved temporary V1 root execution, current
   plan `FREE`; no credentials are persisted.
+- Account constraint: remain on `FREE`; upgrading to `PAID` is prohibited.
 - Streaming blocker: Kinesis `ListStreams` and Firehose
-  `ListDeliveryStreams` return `SubscriptionRequiredException`. Four Terraform
-  creates remain. Human must upgrade the account to `PAID` before resuming.
+  `ListDeliveryStreams` return `SubscriptionRequiredException`. AWS provides no
+  FREE activation mechanism; status is `ACCOUNT_PLAN_BLOCKED`.
 - ML blocker: `ml.m5.large` training quota `L-611FA074=0` and transform quota
-  `L-236AE59F=0`; both need value `1`. No training instance quota is nonzero.
+  `L-236AE59F=0`; value-one requests are submitted and pending. No alternative
+  on-demand training or transform quota is nonzero.
 - RAG blocker: Knowledge Base and S3 Vectors are deployed; Titan Text
   Embeddings V2 is available/authorized, but on-demand RPM quota
-  `L-26C560CE=0` is non-adjustable. No more ingestion retries until resolved.
+  `L-26C560CE=0` is non-adjustable. Other Sydney candidates are zero-quota or
+  violate Marketplace/cross-region/multimodal constraints. Basic Support review
+  is the only remaining FREE-plan action.
 - Latest Terraform refresh plan: 4 create/0 change/0 destroy, all Streaming.
 - Tests: Terraform DEV validation, infrastructure static gate, secret checks,
   and 34 Python tests pass. TFLint and Checkov are unavailable.
@@ -22,6 +26,7 @@
   two-AZ Secrets Manager endpoint continue charging while idle.
 - QuickSight remains intentionally deferred and unsubscribed.
 - V2–V5 are not authorized.
-- Next Human checkpoint: complete the single consolidated account actions,
-  then resume this same package for real Streaming, ML, and RAG runtime proof.
+- Next action: monitor SageMaker request decisions and submit the prepared
+  no-cost Basic Support review for Titan. Streaming remains intentionally
+  blocked under the FREE constraint.
 - Last updated: 2026-09-10.

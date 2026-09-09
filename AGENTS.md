@@ -1344,6 +1344,11 @@ CURRENT PHASE:
 
 V1 — END-TO-END HAPPY PATH / FINAL INTEGRATION WITH ACCOUNT BLOCKERS
 
+The Human Owner requires this project to remain on the AWS `FREE` account plan.
+Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a
+third-party Marketplace model, or create continuously billed resources only to
+probe account capability.
+
 Gate 1 and the Phase 1 execution plan were approved by the Human Owner on 2026-09-08.
 
 The DEV bootstrap, foundation, and V1 Batch happy path have been deployed and
@@ -1361,14 +1366,18 @@ not subscribed. Streaming, ML, and RAG implementations and infrastructure are
 prepared, but their runtime proofs are blocked by account capabilities:
 
 - The account plan is `FREE`; Kinesis and Firehose return
-  `SubscriptionRequiredException`. Four Streaming resources remain unapplied
-  until the Human Owner upgrades the billing plan to `PAID`.
+  `SubscriptionRequiredException`. AWS provides no separate FREE activation,
+  so four Streaming resources remain unapplied and the branch is
+  `ACCOUNT_PLAN_BLOCKED`.
 - SageMaker `ml.m5.large` training quota `L-611FA074` and transform quota
-  `L-236AE59F` are both zero; each requires value one. No training job or
-  charge was created.
+  `L-236AE59F` are both zero; value-one requests were submitted on 2026-09-10.
+  No training job or charge was created.
 - Bedrock Knowledge Base and S3 Vectors resources are deployed and the Titan
   model is authorized, but Titan Text Embeddings V2 on-demand RPM quota
   `L-26C560CE` is zero and non-adjustable, causing nested runtime HTTP 429.
+  All reasonable regional alternatives are also zero-quota or would require
+  Marketplace/cross-region/multimodal architecture changes; a Basic Support
+  quota review is the only remaining FREE-plan path.
 
 Do not retry these branches until a read-only account capability check shows
 that the relevant subscription or quota is available. Existing later-version

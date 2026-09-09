@@ -19,6 +19,13 @@ Both are adjustable account-level quotas and neither has a request in history.
 All discovered SageMaker training-job instance quotas currently have value
 zero, so there is no already-authorized low-cost instance substitution.
 
+The Human Owner subsequently authorized non-billable quota requests. Requests
+`b519d760dde9440687b17fbd2080ff62OTPDTvP7` (Training) and
+`3b77277e7eba45ca8519f986852b485dtx2kZBLr` (Transform) were submitted for value
+one on 2026-09-10. Both reached `CASE_OPENED`: Training case
+`178899797700557`, Transform case `178899780000820`. No SageMaker compute was
+created.
+
 The V1 ML branch consumes the approved Gold `fact_claim` snapshot (or an
 equivalent Athena export) and writes a reusable Gold `claim_risk` dataset.
 Only on-demand SageMaker XGBoost Training and Batch Transform are used; no

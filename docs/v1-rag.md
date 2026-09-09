@@ -31,6 +31,16 @@ quota `L-26C560CE` is `0` and non-adjustable; TPM quota `L-DE641971` is also
 quota the direct blocker. No further ingestion retry is allowed until the
 account quota changes.
 
+FREE-plan candidate discovery also found Titan Multimodal Embeddings G1 and
+Cohere Embed English/Multilingual in Sydney, but every corresponding effective
+on-demand RPM quota is zero. Titan Multimodal would require a different
+multimodal Knowledge Base configuration. Cohere agreements are unavailable and
+would introduce third-party Marketplace subscription. Cohere Embed v4 is an
+inference-profile/cross-region path rather than the approved regional
+self-managed vector configuration. No candidate is a safe, usable substitution.
+The only remaining FREE-plan path is a Basic AWS Support review of the
+non-adjustable zero Titan quota; do not purchase Support or replace the KB.
+
 ## Mandatory Sydney discovery (read-only)
 
 Run with the intended non-root identity and explicit region before planning:

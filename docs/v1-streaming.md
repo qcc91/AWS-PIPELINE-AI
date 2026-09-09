@@ -16,6 +16,12 @@ and Amazon Data Firehose as Paid Plan services for this account type. The Human
 Owner must upgrade the AWS account to `PAID`; this billing-plan change is not an
 autonomous engineering action.
 
+The Human Owner has chosen to keep the account on `FREE`. AWS provides no quota,
+entitlement, IAM, Organizations service-access, or advanced-feature mechanism
+that enables these Paid Plan services independently. The runtime status is
+therefore final for this constraint: `ACCOUNT_PLAN_BLOCKED`. Preserve the code
+and architecture without retrying.
+
 ## Flow
 
 `src/streaming/producer.py` creates schema-version-1 JSON envelopes and sends
