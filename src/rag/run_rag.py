@@ -22,27 +22,86 @@ def citation_uris(citations: list[dict]) -> list[str]:
     return uris
 
 
-def run(region: str, knowledge_base_id: str, data_source_id: str, question: str, model_arn: str, timeout: int) -> str:
-    agent = boto3.client("bedrock-agent", region_name=region)
-    runtime = boto3.client("bedrock-agent-runtime", region_name=region)
-    job = agent.start_ingestion_job(knowledgeBaseId=knowledge_base_id, dataSourceId=data_source_id)
+def active_ingestion_job(agent, knowledge_base_id: str, data_source_id: str) -> dict | None:
+    """Return an active ingestion job so callers never start overlapping syncs."""
+    jobs = agent.list_ingestion_jobs(
+        knowledgeBaseId=knowledge_base_id,
+        dataSourceId=data_source_id,
+        maxResults=10,
+    ).get("ingestionJobSummaries", [])
+    return next(
+        (job for job in jobs if job.get("status") in {"STARTING", "IN_PROGRESS"}),
+        None,
+    )
+
+
+def sync_documents(agent, knowledge_base_id: str, data_source_id: str, timeout: int) -> str:
+    """Run one non-overlapping ingestion and wait for its terminal status."""
+    active = active_ingestion_job(agent, knowledge_base_id, data_source_id)
+    if active:
+        raise RuntimeError(
+            f"ingestion job {active['ingestionJobId']} is already {active['status']}; "
+            "refusing to start an overlapping job"
+        )
+    job = agent.start_ingestion_job(
+        knowledgeBaseId=knowledge_base_id,
+        dataSourceId=data_source_id,
+    )
     job_id = job["ingestionJob"]["ingestionJobId"]
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        status = agent.get_ingestion_job(knowledgeBaseId=knowledge_base_id, dataSourceId=data_source_id, ingestionJobId=job_id)["ingestionJob"]["status"]
+        details = agent.get_ingestion_job(
+            knowledgeBaseId=knowledge_base_id,
+            dataSourceId=data_source_id,
+            ingestionJobId=job_id,
+        )["ingestionJob"]
+        status = details["status"]
         if status == "COMPLETE":
-            break
+            return job_id
         if status in {"FAILED", "STOPPED"}:
-            details = agent.get_ingestion_job(
-                knowledgeBaseId=knowledge_base_id,
-                dataSourceId=data_source_id,
-                ingestionJobId=job_id,
-            )["ingestionJob"]
             reasons = "; ".join(details.get("failureReasons", []))
-            raise RuntimeError(f"ingestion job ended with {status}: {reasons or 'no failure reason returned'}")
+            raise RuntimeError(
+                f"ingestion job {job_id} ended with {status}: "
+                f"{reasons or 'no failure reason returned'}"
+            )
         time.sleep(5)
-    else:
-        raise TimeoutError("ingestion job did not complete before timeout")
+    raise TimeoutError(f"ingestion job {job_id} did not complete before timeout")
+
+
+def retrieve_chunks(runtime, knowledge_base_id: str, question: str, number_of_results: int = 4) -> list[dict]:
+    """Retrieve attributable chunks without invoking a generation model."""
+    response = runtime.retrieve(
+        knowledgeBaseId=knowledge_base_id,
+        retrievalQuery={"text": question},
+        retrievalConfiguration={
+            "vectorSearchConfiguration": {"numberOfResults": number_of_results}
+        },
+    )
+    chunks = []
+    for result in response.get("retrievalResults", []):
+        chunks.append(
+            {
+                "score": result.get("score"),
+                "text": result.get("content", {}).get("text", ""),
+                "uri": result.get("location", {}).get("s3Location", {}).get("uri", ""),
+            }
+        )
+    return chunks
+
+
+def run(
+    region: str,
+    knowledge_base_id: str,
+    data_source_id: str,
+    question: str,
+    model_arn: str,
+    timeout: int,
+    sync: bool = False,
+) -> str:
+    agent = boto3.client("bedrock-agent", region_name=region)
+    runtime = boto3.client("bedrock-agent-runtime", region_name=region)
+    if sync:
+        sync_documents(agent, knowledge_base_id, data_source_id, timeout)
     response = runtime.retrieve_and_generate(
         input={"text": question},
         retrieveAndGenerateConfiguration={
@@ -69,8 +128,23 @@ def main() -> None:
     parser.add_argument("--model-arn", default=DEFAULT_MODEL_ARN)
     parser.add_argument("--region", default="ap-southeast-2", choices=["ap-southeast-2"])
     parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="run exactly one ingestion sync after checking that no sync is active",
+    )
     args = parser.parse_args()
-    print(run(args.region, args.knowledge_base_id, args.data_source_id, args.question, args.model_arn, args.timeout))
+    print(
+        run(
+            args.region,
+            args.knowledge_base_id,
+            args.data_source_id,
+            args.question,
+            args.model_arn,
+            args.timeout,
+            args.sync,
+        )
+    )
 
 
 if __name__ == "__main__":

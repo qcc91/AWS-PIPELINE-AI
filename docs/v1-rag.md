@@ -13,33 +13,19 @@ DEV. The deployed Knowledge Base is `AIKVWGQ7FK`, its approved-document data
 source is `ZQZTSRBX9Z`, and its S3 Vectors index is `insurance-rag-index` in
 `aip-insurance-dev-vectors-dev01`.
 
-Runtime ingestion was attempted with bounded retries and consistently failed
-when Bedrock called Titan Text Embeddings V2 with HTTP 429 `Too many requests`.
-The Knowledge Base remains `ACTIVE`, but retrieval acceptance cannot be claimed
-until ingestion succeeds. Do not retry until model quota/access preflight shows
-the account can invoke the embedding model.
+AWS Support case `178899964200695` confirmed that Titan Text Embeddings V2 has
+actual backend limits of 6,000 on-demand requests per minute and 300,000 tokens
+per minute in `ap-southeast-2`. The zero shown by Service Quotas is a known
+display inconsistency. The earlier nested HTTP 429 responses were genuine
+managed-ingestion throttling events, not a zero quota, model-access, or FREE
+account entitlement blocker. No quota increase is required for the V1 corpus.
 
-The outer API failure is Bedrock Agent `StartIngestionJob`
-`ValidationException`; its message identifies the nested operation as
-BedrockRuntime embedding-model invocation and returns HTTP 429 `Too many
-requests, please wait before trying again`. The model is
-`amazon.titan-embed-text-v2:0` in `ap-southeast-2`, with no inference profile.
-Live model discovery reports `AVAILABLE`, `AUTHORIZED`, and entitled, so this
-is not an access-denied or model-opt-in failure. The relevant on-demand RPM
-quota `L-26C560CE` is `0` and non-adjustable; TPM quota `L-DE641971` is also
-`0` and non-adjustable. Titan embeddings are RPM-throttled, making the zero RPM
-quota the direct blocker. No further ingestion retry is allowed until the
-account quota changes.
-
-FREE-plan candidate discovery also found Titan Multimodal Embeddings G1 and
-Cohere Embed English/Multilingual in Sydney, but every corresponding effective
-on-demand RPM quota is zero. Titan Multimodal would require a different
-multimodal Knowledge Base configuration. Cohere agreements are unavailable and
-would introduce third-party Marketplace subscription. Cohere Embed v4 is an
-inference-profile/cross-region path rather than the approved regional
-self-managed vector configuration. No candidate is a safe, usable substitution.
-The only remaining FREE-plan path is a Basic AWS Support review of the
-non-adjustable zero Titan quota; do not purchase Support or replace the KB.
+The successful retry first confirmed that no ingestion was running, then
+started exactly one job without overlap. Job `U0DDU3DXFT` completed from
+`2026-09-10T10:54:48Z` to `10:54:53Z`: two documents scanned, two newly
+indexed, zero skipped, zero deleted, and zero failed. The Knowledge Base remains
+`ACTIVE`; Titan V2 is the configured 1024-dimension embedding model and the
+storage backend remains `S3_VECTORS`.
 
 ## Mandatory Sydney discovery (read-only)
 
@@ -78,16 +64,28 @@ execution context used for AWS operations, run:
 aws s3api head-object --bucket aip-insurance-dev-documents-dev01 --key rag/approved/claims-handling-guide.md --region ap-southeast-2
 aws s3api head-object --bucket aip-insurance-dev-documents-dev01 --key rag/approved/product-terms.md --region ap-southeast-2
 aws s3vectors get-index --vector-bucket-name aip-insurance-dev-vectors-dev01 --index-name insurance-rag-index --region ap-southeast-2
-python -m src.rag.run_rag --knowledge-base-id AIKVWGQ7FK --data-source-id ZQZTSRBX9Z --question "What is the waiting period for eligible accidental-damage claims?" --region ap-southeast-2 --timeout 900
+python -m src.rag.run_rag --knowledge-base-id AIKVWGQ7FK --data-source-id ZQZTSRBX9Z --question "What is the waiting period for eligible accidental-damage claims?" --region ap-southeast-2
 ```
 
-The CLI starts ingestion, waits for `COMPLETE`, and calls
-`RetrieveAndGenerate` with the explicit Nova Micro ARN. Runtime acceptance
-requires a grounded fourteen-calendar-day answer and a source URI for
-`claims-handling-guide.md`; resource existence or ingestion completion alone
-is insufficient. The CLI rejects empty or uncited responses and reports
-Bedrock ingestion failure reasons. Deleting or replacing a document requires a
-subsequent ingestion sync and a stale-chunk check.
+The CLI performs retrieval/generation without starting ingestion by default.
+Pass `--sync` only after documents change: it checks for an active job, refuses
+overlap, starts one sync, and waits for a terminal status. Runtime acceptance
+requires grounded answers and S3 source URIs; resource existence or ingestion
+completion alone is insufficient. The CLI rejects empty or uncited responses.
+
+## Real AWS validation
+
+The S3 Vectors index contains two vector entries. Representative V1 validation:
+
+| Question | Evidence and answer | Source | Supported |
+|---|---|---|---|
+| Waiting period for eligible accidental-damage claims? | Fourteen calendar days from policy commencement; the schedule may specify longer. Top retrieval score `0.83927`. | `claims-handling-guide.md` | Yes |
+| What repair costs are reimbursed and deducted? | Approved repair costs up to the policy limit, less the applicable excess; exclusions were also identified. | `product-terms.md` | Yes |
+| What must be recorded at first notice of loss? | Claim number, policy number, incident date, loss description, and preferred contact channel. | `claims-handling-guide.md` | Yes |
+
+All three Nova Micro `RetrieveAndGenerate` responses returned the relevant S3
+citation. No Marketplace agreement, account upgrade, cross-region model,
+persistent inference resource, or additional service was introduced.
 
 ## IAM, security and cost
 
@@ -112,5 +110,7 @@ terraform -chdir=terraform/modules/rag fmt -check
 
 The local citation helper tests the required invariant that a response has a
 non-empty answer, at least one `s3://` source, and all expected source URIs.
-Actual ingestion/retrieval remains the authenticated DEV acceptance test once
-the account-level embedding-model blocker is cleared.
+Focused RAG tests pass (`8 passed`). A local Python invocation may fail before
+AWS calls when the workstation's `aws-login` credential provider lacks
+`botocore[crt]`; this is a local SDK-provider limitation. The same authenticated
+AWS CLI context completed the real ingestion, retrieval, and generation path.

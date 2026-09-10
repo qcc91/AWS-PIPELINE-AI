@@ -1,7 +1,7 @@
 import pytest
 
 from src.rag.citations import build_cited_answer, validate_citations
-from src.rag.run_rag import citation_uris
+from src.rag.run_rag import active_ingestion_job, citation_uris, retrieve_chunks
 
 
 def test_build_cited_answer_is_grounded_and_attributable():
@@ -41,4 +41,44 @@ def test_flattens_and_deduplicates_all_bedrock_references():
     assert citation_uris(citations) == [
         "s3://docs/rag/approved/claims.md",
         "s3://docs/rag/approved/terms.md",
+    ]
+
+
+def test_active_ingestion_job_prevents_overlap():
+    class Agent:
+        def list_ingestion_jobs(self, **_kwargs):
+            return {
+                "ingestionJobSummaries": [
+                    {"ingestionJobId": "done", "status": "COMPLETE"},
+                    {"ingestionJobId": "active", "status": "IN_PROGRESS"},
+                ]
+            }
+
+    assert active_ingestion_job(Agent(), "kb", "source") == {
+        "ingestionJobId": "active",
+        "status": "IN_PROGRESS",
+    }
+
+
+def test_retrieve_chunks_keeps_source_and_content():
+    class Runtime:
+        def retrieve(self, **_kwargs):
+            return {
+                "retrievalResults": [
+                    {
+                        "score": 0.9,
+                        "content": {"text": "Fourteen calendar days."},
+                        "location": {
+                            "s3Location": {"uri": "s3://docs/rag/approved/claims.md"}
+                        },
+                    }
+                ]
+            }
+
+    assert retrieve_chunks(Runtime(), "kb", "waiting period", 2) == [
+        {
+            "score": 0.9,
+            "text": "Fourteen calendar days.",
+            "uri": "s3://docs/rag/approved/claims.md",
+        }
     ]

@@ -1348,7 +1348,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V1 — END-TO-END HAPPY PATH / FILE SOURCE EXPANSION WITH ACCOUNT BLOCKERS
+V1 — END-TO-END HAPPY PATH / CONSOLIDATED COMPLETION REVIEW
 
 The Human Owner requires this project to remain on the AWS `FREE` account plan.
 Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a
@@ -1389,23 +1389,24 @@ model artifact -> one `ml.m5.large` Batch Transform -> Glue -> Gold
 `claim_risk` -> Athena. The run produced 120 predictions; validation AUC was
 0.65556 and independent Test AUC was 0.62222. No endpoint or notebook was
 created, and the transient SageMaker Model was deleted after publication.
-Streaming and RAG runtime proofs remain blocked by account capabilities:
+Streaming remains blocked by account capability; RAG runtime proof is complete:
 
 - The account plan is `FREE`; Kinesis and Firehose return
   `SubscriptionRequiredException`. AWS provides no separate FREE activation,
   so four Streaming resources remain unapplied and the branch is
   `ACCOUNT_PLAN_BLOCKED`.
-- Bedrock Knowledge Base and S3 Vectors resources are deployed and the Titan
-  model is authorized, but Titan Text Embeddings V2 on-demand RPM quota
-  `L-26C560CE` is zero and non-adjustable, causing nested runtime HTTP 429.
-  All reasonable regional alternatives are also zero-quota or would require
-  Marketplace/cross-region/multimodal architecture changes; a Basic Support
-  quota review is the only remaining FREE-plan path.
+- AWS Support case `178899964200695` confirmed that the Service Quotas display
+  of zero is a known inconsistency. The actual Titan Text Embeddings V2 backend
+  limits are 6,000 RPM and 300,000 TPM. The earlier HTTP 429 responses were
+  genuine transient ingestion throttling, not a FREE-plan entitlement block.
+  One non-overlapping ingestion job indexed both approved documents with zero
+  failures. S3 Vectors retrieval and three Nova Micro grounded answers with S3
+  citations passed real AWS validation.
 
-Do not retry these branches until a read-only account capability check shows
-that the relevant subscription or quota is available. Existing later-version
-hardening may remain when correct and non-blocking, but V2–V5 implementation is
-not authorized.
+Do not retry Streaming until a read-only account capability check shows that
+Kinesis and Firehose are available. Do not request a Titan quota increase for
+the small V1 corpus. Existing later-version hardening may remain when correct
+and non-blocking, but V2–V5 implementation is not authorized.
 
 The approved scope and task contracts are defined in:
 
@@ -1419,10 +1420,11 @@ and all production operations require Human approval.
 
 Do NOT deploy PROD resources.
 
-The remaining account-dependent V1 work is resolving Streaming and RAG, then
-proving `PACKAGE-DATA-STREAMING` and `PACKAGE-RAG` at runtime. V1 ML is
-complete. `PACKAGE-OBSERVABILITY` and V2–V5 remain out of scope. Each package
-follows:
+V1 package execution and its consolidated review are complete. Streaming is
+reported honestly as `ACCOUNT_PLAN_BLOCKED`, and QuickSight as intentionally
+deferred; neither is redesigned merely to turn it green. V1 ML and RAG are
+complete. `PACKAGE-OBSERVABILITY` and V2–V5 remain out of scope. Stop and wait
+for Human authorization before beginning V2. Each future package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager
 review -> internal rework as needed -> meaningful Human gate.

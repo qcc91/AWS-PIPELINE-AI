@@ -14,12 +14,11 @@
   existing OLTP policy/customer IDs; it does not replace the OLTP claim source.
 - ML status: downstream V1 ML completed from the 120-row point-in-time feature
   table through SageMaker Training, Batch Transform, Glue, Gold and Athena.
-- Blockers: none for file processing or ML; Streaming and RAG account blockers
-  remain separate.
+- Blockers: none for file processing, ML, or RAG. Streaming remains a separate
+  FREE-account plan blocker.
 - Evidence: zero missing product/broker/claim-type/region/coverage/motor-vehicle
   joins; point-in-time query found zero future reference versions across 120 rows;
   39 earlier local tests passed; the ML package added passing tests and
   completed real SageMaker execution.
-- Next action: retain these tables for downstream BI/ML use. Separate Streaming,
-  SageMaker quota, and Bedrock Support blockers remain unchanged.
+- Next action: retain these tables for downstream BI/ML use. Do not begin V2.
 - Last updated: 2026-09-10.

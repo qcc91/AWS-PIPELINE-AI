@@ -37,45 +37,26 @@ The requests were submitted on 2026-09-10 and both reached `CASE_OPENED`. They
 create no SageMaker compute or persistent endpoint. Do not start the pipeline
 until both applied quotas equal at least one.
 
-## RAG — no currently usable FREE-compatible embedding model
+## RAG — RESOLVED and V1 COMPLETE
 
-Live Sydney discovery produced the following result:
+The Human Owner submitted Basic Support case `178899964200695` on 2026-09-10.
+AWS investigated the account backend and confirmed that Titan Text Embeddings
+V2 has actual limits of 6,000 on-demand requests per minute and 300,000 tokens
+per minute in `ap-southeast-2`. The zero shown in Service Quotas is a known
+display inconsistency and must not be interpreted as the applied backend quota.
 
-| Candidate | Account/model state | Effective RPM | Knowledge Base decision |
-|---|---|---:|---|
-| `amazon.titan-embed-text-v2:0` | available, authorized, entitled | `L-26C560CE=0`, non-adjustable | Correct existing text model, but blocked |
-| `amazon.titan-embed-image-v1` | available, authorized, entitled | `L-DF0E34D4=0`, non-adjustable | Multimodal path needs a new KB/content configuration; not a minimal text substitute |
-| `cohere.embed-english-v3` | authorized/region available, agreement unavailable | `L-FF8E7864=0`, non-adjustable | Third-party Marketplace agreement; do not subscribe |
-| `cohere.embed-multilingual-v3` | authorized/region available, agreement unavailable | `L-9E5BD0C6=0`, non-adjustable | Third-party Marketplace agreement; do not subscribe |
-| `cohere.embed-v4:0` | inference-profile only; agreement unavailable | no usable in-region quota | Cross-region/Marketplace and not the approved self-managed path |
+The previous Knowledge Base HTTP 429 responses were genuine throttling during
+managed ingestion, not evidence of a FREE-account entitlement block. No quota
+increase was requested. After confirming no active ingestion, one
+non-overlapping job (`U0DDU3DXFT`) completed in about four seconds, indexed both
+documents with zero failures, and created two vectors. Retrieval plus three
+Nova Micro grounded-answer checks returned relevant S3 citations. The account
+remained FREE; no Marketplace, Support-plan, region, model, or architecture
+change occurred.
 
-No model invocation was sent for candidates whose effective RPM is already
-zero or whose Marketplace agreement is unavailable. This avoids deterministic
-throttling and unintended third-party subscription. The existing Titan V2
-failure is Bedrock Agent `StartIngestionJob` `ValidationException` wrapping a
-BedrockRuntime HTTP 429 `Too many requests`; it is quota, not IAM/model access.
-
-The Titan quota is not adjustable through Service Quotas. With the account kept
-FREE, the remaining official route is an AWS Support account/quota review. A
-Basic Support case must request investigation of why the applied, non-adjustable
-Titan Text Embeddings V2 on-demand RPM quota is zero despite the model being
-authorized and available in Sydney. Include account, region, model ID, quota
-code, Knowledge Base/data source IDs, error text, and the recorded request IDs.
-Do not purchase a Support plan; if AWS will not accept the case under Basic
-Support, leave RAG `ACCOUNT_QUOTA_BLOCKED`.
-
-On 2026-09-10, the authenticated account called the read-only AWS Support
-`DescribeServices` operation to determine whether automatic case submission was
-available. AWS returned `SubscriptionRequiredException: Amazon Web Services
-Premium Support Subscription is required to use this service`. The Support API
-therefore cannot submit this Basic Support case. Console submission is required;
-do not upgrade the Support plan.
-
-The Human Owner submitted the prepared request through the Basic Support
-console on 2026-09-10. Case ID `178899964200695` was created at
-`2026-09-10T00:20:42.712Z`; its initial status is `Unassigned`, severity is
-`General question`, and category is `Service Quotas, General`. Do not retry
-Titan while the case is unresolved and effective RPM remains zero.
+The historical request below is retained as audit evidence of the original
+diagnosis. Its statements that the effective quotas were zero were superseded
+by AWS Support's backend investigation.
 
 ### Prepared Basic Support request
 
