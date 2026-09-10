@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from jobs.ml_claim_fraud_pipeline import build_training_request, build_transform_request, evaluate_auc, submit_batch_transform
+from jobs.ml_claim_fraud_pipeline import build_training_request, build_transform_request, evaluate_auc, evaluate_predictions, submit_batch_transform
 from src.ml.claim_fraud import claim_features, deterministic_dataset, format_claim_risk, to_xgboost_csv
 
 
@@ -26,14 +26,25 @@ def test_claim_risk_contract_clamps_probability_and_sets_level():
 
 
 def test_requests_use_batch_and_bounded_resources():
-    training = build_training_request(image_uri="published", role_arn="arn:aws:iam::123456789012:role/ml", output_path="s3://bucket/models", train_uri="s3://bucket/train", validation_uri="s3://bucket/validation", job_name="job")
-    transform = build_transform_request(model_name="model", input_uri="s3://bucket/input", output_uri="s3://bucket/output", job_name="transform")
+    key = "arn:aws:kms:ap-southeast-2:123456789012:key/00000000-0000-0000-0000-000000000000"
+    training = build_training_request(image_uri="published", role_arn="arn:aws:iam::123456789012:role/ml", output_path="s3://bucket/models", train_uri="s3://bucket/train", validation_uri="s3://bucket/validation", job_name="job", kms_key_id=key)
+    transform = build_transform_request(model_name="model", input_uri="s3://bucket/input", output_uri="s3://bucket/output", job_name="transform", kms_key_id=key)
     assert training["StoppingCondition"]["MaxRuntimeInSeconds"] == 1800
-    assert training["AlgorithmSpecification"]["MetricDefinitions"][0]["Name"] == "validation:auc"
+    # AWS built-in XGBoost emits validation:auc automatically and rejects
+    # user-supplied MetricDefinitions for this image.
+    assert "MetricDefinitions" not in training["AlgorithmSpecification"]
     assert training["ResourceConfig"]["InstanceCount"] == 1
+    assert training["ResourceConfig"]["InstanceType"] == "ml.m5.large"
+    assert training["HyperParameters"]["seed"] == "42"
+    assert training["HyperParameters"]["subsample"] == "0.80"
     assert transform["TransformResources"]["InstanceCount"] == 1
+    assert training["OutputDataConfig"]["KmsKeyId"] == key
+    assert transform["TransformOutput"]["KmsKeyId"] == key
+    assert transform["TransformResources"]["InstanceType"] == "ml.m5.large"
     assert callable(submit_batch_transform)
 
 
 def test_auc_is_dependency_free_and_requires_both_classes():
     assert evaluate_auc([0.9, 0.1], [1, 0]) == 1.0
+    metrics = evaluate_predictions([0.1, 0.4, 0.6, 0.9], [0, 0, 1, 1])
+    assert metrics["auc"] == metrics["f1"] == 1.0

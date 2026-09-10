@@ -9,7 +9,7 @@
 | V1-CDC | Data Engineering + Infrastructure Workers | RDS PostgreSQL, DMS full load/CDC and current-state lakehouse flow | COMPLETE; real full-load/CDC, Glue and Athena proof passed | Package approved and executed |
 | V1-STREAMING | Data Engineering + Infrastructure Workers | Python producer, Kinesis, Firehose and event lakehouse flow | ACCOUNT_PLAN_BLOCKED; FREE excludes Kinesis/Firehose; 4 resources remain unapplied | Preserve ready code; no FREE activation exists |
 | V1-BI | BI Worker | Gold Iceberg through Athena and optional QuickSight | Athena COMPLETE; QuickSight disabled/not subscribed | QuickSight intentionally deferred |
-| V1-ML | AI Worker | Shared business data -> point-in-time high_risk_claim XGBoost -> claim_risk | WAITING_QUOTA; shared BI/ML data contract approved; executable dataset alignment pending | Resume implementation when both quotas are approved |
+| V1-ML | AI Worker | Shared business data -> point-in-time high_risk_claim XGBoost -> claim_risk | COMPLETE; real Training, Batch Transform, Glue Gold and Athena proof passed for 120 rows | Package approved and executed 2026-09-10 |
 | V1-RAG | AI Worker | Bedrock KB, S3 Vectors, retrieval and citations | WAITING_SUPPORT; Basic case 178899964200695 submitted, initially Unassigned | Wait for AWS; no Titan retry at RPM 0 |
 | DOCUVERA-CLEANUP | Manager | Remove all AWS resources belonging to the former DocuVera simulation | COMPLETE; post-delete inventory found no DocuVera-named resources in reviewed services | Destructive cleanup explicitly approved |
 

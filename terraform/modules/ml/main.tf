@@ -43,6 +43,7 @@ resource "aws_iam_role_policy" "postprocess" {
   role = aws_iam_role.postprocess.id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = [local.lakehouse_arn, local.control_arn] },
+    { Effect = "Allow", Action = ["s3:GetObject"], Resource = ["${local.control_arn}/artifacts/ml/*"] },
     { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = ["${local.lakehouse_arn}/lakehouse/*", "${local.control_arn}/ml/*"] },
     { Effect = "Allow", Action = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*", "kms:DescribeKey"], Resource = var.kms_key_arn },
     { Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable", "glue:CreateTable", "glue:UpdateTable"], Resource = "*" },

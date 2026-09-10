@@ -12,13 +12,14 @@
 - Key boundary: OLTP lacks broker/region/coverage/vehicle/claim-type transaction
   keys. The external broker-claim file carries these reference keys and reuses
   existing OLTP policy/customer IDs; it does not replace the OLTP claim source.
-- ML status: file-derived point-in-time features may be validated in Athena;
-  SageMaker training/transform remain blocked by zero quotas and are not run.
-- Blockers: none identified for file processing; Streaming/RAG/ML account
-  blockers remain separate and unchanged.
+- ML status: downstream V1 ML completed from the 120-row point-in-time feature
+  table through SageMaker Training, Batch Transform, Glue, Gold and Athena.
+- Blockers: none for file processing or ML; Streaming and RAG account blockers
+  remain separate.
 - Evidence: zero missing product/broker/claim-type/region/coverage/motor-vehicle
   joins; point-in-time query found zero future reference versions across 120 rows;
-  39 local tests pass. No SageMaker job was started.
+  39 earlier local tests passed; the ML package added passing tests and
+  completed real SageMaker execution.
 - Next action: retain these tables for downstream BI/ML use. Separate Streaming,
   SageMaker quota, and Bedrock Support blockers remain unchanged.
 - Last updated: 2026-09-10.

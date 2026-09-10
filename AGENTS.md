@@ -1383,16 +1383,18 @@ reusing OLTP policy/customer identifiers; product enrichment uses
 not overwrite or be misrepresented as the PostgreSQL claim source of truth.
 
 Athena BI is functional. QuickSight remains disabled because the account is
-not subscribed. Streaming, ML, and RAG implementations and infrastructure are
-prepared, but their runtime proofs are blocked by account capabilities:
+not subscribed. V1 ML completed on 2026-09-10 after its quotas propagated:
+Gold `claim_risk_features` -> one `ml.m5.large` XGBoost Training -> encrypted
+model artifact -> one `ml.m5.large` Batch Transform -> Glue -> Gold
+`claim_risk` -> Athena. The run produced 120 predictions; validation AUC was
+0.65556 and independent Test AUC was 0.62222. No endpoint or notebook was
+created, and the transient SageMaker Model was deleted after publication.
+Streaming and RAG runtime proofs remain blocked by account capabilities:
 
 - The account plan is `FREE`; Kinesis and Firehose return
   `SubscriptionRequiredException`. AWS provides no separate FREE activation,
   so four Streaming resources remain unapplied and the branch is
   `ACCOUNT_PLAN_BLOCKED`.
-- SageMaker `ml.m5.large` training quota `L-611FA074` and transform quota
-  `L-236AE59F` are both zero; value-one requests were submitted on 2026-09-10.
-  No training job or charge was created.
 - Bedrock Knowledge Base and S3 Vectors resources are deployed and the Titan
   model is authorized, but Titan Text Embeddings V2 on-demand RPM quota
   `L-26C560CE` is zero and non-adjustable, causing nested runtime HTTP 429.
@@ -1417,11 +1419,10 @@ and all production operations require Human approval.
 
 Do NOT deploy PROD resources.
 
-The remaining account-dependent V1 work is resolving the three blockers, then
-proving `PACKAGE-DATA-STREAMING`, `PACKAGE-ML`, and `PACKAGE-RAG` at runtime.
-The file package may validate ML feature readiness in Athena but must not run
-SageMaker while quotas remain zero. `PACKAGE-OBSERVABILITY` and V2–V5 remain
-out of scope. Each package follows:
+The remaining account-dependent V1 work is resolving Streaming and RAG, then
+proving `PACKAGE-DATA-STREAMING` and `PACKAGE-RAG` at runtime. V1 ML is
+complete. `PACKAGE-OBSERVABILITY` and V2–V5 remain out of scope. Each package
+follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager
 review -> internal rework as needed -> meaningful Human gate.

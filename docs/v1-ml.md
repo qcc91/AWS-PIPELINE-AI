@@ -1,5 +1,9 @@
 # V1 ML — Claim Risk Batch Prediction
 
+> V1 runtime completed on 2026-09-10. The authoritative execution evidence,
+> metrics, cost, and limitations are in `docs/v1-ml-result.md`. Historical
+> blocker text below is retained only as the pre-execution record.
+
 ## Shared-data design transition
 
 The approved business target is now `high_risk_claim` at claim-submission time,

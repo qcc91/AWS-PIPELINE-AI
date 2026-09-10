@@ -6,7 +6,10 @@ resolved by the SageMaker SDK for the selected region/version, never guessed.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
+import math
 import time
 from typing import Any
 
@@ -20,36 +23,47 @@ def resolve_xgboost_image_uri(*, region: str, version: str) -> str:
     return image_uris.retrieve(framework="xgboost", region=region, version=version, image_scope="training")
 
 
-def build_training_request(*, image_uri: str, role_arn: str, output_path: str, train_uri: str, validation_uri: str, job_name: str) -> dict[str, Any]:
+def build_training_request(*, image_uri: str, role_arn: str, output_path: str, train_uri: str, validation_uri: str, job_name: str, kms_key_id: str | None = None) -> dict[str, Any]:
     return {
         "TrainingJobName": job_name,
         "AlgorithmSpecification": {
             "TrainingInputMode": "File",
             "TrainingImage": image_uri,
-            "MetricDefinitions": [
-                {"Name": "validation:auc", "Regex": r".*validation-auc:([0-9.]+).*"}
-            ],
         },
         "RoleArn": role_arn,
-        "OutputDataConfig": {"S3OutputPath": output_path},
+        "OutputDataConfig": {
+            "S3OutputPath": output_path,
+            **({"KmsKeyId": kms_key_id} if kms_key_id else {}),
+        },
         "ResourceConfig": {"InstanceType": "ml.m5.large", "InstanceCount": 1, "VolumeSizeInGB": 30},
         "StoppingCondition": {"MaxRuntimeInSeconds": 1800},
         "InputDataConfig": [
             {"ChannelName": "train", "ContentType": "text/csv", "InputMode": "File", "DataSource": {"S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": train_uri, "S3DataDistributionType": "FullyReplicated"}}},
             {"ChannelName": "validation", "ContentType": "text/csv", "InputMode": "File", "DataSource": {"S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": validation_uri, "S3DataDistributionType": "FullyReplicated"}}},
         ],
-        "HyperParameters": {"objective": "binary:logistic", "eval_metric": "auc", "num_round": "50", "max_depth": "4", "eta": "0.2"},
+        "HyperParameters": {
+            "objective": "binary:logistic",
+            "eval_metric": "auc",
+            "num_round": "100",
+            "max_depth": "3",
+            "eta": "0.08",
+            "min_child_weight": "2",
+            "subsample": "0.80",
+            "colsample_bytree": "0.80",
+            "seed": "42",
+            "early_stopping_rounds": "12",
+        },
     }
 
 
-def build_transform_request(*, model_name: str, input_uri: str, output_uri: str, job_name: str) -> dict[str, Any]:
-    return {"TransformJobName": job_name, "ModelName": model_name, "TransformInput": {"DataSource": {"S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": input_uri}}, "ContentType": "text/csv", "SplitType": "Line"}, "TransformOutput": {"S3OutputPath": output_uri, "AssembleWith": "Line"}, "TransformResources": {"InstanceType": "ml.m5.large", "InstanceCount": 1}}
+def build_transform_request(*, model_name: str, input_uri: str, output_uri: str, job_name: str, kms_key_id: str | None = None) -> dict[str, Any]:
+    return {"TransformJobName": job_name, "ModelName": model_name, "TransformInput": {"DataSource": {"S3DataSource": {"S3DataType": "S3Prefix", "S3Uri": input_uri}}, "ContentType": "text/csv", "SplitType": "Line"}, "TransformOutput": {"S3OutputPath": output_uri, "AssembleWith": "Line", **({"KmsKeyId": kms_key_id} if kms_key_id else {})}, "TransformResources": {"InstanceType": "ml.m5.large", "InstanceCount": 1}}
 
 
-def submit_batch_transform(*, region: str, model_name: str, input_uri: str, output_uri: str, job_name: str) -> dict[str, Any]:
+def submit_batch_transform(*, region: str, model_name: str, input_uri: str, output_uri: str, job_name: str, kms_key_id: str | None = None) -> dict[str, Any]:
     """Submit a real on-demand Batch Transform job; caller owns model lifecycle."""
     import boto3
-    request = build_transform_request(model_name=model_name, input_uri=input_uri, output_uri=output_uri, job_name=job_name)
+    request = build_transform_request(model_name=model_name, input_uri=input_uri, output_uri=output_uri, job_name=job_name, kms_key_id=kms_key_id)
     return boto3.client("sagemaker", region_name=region).create_transform_job(**request)
 
 
@@ -75,6 +89,57 @@ def evaluate_auc(probabilities: list[float], labels: list[int]) -> float:
     concordant = sum(1 for score, label in pairs if label for other_score, other_label in pairs if not other_label and score > other_score)
     ties = sum(1 for score, label in pairs if label for other_score, other_label in pairs if not other_label and score == other_score)
     return (concordant + 0.5 * ties) / (positives * negatives)
+
+
+def evaluate_predictions(probabilities: list[float], labels: list[int], threshold: float = 0.5) -> dict[str, float | int]:
+    """Evaluate the untouched chronological test split after Batch Transform."""
+    if len(probabilities) != len(labels) or not labels:
+        raise ValueError("probabilities and labels must have equal non-zero length")
+    auc = evaluate_auc(probabilities, labels)
+    clipped = [min(1 - 1e-15, max(1e-15, float(value))) for value in probabilities]
+    log_loss = -sum(y * math.log(p) + (1 - y) * math.log(1 - p) for y, p in zip(labels, clipped)) / len(labels)
+    predicted = [int(value >= threshold) for value in probabilities]
+    tp = sum(y == p == 1 for y, p in zip(labels, predicted))
+    fp = sum(y == 0 and p == 1 for y, p in zip(labels, predicted))
+    fn = sum(y == 1 and p == 0 for y, p in zip(labels, predicted))
+    accuracy = sum(y == p for y, p in zip(labels, predicted)) / len(labels)
+    precision = tp / (tp + fp) if tp + fp else 0.0
+    recall = tp / (tp + fn) if tp + fn else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {"row_count": len(labels), "auc": auc, "log_loss": log_loss, "accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
+
+
+def _split_s3_uri(uri: str) -> tuple[str, str]:
+    if not uri.startswith("s3://") or "/" not in uri[5:]:
+        raise ValueError(f"invalid S3 URI: {uri}")
+    return tuple(uri[5:].split("/", 1))  # type: ignore[return-value]
+
+
+def evaluate_transform_test(*, s3_client: Any, transform_output_uri: str, claim_ids_uri: str) -> dict[str, float | int]:
+    """Load ordered predictions and score only rows marked test in the sidecar."""
+    output_bucket, output_prefix = _split_s3_uri(transform_output_uri)
+    paginator = s3_client.get_paginator("list_objects_v2")
+    keys = sorted(
+        item["Key"]
+        for page in paginator.paginate(Bucket=output_bucket, Prefix=output_prefix.rstrip("/") + "/")
+        for item in page.get("Contents", [])
+        if item["Key"].endswith(".out")
+    )
+    if not keys:
+        raise RuntimeError("Batch Transform produced no .out objects")
+    probabilities = [
+        float(line.split(",", 1)[0])
+        for key in keys
+        for line in s3_client.get_object(Bucket=output_bucket, Key=key)["Body"].read().decode().splitlines()
+        if line.strip()
+    ]
+    manifest_bucket, manifest_key = _split_s3_uri(claim_ids_uri)
+    manifest_text = s3_client.get_object(Bucket=manifest_bucket, Key=manifest_key)["Body"].read().decode()
+    manifest = list(csv.DictReader(io.StringIO(manifest_text)))
+    if len(manifest) != len(probabilities):
+        raise RuntimeError(f"prediction/manifest row mismatch: {len(probabilities)} != {len(manifest)}")
+    test_pairs = [(probability, int(row["high_risk_claim"])) for probability, row in zip(probabilities, manifest) if row["source_split"] == "test"]
+    return evaluate_predictions([pair[0] for pair in test_pairs], [pair[1] for pair in test_pairs])
 
 
 def create_model(*, client: Any, model_name: str, image_uri: str, role_arn: str, model_artifact_uri: str) -> dict[str, Any]:
@@ -104,10 +169,10 @@ def wait_for_glue(*, client: Any, job_name: str, run_id: str, poll_seconds: int 
         time.sleep(poll_seconds)
 
 
-def run_pipeline(*, client: Any, glue_client: Any, args: Any) -> dict[str, Any]:
+def run_pipeline(*, client: Any, glue_client: Any, s3_client: Any, args: Any) -> dict[str, Any]:
     """Execute the complete train/evaluate/model/transform/Glue sequence."""
     image = resolve_xgboost_image_uri(region=args.region, version=args.xgboost_version)
-    client.create_training_job(**build_training_request(image_uri=image, role_arn=args.role_arn, output_path=args.output_path, train_uri=args.train_uri, validation_uri=args.validation_uri, job_name=args.job_name))
+    client.create_training_job(**build_training_request(image_uri=image, role_arn=args.role_arn, output_path=args.output_path, train_uri=args.train_uri, validation_uri=args.validation_uri, job_name=args.job_name, kms_key_id=args.kms_key_id))
     training = wait_for_training(client=client, job_name=args.job_name, poll_seconds=args.poll_seconds)
     final_metrics = {
         metric["MetricName"]: float(metric["Value"])
@@ -122,11 +187,14 @@ def run_pipeline(*, client: Any, glue_client: Any, args: Any) -> dict[str, Any]:
     model_name = f"{args.job_name}-model"
     create_model(client=client, model_name=model_name, image_uri=image, role_arn=args.role_arn, model_artifact_uri=artifact)
     transform_name = f"{args.job_name}-transform"
-    client.create_transform_job(**build_transform_request(model_name=model_name, input_uri=args.inference_uri, output_uri=args.transform_output_uri, job_name=transform_name))
+    client.create_transform_job(**build_transform_request(model_name=model_name, input_uri=args.inference_uri, output_uri=args.transform_output_uri, job_name=transform_name, kms_key_id=args.kms_key_id))
     transform = wait_for_transform(client=client, job_name=transform_name, poll_seconds=args.poll_seconds)
+    test_metrics = evaluate_transform_test(s3_client=s3_client, transform_output_uri=args.transform_output_uri, claim_ids_uri=args.claim_ids_uri)
     glue_run = glue_client.start_job_run(JobName=args.postprocess_job_name, Arguments={"--TRANSFORM_OUTPUT_URI": args.transform_output_uri, "--CLAIM_IDS_URI": args.claim_ids_uri, "--GOLD_DATABASE": args.gold_database, "--GOLD_TABLE": "claim_risk", "--MODEL_VERSION": model_name, "--RUN_ID": args.job_name})
     glue_result = wait_for_glue(client=glue_client, job_name=args.postprocess_job_name, run_id=glue_run["JobRunId"], poll_seconds=args.poll_seconds)
-    return {"training": training, "validation_auc": validation_auc, "transform": transform, "glue": glue_result, "model_name": model_name}
+    if not args.retain_model:
+        client.delete_model(ModelName=model_name)
+    return {"training": training, "validation_auc": validation_auc, "test_metrics": test_metrics, "transform": transform, "glue": glue_result, "model_name": model_name, "model_deleted_after_transform": not args.retain_model}
 
 
 def main() -> None:
@@ -143,11 +211,13 @@ def main() -> None:
     parser.add_argument("--claim-ids-uri", required=True)
     parser.add_argument("--postprocess-job-name", required=True)
     parser.add_argument("--gold-database", required=True)
+    parser.add_argument("--kms-key-id", required=True, help="KMS key used for model and Batch Transform S3 outputs")
     parser.add_argument("--min-auc", type=float, default=0.50)
     parser.add_argument("--poll-seconds", type=int, default=20)
+    parser.add_argument("--retain-model", action="store_true", help="Keep the transient SageMaker Model after Batch Transform")
     args = parser.parse_args()
     import boto3
-    result = run_pipeline(client=boto3.client("sagemaker", region_name=args.region), glue_client=boto3.client("glue", region_name=args.region), args=args)
+    result = run_pipeline(client=boto3.client("sagemaker", region_name=args.region), glue_client=boto3.client("glue", region_name=args.region), s3_client=boto3.client("s3", region_name=args.region), args=args)
     print(json.dumps(result, default=str))
 
 
