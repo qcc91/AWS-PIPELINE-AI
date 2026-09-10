@@ -19,6 +19,10 @@
   `L-26C560CE=0` is non-adjustable. Other Sydney candidates are zero-quota or
   violate Marketplace/cross-region/multimodal constraints. Basic Support review
   is the only remaining FREE-plan action.
+- RAG Support submission: automatic AWS Support API access was tested read-only
+  and returned `SubscriptionRequiredException` because Premium Support is
+  required. The prepared request must be submitted through the Basic Support
+  console; no Support-plan upgrade is authorized.
 - Latest Terraform refresh plan: 4 create/0 change/0 destroy, all Streaming.
 - Tests: Terraform DEV validation, infrastructure static gate, secret checks,
   and 34 Python tests pass. TFLint and Checkov are unavailable.
@@ -26,7 +30,7 @@
   two-AZ Secrets Manager endpoint continue charging while idle.
 - QuickSight remains intentionally deferred and unsubscribed.
 - V2–V5 are not authorized.
-- Next action: monitor SageMaker request decisions and submit the prepared
-  no-cost Basic Support review for Titan. Streaming remains intentionally
-  blocked under the FREE constraint.
+- Next action: monitor SageMaker request decisions and have the Human Owner
+  submit the prepared no-cost Basic Support console review for Titan. Streaming
+  remains intentionally blocked under the FREE constraint.
 - Last updated: 2026-09-10.

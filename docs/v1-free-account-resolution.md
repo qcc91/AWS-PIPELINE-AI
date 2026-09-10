@@ -64,6 +64,13 @@ code, Knowledge Base/data source IDs, error text, and the recorded request IDs.
 Do not purchase a Support plan; if AWS will not accept the case under Basic
 Support, leave RAG `ACCOUNT_QUOTA_BLOCKED`.
 
+On 2026-09-10, the authenticated account called the read-only AWS Support
+`DescribeServices` operation to determine whether automatic case submission was
+available. AWS returned `SubscriptionRequiredException: Amazon Web Services
+Premium Support Subscription is required to use this service`. The Support API
+therefore cannot submit this Basic Support case. Console submission is required;
+do not upgrade the Support plan.
+
 ### Prepared Basic Support request
 
 Subject:

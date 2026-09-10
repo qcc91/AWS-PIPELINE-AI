@@ -9,7 +9,7 @@
 | V1-STREAMING | Data Engineering + Infrastructure Workers | Python producer, Kinesis, Firehose and event lakehouse flow | ACCOUNT_PLAN_BLOCKED; FREE excludes Kinesis/Firehose; 4 resources remain unapplied | Preserve ready code; no FREE activation exists |
 | V1-BI | BI Worker | Gold Iceberg through Athena and optional QuickSight | Athena COMPLETE; QuickSight disabled/not subscribed | QuickSight intentionally deferred |
 | V1-ML | AI Worker | SageMaker XGBoost batch training/inference and Gold claim_risk | WAITING_QUOTA; value-one training/transform requests submitted; no job created | Resume automatically when both are approved |
-| V1-RAG | AI Worker | Bedrock KB, S3 Vectors, retrieval and citations | ACCOUNT_QUOTA_BLOCKED; all reasonable Sydney alternatives unusable under constraints | Basic Support review; no paid subscription |
+| V1-RAG | AI Worker | Bedrock KB, S3 Vectors, retrieval and citations | ACCOUNT_QUOTA_BLOCKED; Support API requires Premium Support | Human Basic Support console submission; no upgrade |
 | DOCUVERA-CLEANUP | Manager | Remove all AWS resources belonging to the former DocuVera simulation | COMPLETE; post-delete inventory found no DocuVera-named resources in reviewed services | Destructive cleanup explicitly approved |
 
 Routine rework stays internal to each package. V1 is authorized; V2–V5 are not.
