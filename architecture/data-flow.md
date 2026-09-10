@@ -77,6 +77,10 @@ Gold 发布采用“构建/校验后提交”语义；任一关键输入未成�
 
 `Gold Iceberg -> Glue Catalog/Lake Formation -> Athena workgroup -> QuickSight`。Athena workgroup 设置结果位置、加密和扫描控制。数据集记录最后成功刷新 run ID；PII 仅在明确授权的数据集中出现。
 
+BI 的维度、事实和汇总与 ML 共享同一 Silver 业务实体。产品理赔频率、地区
+金额、broker 损失率和客户终身保费等指标既可用于报表，也可在严格时点截断
+后成为 ML 历史特征；不得为 ML 复制一套不一致的业务事实。
+
 ## 7. ML 流
 
 ```text
@@ -86,7 +90,11 @@ Silver/Gold snapshot -> SageMaker Processing feature set
  -> Batch Transform -> Gold claim_risk -> Athena/BI
 ```
 
-训练记录数据快照、代码版本、参数和随机种子；避免时间泄露与目标泄露。未达到审批阈值的模型不得晋级。推理按 `claim_id + model_version` 幂等写入。
+训练记录数据快照、代码版本、参数和随机种子；避免时间泄露与目标泄露。V1
+预测时点是 claim `submitted_at`，任何特征只能读取该时点前已知的数据；最终
+severity、approved/paid amount、最终状态、调查结果和 settlement days 只能
+用于标签或预测后评估。训练/验证/测试按预测时间切分。未达到审批阈值的模型
+不得晋级。推理按 `claim_id + model_version` 幂等写入。
 
 ## 8. RAG 流
 

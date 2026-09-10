@@ -907,7 +907,7 @@ Intentionally test:
 
 Initial ML use case:
 
-Claim Fraud Prediction
+Claim Risk Prediction at claim-submission time
 
 Preferred initial model:
 
@@ -938,10 +938,16 @@ Avoid persistent real-time endpoints unless required.
 Prediction output should include:
 
 - claim_id
-- fraud_probability
+- high_risk_probability
 - risk_level
 - model_version
 - prediction_timestamp
+
+The V1 target is `high_risk_claim`, derived from future synthetic severity or
+high-cost outcome. Prediction-time features must use only information available
+at or before claim submission. Approved/paid amounts, final status/severity,
+investigation results, settlement duration, and other post-submission outcomes
+must not enter the feature matrix.
 
 ML outputs should be reusable by BI where appropriate.
 

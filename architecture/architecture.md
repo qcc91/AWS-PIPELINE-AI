@@ -89,9 +89,19 @@ RAG 的非结构化文档区与 Lakehouse 共用治理、安全、审计和生�
 
 统一类型、UTC 时间、编码和状态值；依据业务键/事件 ID 去重；按源顺序应用 CDC；验证引用关系和 PII 处理。严重规则失败阻止该数据集晋级，坏记录进入 quarantine。
 
+Silver 的共享业务模型由 customer、address、product、broker、policy、
+policy coverage、claim、claim item、payment、状态历史和交互历史组成。当前态
+与不可变历史分开，保留 point-in-time 特征生成所需的业务时间和记录时间；
+Silver 不为 BI 或 ML 单独定制。
+
 ### Gold
 
-形成维度、事实与派生数据集：`dim_customer`、`dim_policy`、`dim_product`、`fact_claim`、`fact_payment`、`customer_360`、`claim_daily_summary`、`policy_performance`、`claim_risk`。每个数据集拥有刷新时点、粒度、负责人、DQ 阈值和数据契约。
+形成维度、事实与派生数据集：`dim_customer`、`dim_policy`、`dim_product`、
+`dim_broker`、`dim_date`、`fact_claim`、`fact_payment`、
+`fact_policy_transaction`、`customer_360`、`claim_daily_summary`、
+`policy_performance`、`broker_performance`、共享 point-in-time 特征集和
+`claim_risk`。每个数据集拥有刷新时点、粒度、负责人、DQ 阈值和数据契约。
+BI 与 ML 共享相同事实；完整模型见 `architecture/data-model.md`。
 
 ## 6. 控制流和运行状态
 

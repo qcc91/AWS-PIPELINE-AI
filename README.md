@@ -29,6 +29,8 @@ Documents ─> S3 ─> Bedrock KB ─> S3 Vectors                 ├─> SageMa
 - [服务决策](architecture/service-decisions.md)
 - [数据流](architecture/data-flow.md)
 - [数据契约](architecture/data-contracts.md)
+- [BI 与 ML 共享数据模型](architecture/data-model.md)
+- [数据字典](docs/data-dictionary.md)
 - [实施路线图](docs/implementation-roadmap.md)
 - [Phase 1 执行计划](docs/phase-1-execution-plan.md)
 - [V1–V5 累计版本路线图](docs/version-roadmap.md)

@@ -1,4 +1,15 @@
-# V1 ML — Claim Fraud Batch Prediction
+# V1 ML — Claim Risk Batch Prediction
+
+## Shared-data design transition
+
+The approved business target is now `high_risk_claim` at claim-submission time,
+with output `high_risk_probability`. Training features must be derived from the
+shared customer/policy/product/broker/claim/payment histories defined in
+`architecture/data-model.md`, using point-in-time cutoffs. The existing tiny
+`fraud_label` fixture and fraud-named script/resource identifiers are retained
+only as an earlier technical smoke-test artifact; they are not accepted as the
+final V1 analytical training dataset and must not be executed as final ML proof.
+No deployed resource is renamed by this documentation-only update.
 
 ## Current runtime status
 
@@ -26,22 +37,26 @@ one on 2026-09-10. Both reached `CASE_OPENED`: Training case
 `178899797700557`, Transform case `178899780000820`. No SageMaker compute was
 created.
 
-The V1 ML branch consumes the approved Gold `fact_claim` snapshot (or an
-equivalent Athena export) and writes a reusable Gold `claim_risk` dataset.
+The V1 ML branch consumes point-in-time feature datasets derived from approved
+Silver/Gold business data and writes a reusable Gold `claim_risk` dataset.
 Only on-demand SageMaker XGBoost Training and Batch Transform are used; no
 real-time or persistent endpoint is provisioned.
 
 ## Flow
 
-1. Terraform uploads the deterministic four-row fixture to the control bucket.
-   Its fraud labels are synthetic heuristics for a runnable portfolio demo and
-   must not be interpreted as measured fraud truth. For a meaningful model,
-   replace them with an approved historical label set.
-2. Export numeric features from Gold to `s3://.../ml/train/` and
-   `validation/`. The CSV is headerless and label-first (`fraud_label`, then
-   `claim_amount`, `approved_amount`, `days_to_submit`, `is_approved`). Keep a
-   sidecar claim-id manifest for joining predictions.
-3. Run `jobs/ml_claim_fraud_pipeline.py` with the DEV ML role and S3 URIs.
+1. Generate reproducible shared business entities and future claim outcomes
+   with controlled multi-variable correlations and noise. The target balance
+   should be about 20%–35% positive, not a single-field deterministic rule.
+2. At each claim `submitted_at`, materialize point-in-time customer, policy,
+   product, broker, payment, and prior-claim features. Export headerless,
+   label-first training/validation CSV with `high_risk_claim`; exclude
+   `approved_amount`, `paid_amount`, final status/severity, settlement duration,
+   and all other post-outcome fields. `claim_amount` and reporting delay may be
+   used because they are known at submission. Keep a sidecar claim-ID manifest
+   for joining predictions.
+3. Update and run the existing SageMaker pipeline runner with the DEV ML role
+   and accepted shared-data S3 URIs. The current file name is a legacy internal
+   identifier, not the business target.
    The script resolves the AWS-published image using
    `sagemaker.image_uris.retrieve(framework="xgboost", region="ap-southeast-2", version="1.7-1")`.
    It does not contain a guessed or hard-coded regional image URI.
@@ -51,7 +66,7 @@ real-time or persistent endpoint is provisioned.
    register the approved model in the Terraform-created
    model package group, then submit Batch Transform against the feature input.
 5. Run and wait for Batch Transform. Join probabilities to claim IDs and write `claim_risk` with
-   `claim_id`, `fraud_probability` (`decimal(6,5)`), `risk_level`,
+   `claim_id`, `high_risk_probability` (`decimal(6,5)`), `risk_level`,
    `model_version`, `prediction_timestamp`, and `_run_id`.
 
 The initial thresholds are implementation defaults (LOW < 0.30, MEDIUM <
@@ -66,7 +81,9 @@ SageMaker role is limited to Gold reads, ML/control writes, the platform KMS
 key, and scoped CloudWatch metrics. No credentials or customer PII are logged.
 
 Terraform resources for this branch were deployed under the approved V1
-package. Runtime training remains blocked only by the account quota above.
+package. Runtime training remains blocked by the account quota, and final V1
+execution additionally requires the documented shared-data fixture/runner
+alignment. That implementation is not part of this documentation-only update.
 
 ## Reproducible run
 
