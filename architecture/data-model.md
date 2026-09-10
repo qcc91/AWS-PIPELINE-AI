@@ -3,12 +3,13 @@
 ## 1. 目标与实现边界
 
 本模型以同一套保险业务事实同时支持传统 BI 和未来 ML 特征工程，不建立
-ML 专用的平行业务数据源。当前 V1 已部署的核心实体是 customer、product、
-policy、claim、payment；address、broker、policy_coverage、claim_item、状态历史
-和交互历史是获批的共享扩展契约，但在单独工作包实施前不得宣称已经落地。
+ML 专用的平行业务数据源。当前 V1 已部署的 OLTP 核心实体是 customer、product、
+policy、claim、payment；本轮正在把 product、broker、branch、claim type、region
+risk、vehicle 和 coverage 文件主数据接入同一模型。真实 AWS 运行和 Gold 发布
+完成前，文件扩展仍标记为“实施中”，不得宣称已经落地。
 
-本次更新只定义逻辑模型、字段语义、时间边界和合成数据规则，不创建 AWS
-资源，不引入 Feature Store、在线推理、持久 endpoint 或高级 MLOps。
+文件扩展复用现有 S3/EventBridge/Step Functions/Glue/Iceberg/Athena，不改
+PostgreSQL OLTP，不引入 Feature Store、在线推理、持久 endpoint 或高级 MLOps。
 
 ## 2. 逻辑关系
 
@@ -151,3 +152,37 @@ Broker、产品和地区历史指标必须只使用在预测时点前已经结�
   地区、支付历史和保单变更，再加入噪声后抽样结果。
 - 任何一个输入字段都不能单独、完美决定标签；需报告类平衡和关键相关性。
 - 直接 PII 只用于业务真实性和受控联接，不作为默认 ML 特征。
+
+## 10. 文件参考模型与 V1 映射
+
+```text
+FILE broker_claims -> OLTP policy/customer -> OLTP product_id
+                   -> FILE product_master
+                   -> FILE broker_master -> branch_master
+                   -> FILE claim_type/region/vehicle/coverage reference
+                   -> Gold fact_claim_enriched
+```
+
+这一 V1 路径不向 RDS 增列。外部 broker claim 文件携带现有 policy/customer
+业务键和 broker/claim-type/region/vehicle/coverage 参考键；产品键由 OLTP policy
+取得。文件理赔是 Batch 来源自身的事实，不复制或覆盖 OLTP claim。Gold 必须
+携带来源并通过引用完整性门禁。完整字段、外键和版本规则见
+`architecture/data-contracts.md`。
+
+文件维度的已实现 Gold 模型为 `dim_product_master`,`dim_broker`,`dim_branch`,
+`dim_claim_type`,`dim_region_risk`,`dim_vehicle`,`dim_coverage`；统一跨源事实为
+`fact_claim_enriched`，并提供 `policy_performance`,`broker_performance` 和
+`claim_risk_features`。这些对象已于 2026-09-10 在 DEV 真实跑通。
+
+## 11. 文件衍生特征的时点规则
+
+- Product 选择 `effective_from <= prediction_timestamp` 的最新有效版本；有
+  effective_to 时还必须满足 prediction_timestamp 小于 effective_to。
+- Broker、region 和其他 reference 只选择 `source_updated_at` 不晚于预测时点的
+  最新文件批次。
+- Vehicle/coverage 在 V1 为有版本的静态批次；只允许使用在预测时点前已发布
+  的批次。`vehicle_age` 由 manufacture_year 和 prediction_timestamp 推导。
+- Broker/product/region 的历史损失率和理赔频率不是文件原值；只能从预测时点
+  前已结案且当时已可见的 Gold 事实计算。
+- `severity_group`、`risk_category` 等参考分类不能替代结果标签；final severity、
+  approved/paid amount 和最终状态依然禁止进入特征矩阵。

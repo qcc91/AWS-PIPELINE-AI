@@ -17,20 +17,29 @@
 ## 2. Batch CSV
 
 ```text
-Broker -> S3 landing/batch
-       -> EventBridge -> Step Functions
-       -> file envelope/schema validation
-       -> Glue Bronze Iceberg parse/write
-       -> duplicate file/row detection
-       -> Silver type/business/DQ validation
-       -> Iceberg MERGE
-       -> Gold refresh -> reconcile -> audit/metrics
+product/broker/branch/claim-type/region/vehicle/coverage CSV
+ -> S3 landing/batch
+ -> EventBridge -> Step Functions
+ -> file envelope/schema validation
+ -> Glue Bronze Iceberg parse/write
+ -> duplicate file/row detection
+ -> Silver type/business/DQ validation
+ -> Iceberg MERGE
+ -> Gold dimensions / fact_claim_enriched -> reconcile -> audit/metrics
 ```
 
 - 同一 `file_id` 已成功处理时返回幂等成功，不再次追加。
 - 文件级 schema 不合规进入 `quarantine/schema_errors`；行解析失败进入 `parsing_errors`。
 - 业务无效记录进入 `data_quality`，重复行进入 `duplicates`；均保留原始值、失败原因和 run ID。
 - 文件先完整落 Landing 再触发；不处理仍在上传的对象。
+
+V1 文件源所有权为企业/外部主参考数据，交易 customer/policy/claim/payment
+仍由 PostgreSQL OLTP 权威提供。跨源路径先由
+外部 `broker_claims` 通过 policy/customer 键连接 OLTP，再通过
+`policy.product_id -> product_master.product_id` 丰富产品；broker、claim type、
+region、vehicle、coverage 键直接来自 broker claim 文件并连接对应参考表。该
+文件不复制 OLTP claim 主表，也不回写或重做 RDS。所有引用必须在 Silver/Gold
+发布前验证。
 
 ## 3. PostgreSQL full load 与 CDC
 
@@ -119,3 +128,20 @@ Validation error -> quarantine -> audit + metric -> stop dataset or continue val
 ## 10. 对账与可观测性
 
 每阶段至少记录 `input_count`、`output_count`、`rejected_count`、`duplicate_count`、质量分、延迟、开始/结束时间和状态。CDC 额外监控 replication lag，流额外监控 iterator age/delivery failure，Iceberg 监控小文件与快照增长。CloudWatch 只存技术标识与聚合计数，不存完整 PII 记录。
+
+## 11. V1 文件源代表性血缘
+
+| 源文件 | Bronze/Silver | Gold/消费 | 验证重点 |
+|---|---|---|---|
+| `broker_claims.csv` | `claim` Bronze/Silver | `fact_claim`,`fact_claim_enriched`,`claim_risk_features` | policy/customer 关联、参考键完整、预测后字段隔离 |
+| `product_master.csv` | 同名 Iceberg 表 | `dim_product_master`、`fact_claim_enriched` | OLTP policy.product_id 联接覆盖率、有效期 |
+| `broker_master.csv` | 同名 Iceberg 表 | `dim_broker`、broker/branch BI、未来 broker 特征 | broker→branch/region 引用、commission 范围 |
+| `branch_master.csv` | 同名 Iceberg 表 | `dim_branch`、区域组织指标 | branch→region 引用 |
+| `claim_type_reference.csv` | 同名 Iceberg 表 | `dim_claim_type`、理赔分类指标/特征 | ID/code 唯一、分类非空 |
+| `region_risk_reference.csv` | 同名 Iceberg 表 | `dim_region_risk`、区域 BI、`claim_risk_features` | as-of 版本、risk score 范围 |
+| `vehicle_reference.csv` | 同名 Iceberg 表 | `dim_vehicle`、motor BI、车辆特征 | vehicle code 唯一、年龄不使用未来日期 |
+| `coverage_reference.csv` | 同名 Iceberg 表 | `dim_coverage`、保障 BI/特征 | coverage code 唯一、金额非负 |
+
+本包已于 2026-09-10 通过真实 Landing、EventBridge、Step Functions、Glue、
+Iceberg 和 Athena 验证。七个参考文件与扩展 broker claims 均走同一通用 Glue
+Job，但每个对象形成独立 Job Run；V1 将最大并发保持为 1 并按依赖顺序投递。

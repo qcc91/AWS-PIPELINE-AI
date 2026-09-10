@@ -19,7 +19,7 @@ output "state_machine_arn" {
 }
 
 output "event_rule_arn" {
-  description = "S3 Object Created EventBridge rule ARN."
+  description = "S3 Object Created EventBridge rule ARN for V1 batch CSV objects."
   value       = aws_cloudwatch_event_rule.landing_object_created.arn
 }
 

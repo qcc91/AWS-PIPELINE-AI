@@ -252,3 +252,85 @@ V1 目标为 `high_risk_claim boolean`：在 `prediction_timestamp = submitted_a
   支付历史、保单变更和报告延迟，并加入受控噪声。
 - 固定记录 random seed、generator version、场景参数、实际标签平衡和分布摘要。
 - 单个输入字段不得完美决定 `high_risk_claim`；直接 PII 默认不得作为特征。
+
+## 15. V1 文件主数据契约
+
+本节只扩展文件源，不改变已经完成的 PostgreSQL OLTP 表。文件内容均为固定
+随机种子生成的虚构企业主数据/外部参考数据，不含真实姓名、地址、电话、
+邮箱、证件号或其他真实 PII。文件源不得复制 customer、policy、claim、payment
+等交易事实来制造演示数据。
+
+### 来源所有权
+
+| 数据域 | 权威来源 | V1 文件责任 |
+|---|---|---|
+| customer、policy、claim、payment 交易及状态 | PostgreSQL OLTP/CDC | 不复制、不覆盖 |
+| 产品展示属性 | `product_master.csv` | 补充 OLTP `product_id` 可关联的外部主数据 |
+| broker、branch 组织主数据 | `broker_master.csv`,`branch_master.csv` | 外部 broker 管理系统和组织层级 |
+| claim type、region risk、vehicle、coverage 分类 | 对应 reference CSV | 外部/企业参考数据，不作为交易事实 |
+| 外部 broker 提交理赔文件 | `broker_claims.csv` | 文件源理赔事实；policy/customer 键必须能关联 OLTP，不覆盖 OLTP claim |
+
+所有 CSV 为 UTF-8、含表头、逗号分隔；日期为 `YYYY-MM-DD`，金额在 Silver
+转换为 `decimal(18,2)`，比率转换为 decimal，标志字段规范为 `0|1`。
+Landing 对象的内容摘要构成 `file_id`；Bronze/Silver 追加 `_run_id`,
+`_source_system`, `_source_object`, `_ingested_at`, `_record_hash`。
+
+### 文件字段与键
+
+| 文件/主键 | V1 必需字段 | 关键规则 |
+|---|---|---|
+| `product_master.csv` / `product_id` | `product_code,product_name,product_type,product_category,product_status,effective_from,effective_to,base_premium_aud,coverage_type,default_excess,risk_tier,underwriting_category,distribution_channel,max_sum_insured,active_flag,expiry_date,source_updated_at` | `product_id` 可与 OLTP policy.product_id 相连；金额非负；effective_to 为空或晚于 effective_from |
+| `broker_master.csv` / `broker_id` | `broker_code,broker_name,branch_id,broker_status,commission_rate,years_experience,broker_tier,active_flag,effective_date,source_updated_at` | branch 外键完整；commission 在 `[0,1]`；name 为虚构企业展示值 |
+| `branch_master.csv` / `branch_id` | `branch_code,branch_name,region_code,state_code,city,branch_status,manager_code,active_flag,source_updated_at` | region 外键完整；所有地点名称只到合成区域/城市粒度 |
+| `claim_type_reference.csv` / `claim_type_id` | `claim_type_code,claim_type_name,product_type,claim_category,severity_band,severity_group,default_reserve_band,expected_resolution_days,high_risk_threshold_aud,active_flag,source_updated_at` | ID/code 唯一；类别、严重度和天数合理；threshold 仅为参考业务属性，不是 ML 标签规则 |
+| `region_risk_reference.csv` / `region_code` | `state_code,region_name,urban_rural_class,accident_risk_score,theft_risk_score,weather_risk_score,natural_hazard_risk_score,catastrophe_risk_score,overall_risk_band,effective_date,source_updated_at` | 各 risk score 范围 `[0,1]` 且非空；risk band 由组合分数解释，不含精确地址 |
+| `vehicle_reference.csv` / `vehicle_code` | `make,model,vehicle_type,manufacture_year,value_band,engine_size_band,repair_cost_band,theft_risk_band,safety_rating,risk_category,source_updated_at` | 年份合理；rating/档位为受控词表；不是车辆登记或 VIN 数据 |
+| `coverage_reference.csv` / `coverage_code` | `coverage_name,product_type,coverage_category,default_limit,default_excess,coverage_tier,optional_flag,active_flag,source_updated_at` | 金额非负；不复制 policy_coverage 交易记录 |
+| `broker_claims.csv` / `claim_id` | 核心 Claim v1 字段，加 `broker_id,claim_type_id,claim_type_code,incident_region_code,coverage_code,vehicle_code,outcome_severity,high_risk_claim` | policy/customer 必须存在于 OLTP；参考键必须存在或按产品适用性为空；outcome/label 只用于训练标签/评估 |
+
+V1 预期可复现行数为 broker claims 120、产品 30、broker 80、branch 20、
+claim type 16、region risk 40、vehicle 500、coverage 20。实际发布报告必须以
+生成文件和 Athena 行数复核，不能只引用这些目标值。
+
+### 跨源联接边界
+
+当前 OLTP 没有 broker、region、coverage、vehicle、claim type 外键，V1 不为此
+重建或改写 RDS。跨源 happy path 使用外部 broker claim 文件中的引用键：
+
+```text
+broker_claims.policy_id/customer_id -> OLTP policy/customer
+OLTP policy.product_id -> product_master.product_id
+broker_claims.broker_id -> broker_master -> branch_master
+broker_claims.claim_type_id/claim_type_code/incident_region_code/vehicle_code/coverage_code
+ -> 对应 reference
+```
+
+Broker claim 文件是原有 Batch 文件交换的扩展，不是把 PostgreSQL claim 表
+复制成 CSV。它拥有自身 `fclm_*` 理赔键，同时引用现有 OLTP policy/customer
+业务键。Silver 必须验证这些键和七份主参考文件的引用完整性；Gold
+`fact_claim_enriched` 必须保留来源系统与原始键。不得把文件理赔回写成 OLTP
+源真值，亦不得为了联接而暗改已完成的 RDS 模型。
+
+## 16. 文件衍生 BI 与 ML 契约
+
+V1 文件维表的预期 Iceberg 输出为同名 Bronze/Silver 表；Gold 为
+`dim_product_master`,`dim_broker`,`dim_branch`,`dim_claim_type`,
+`dim_region_risk`,`dim_vehicle`,`dim_coverage`，并通过
+`fact_claim_enriched` 统一消费，避免复制原 `fact_claim` 交易事实。
+
+| 文件衍生属性 | BI 用途 | 未来 ML 使用边界 |
+|---|---|---|
+| product type/risk tier、base premium、sum insured | 产品保费/理赔/损失率 | 仅取 claim submitted_at 时有效的产品版本 |
+| broker tier/experience、branch、region | broker/区域保单数、保费、理赔表现 | 静态属性可用；历史表现只聚合预测时点前已可见事实 |
+| claim category、severity group | 分类理赔量与金额 | 分类可用；不得把最终 claim severity 当特征 |
+| accident/theft/weather/natural-hazard/catastrophe score、risk tier | 地区理赔、保费和损失率 | 按 source_updated_at/批次版本做 as-of；只用预测时已发布版本 |
+| vehicle category、repair/theft risk、safety | 车辆类别理赔与金额 | 可用静态参考属性；车辆年龄按预测时点推导 |
+| coverage category、limit、excess | 保障结构分析 | 只使用预测时点已知/有效的保障属性 |
+
+`claim_risk_features` 可增加 `product_type`,`product_risk_tier`,`broker_tier`,
+`accident_risk_score`,`region_theft_risk_score`,`weather_risk_score`,
+`natural_hazard_risk_score`,`vehicle_risk_category`,
+`repair_cost_band`,`coverage_tier`,`coverage_limit_aud` 和
+`deductible_aud`。文件有效期/发布时间晚于 `prediction_timestamp` 的版本不得
+参与特征，预测后结果字段仍只允许用于标签或评估。SageMaker 配额未开放时，
+本包只验证特征可联接性、非空率、范围和时点规则，不运行训练或推理。

@@ -1348,7 +1348,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V1 — END-TO-END HAPPY PATH / FINAL INTEGRATION WITH ACCOUNT BLOCKERS
+V1 — END-TO-END HAPPY PATH / FILE SOURCE EXPANSION WITH ACCOUNT BLOCKERS
 
 The Human Owner requires this project to remain on the AWS `FREE` account plan.
 Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a
@@ -1366,6 +1366,21 @@ The CDC package has also completed its real DEV happy path: RDS PostgreSQL ->
 DMS full load/CDC -> S3 -> EventBridge -> Step Functions -> Glue ->
 Bronze/Silver/Gold Iceberg -> Athena. Athena confirmed the expected insert,
 update, and delete results.
+
+The Human-approved `V1 FILE-BASED SOURCE EXPANSION` package completed on
+2026-09-10. Deterministic product, broker, branch, claim-type, region-risk,
+vehicle, and coverage CSV master/reference sources and an expanded broker claim
+feed ran through the existing Landing, EventBridge, Step Functions, Glue,
+Bronze/Silver/Gold Iceberg, and Athena path. The package did not modify RDS.
+Athena confirmed the expected row counts, zero missing cross-source references,
+and zero future-reference use in the point-in-time feature join.
+
+The current OLTP tables do not contain broker, region, coverage, vehicle, or
+claim-type transaction foreign keys. The approved V1 file integration extends
+the existing external broker-claim Batch feed with those reference keys while
+reusing OLTP policy/customer identifiers; product enrichment uses
+`policy.product_id -> product_master.product_id`. The file claim source must
+not overwrite or be misrepresented as the PostgreSQL claim source of truth.
 
 Athena BI is functional. QuickSight remains disabled because the account is
 not subscribed. Streaming, ML, and RAG implementations and infrastructure are
@@ -1402,9 +1417,11 @@ and all production operations require Human approval.
 
 Do NOT deploy PROD resources.
 
-The remaining V1 work is limited to resolving the three account-level blockers,
-then proving `PACKAGE-DATA-STREAMING`, `PACKAGE-ML`, and `PACKAGE-RAG` at runtime.
-`PACKAGE-OBSERVABILITY` and V2–V5 remain out of scope. Each package follows:
+The remaining account-dependent V1 work is resolving the three blockers, then
+proving `PACKAGE-DATA-STREAMING`, `PACKAGE-ML`, and `PACKAGE-RAG` at runtime.
+The file package may validate ML feature readiness in Athena but must not run
+SageMaker while quotas remain zero. `PACKAGE-OBSERVABILITY` and V2–V5 remain
+out of scope. Each package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager
 review -> internal rework as needed -> meaningful Human gate.

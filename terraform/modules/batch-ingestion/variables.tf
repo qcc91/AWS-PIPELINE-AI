@@ -24,7 +24,7 @@ variable "account_id" {
 }
 
 variable "landing_bucket_name" {
-  description = "Existing S3 landing bucket containing broker CSV files."
+  description = "Existing S3 landing bucket containing V1 batch CSV files."
   type        = string
 }
 
@@ -83,7 +83,7 @@ variable "glue_number_of_workers" {
 }
 
 variable "batch_key_prefix" {
-  description = "Landing prefix watched for completed broker CSV objects."
+  description = "Landing prefix watched for completed V1 batch CSV objects, including broker claims and file-based reference datasets."
   type        = string
   default     = "batch/"
 

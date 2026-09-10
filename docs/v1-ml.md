@@ -26,9 +26,10 @@ The live Sydney account quotas are:
 - `ml.m5.large for training job usage`: `L-611FA074`, current `0`, required `1`.
 - `ml.m5.large for transform job usage`: `L-236AE59F`, current `0`, required `1`.
 
-Both are adjustable account-level quotas and neither has a request in history.
-All discovered SageMaker training-job instance quotas currently have value
-zero, so there is no already-authorized low-cost instance substitution.
+Both are adjustable account-level quotas. At initial discovery neither had a
+request in history. All discovered SageMaker training-job instance quotas
+currently have value zero, so there is no already-authorized low-cost instance
+substitution.
 
 The Human Owner subsequently authorized non-billable quota requests. Requests
 `b519d760dde9440687b17fbd2080ff62OTPDTvP7` (Training) and
@@ -94,3 +95,24 @@ URIs. The CLI waits for every SageMaker and Glue stage and materializes rows
 through the Glue Iceberg writer into
 `insurance_dev_gold.claim_risk`; verify with Athena by checking one row per
 `claim_id + model_version`, probabilities in `[0,1]`, and required columns.
+
+## File-derived feature readiness
+
+The V1 file-source expansion completed in DEV on 2026-09-10. It did not run
+SageMaker while the two quota requests remain pending. Its 120-row
+`claim_risk_features` Iceberg table passed cross-source completeness,
+feature-column quality, and point-in-time checks in Athena.
+
+Implemented file-derived inputs are product type/risk tier, broker tier, regional
+accident/theft/weather/natural-hazard scores, vehicle risk and repair-cost
+bands, safety rating, and coverage tier/limit/excess. Product records require
+effective-date/as-of selection at claim `submitted_at`; broker, region, vehicle,
+and coverage reference snapshots must have been published by that time.
+Historical broker/product loss ratios and claim rates
+must be calculated only from facts visible before the prediction timestamp.
+
+The current OLTP schema is unchanged. The broker-claim file carries existing
+OLTP policy/customer keys and explicit broker/claim-type/region/vehicle/
+coverage reference keys; product enrichment uses the OLTP policy product ID.
+The file claim is an external Batch fact and does not replace the PostgreSQL
+claim source. This lineage must remain visible in feature interpretation.

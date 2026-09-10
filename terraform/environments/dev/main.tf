@@ -79,7 +79,10 @@ module "batch_ingestion" {
   kms_key_arn           = module.platform_kms.key_arn
   glue_database_names   = module.glue.database_names
   glue_script_path      = abspath("${path.root}/../../../jobs/glue_claim_pipeline.py")
-  tags                  = module.common.tags
+  # One prefix intentionally covers the original broker claims file and the
+  # V1 file-based master/reference datasets under batch/reference/.
+  batch_key_prefix = "batch/"
+  tags             = module.common.tags
 }
 
 module "cdc" {

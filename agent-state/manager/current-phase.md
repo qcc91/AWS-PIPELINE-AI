@@ -1,8 +1,8 @@
 # Manager Current Phase
 
 - Phase: V1 — End-to-End Happy Path / Account Blocker Resolution.
-- Status: Foundation, Batch, CDC, and Athena complete; Streaming, ML, and RAG
-  await external account actions.
+- Status: Foundation, Batch, CDC, file-source expansion, and Athena complete;
+  Streaming, ML, and RAG await external account actions.
 - Default AWS Region: `ap-southeast-2`.
 - Active environment: DEV. PROD remains design-only and prohibited.
 - Account: `199476069493`, Human-approved temporary V1 root execution, current
@@ -29,6 +29,10 @@
   two-AZ Secrets Manager endpoint continue charging while idle.
 - QuickSight remains intentionally deferred and unsubscribed.
 - V2–V5 are not authorized.
+- File-source expansion: COMPLETE. Seven reference/master CSVs plus 120 broker
+  claims produced matching Bronze/Silver counts, seven Gold dimensions,
+  `fact_claim_enriched`, `policy_performance`, `broker_performance`, and
+  `claim_risk_features`; all 120 joins and as-of checks passed.
 - Next action: monitor the two SageMaker quota cases and Bedrock Support case
   `178899964200695`. Streaming remains intentionally blocked under the FREE
   constraint.
