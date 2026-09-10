@@ -71,6 +71,12 @@ Premium Support Subscription is required to use this service`. The Support API
 therefore cannot submit this Basic Support case. Console submission is required;
 do not upgrade the Support plan.
 
+The Human Owner submitted the prepared request through the Basic Support
+console on 2026-09-10. Case ID `178899964200695` was created at
+`2026-09-10T00:20:42.712Z`; its initial status is `Unassigned`, severity is
+`General question`, and category is `Service Quotas, General`. Do not retry
+Titan while the case is unresolved and effective RPM remains zero.
+
 ### Prepared Basic Support request
 
 Subject:
