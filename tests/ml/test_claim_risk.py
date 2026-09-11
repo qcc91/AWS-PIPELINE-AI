@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.ml.claim_risk import CATEGORICAL_LEVELS, NUMERIC_FEATURES, chronological_split, evaluate_binary, feature_names, prepare_dataset, vectorize
+from src.ml.claim_risk import CATEGORICAL_LEVELS, NUMERIC_FEATURES, DatasetValidationError, chronological_split, dataset_version, evaluate_binary, feature_names, prepare_dataset, validate_feature_dataset, vectorize
 
 
 def _rows(count=20):
@@ -14,6 +14,11 @@ def _rows(count=20):
             "claim_id": f"claim-{index}", "high_risk_claim": index % 2,
             "claim_amount": 100 + index, "incident_date": "2026-08-20",
             "submitted_at": "2026-09-01T00:00:00Z", "years_experience": 5,
+            "catastrophe_risk_score": 0.2, "region_theft_risk_score": 0.3,
+            "weather_risk_score": 0.4, "accident_risk_score": 0.5,
+            "deductible_aud": 500, "coverage_limit_aud": 50000,
+            "optional_flag": 0, "market_value_aud": 25000,
+            "safety_rating": 4, "vehicle_age": 3,
             "product_type": "AUTO", "product_risk_tier": "MEDIUM", "broker_tier": "SILVER",
             "claim_category": "COLLISION", "overall_risk_band": "MEDIUM", "coverage_tier": "STANDARD",
             "repair_cost_band": "HIGH", "theft_risk_band": "LOW", "vehicle_risk_category": "ELEVATED",
@@ -46,7 +51,45 @@ def test_prepare_writes_label_first_headerless_and_auditable_manifest(tmp_path: 
         manifest = list(csv.DictReader(handle))
     assert len(manifest) == 20 and {row["source_split"] for row in manifest} == {"train", "validation", "test"}
     assert {row["feature_version"] for row in manifest} == {"v1"}
+    assert len({row["dataset_version"] for row in manifest}) == 1
     assert json.loads((tmp_path / "metadata.json").read_text())["seed"] == 42
+
+
+def test_v2_validation_is_traceable_and_order_independent():
+    rows = _rows()
+    result = validate_feature_dataset(rows)
+    assert result["status"] == "PASSED"
+    assert result["unique_claim_count"] == len(rows)
+    assert result["as_of_date_min"] == result["as_of_date_max"] == "2026-09-01"
+    assert dataset_version(rows) == dataset_version(list(reversed(rows)))
+
+
+@pytest.mark.parametrize(
+    "mutation, expected",
+    [
+        ({"claim_amount": ""}, "claim_amount"),
+        ({"claim_amount": "-1"}, "claim_amount"),
+        ({"high_risk_claim": "invalid"}, "high_risk_claim"),
+        ({"as_of_date": "2026-09-02"}, "as_of_date"),
+    ],
+)
+def test_v2_validation_rejects_null_invalid_label_and_future_as_of(mutation, expected):
+    rows = _rows()
+    rows[0].update(mutation)
+    with pytest.raises(DatasetValidationError, match=expected):
+        validate_feature_dataset(rows)
+
+
+def test_v2_validation_rejects_duplicate_claims_and_single_class():
+    rows = _rows()
+    rows[1]["claim_id"] = rows[0]["claim_id"]
+    with pytest.raises(DatasetValidationError, match="duplicate claim_id"):
+        validate_feature_dataset(rows)
+    rows = _rows()
+    for row in rows:
+        row["high_risk_claim"] = 0
+    with pytest.raises(DatasetValidationError, match="both classes"):
+        validate_feature_dataset(rows)
 
 
 def test_metrics_report_auc_logloss_and_threshold_metrics():

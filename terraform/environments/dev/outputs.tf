@@ -108,8 +108,13 @@ output "sns_topic_arn" {
 }
 
 output "batch_glue_job_name" {
-  description = "V1 broker claim CSV Glue job."
+  description = "V2 Batch Bronze Glue job (legacy V1 name retained for an in-place migration)."
   value       = module.batch_ingestion.glue_job_name
+}
+
+output "batch_glue_job_names" {
+  description = "V2 Batch Glue jobs by Medallion stage."
+  value       = module.batch_ingestion.glue_job_names
 }
 
 output "batch_state_machine_arn" {
@@ -143,43 +148,18 @@ output "cdc_seed_job_name" {
 }
 
 output "cdc_glue_job_name" {
-  description = "V1 DMS S3 CDC Iceberg materialization Glue job."
+  description = "V2 CDC Bronze Glue job (legacy V1 name retained for an in-place migration)."
   value       = module.cdc.cdc_job_name
+}
+
+output "cdc_glue_job_names" {
+  description = "V2 CDC Glue jobs by Medallion stage."
+  value       = module.cdc.cdc_job_names
 }
 
 output "cdc_state_machine_arn" {
   description = "V1 CDC Step Functions state machine."
   value       = module.cdc.cdc_state_machine_arn
-}
-
-output "streaming_kinesis_stream_name" {
-  value       = module.streaming.stream_name
-  description = "V1 Kinesis stream for insurance event envelopes."
-}
-
-output "streaming_firehose_name" {
-  value       = module.streaming.firehose_name
-  description = "V1 Firehose delivery stream writing stream/ JSON to lakehouse S3."
-}
-
-output "streaming_glue_job_name" {
-  value       = module.streaming.glue_job_name
-  description = "V1 Glue job materializing streaming Bronze/Silver/Gold Iceberg tables."
-}
-
-output "streaming_producer_policy_arn" {
-  value       = module.streaming.producer_policy_arn
-  description = "Scoped PutRecord/PutRecords policy for an approved producer identity."
-}
-
-output "streaming_state_machine_arn" {
-  value       = module.streaming.state_machine_arn
-  description = "V1 Firehose object-triggered streaming Glue state machine."
-}
-
-output "streaming_event_rule_arn" {
-  value       = module.streaming.event_rule_arn
-  description = "V1 lakehouse stream/ EventBridge rule."
 }
 
 output "bi_athena_workgroup_name" {

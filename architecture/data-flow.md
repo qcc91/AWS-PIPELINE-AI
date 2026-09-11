@@ -2,17 +2,17 @@
 
 ## 1. 共用运行信封
 
-每次文件、CDC 微批、流微批或文档同步都必须携带或关联：
+每次文件、CDC 微批或文档同步都必须携带或关联：
 
 | 字段 | 含义 |
 |---|---|
 | `run_id` | UUID，一次编排执行的关联键 |
 | `pipeline_name` | 稳定管道名 |
-| `source_system` | `broker_csv`、`insurance_oltp`、`app_events` 或文档来源 |
-| `source_object` | S3 URI/源表/流分片与批次引用 |
+| `source_system` | `broker_csv`、`insurance_oltp` 或文档来源 |
+| `source_object` | S3 URI、源表或批次引用 |
 | `schema_version` | 输入契约版本 |
 | `ingested_at` | UTC 接收时间 |
-| `file_id` / `event_id` | 幂等键；文件使用内容摘要与来源构造 |
+| `file_id` / `source_change_id` | 幂等键；文件使用内容摘要，CDC 使用主键、操作、顺序与记录内容构造 |
 
 ## 2. Batch CSV
 
@@ -57,19 +57,9 @@ RDS PostgreSQL -> DMS -> S3 landing/oltp/{schema}/{table}
 - 重复 CDC 文件或事件不得改变最终状态；迟到但 source order 更旧的记录不得覆盖新状态。
 - Schema breaking change 停止受影响表并隔离，不能静默丢列或错误转换。
 
-## 4. Streaming
+## 4. Streaming 范围决定
 
-```text
-Producer -> Kinesis Data Streams -> Data Firehose -> S3 landing/stream
-                                                  -> micro-batch trigger
-                                                  -> Bronze Iceberg -> Silver dedupe
-                                                  -> optional Gold aggregates
-```
-
-- producer 必须提供全局稳定 `event_id`、event type、UTC event timestamp、source 和业务 ID。
-- Kinesis/Firehose 为至少一次语义设计；Silver 以 `event_id` 去重。
-- 分区键优先使用稳定业务 ID 以保持同一对象局部顺序，避免单热键。
-- 迟到窗口和 Gold 聚合重算范围按用例定义；原事件始终保留以便重放。
+Streaming 自 V2 起已退出活动架构。项目不部署 Kinesis/Firehose，也不以其他 AWS 或外部服务替代。需要保留的 event/interaction 业务数据只能通过 Batch 或 CDC 契约进入共享 Lakehouse；此决定不改变 V1 历史标签。
 - malformed envelope 进入 parsing/schema quarantine；未知 `event_type` 不进入 Gold。
 
 ## 5. Bronze → Silver → Gold

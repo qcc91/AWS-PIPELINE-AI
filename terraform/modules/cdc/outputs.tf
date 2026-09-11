@@ -23,6 +23,14 @@ output "cdc_job_name" {
   description = "CDC Iceberg materialization Glue job name."
   value       = aws_glue_job.cdc.name
 }
+output "cdc_job_names" {
+  description = "V2 CDC Glue jobs by independently observable Medallion stage."
+  value = {
+    bronze = aws_glue_job.cdc.name
+    silver = aws_glue_job.cdc_stage["silver"].name
+    gold   = aws_glue_job.cdc_stage["gold"].name
+  }
+}
 output "cdc_state_machine_arn" {
   description = "CDC Glue orchestration state machine ARN."
   value       = aws_sfn_state_machine.cdc.arn

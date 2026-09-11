@@ -97,33 +97,12 @@
 | `provider_reference` | string | 否 | 受限敏感标识，不存卡号/银行秘密 |
 | `created_at`,`updated_at` | timestamp | 是 | UTC |
 
-## 7. Streaming Event Envelope
+## 7. Event-shaped business data
 
-```json
-{
-  "schema_version": 1,
-  "event_id": "evt_01...",
-  "event_type": "CLAIM_SUBMITTED",
-  "event_timestamp": "2026-09-08T04:15:22.123Z",
-  "source": "claims-api",
-  "customer_id": "cus_...",
-  "policy_id": "pol_...",
-  "claim_id": "clm_...",
-  "payment_id": null,
-  "correlation_id": "corr_...",
-  "payload": {}
-}
-```
-
-通用必填字段：`schema_version,event_id,event_type,event_timestamp,source,payload`，且至少一个相关业务 ID。`event_id` 全局唯一；payload 中禁止凭据、卡数据和无必要 PII。
-
-| event_type | 必需业务 ID | payload v1 最小字段 |
-|---|---|---|
-| `QUOTE_CREATED` | `customer_id`,`policy_id` | `product_id`, `quoted_premium`, `currency_code` |
-| `POLICY_VIEWED` | `policy_id` | `channel` |
-| `CLAIM_SUBMITTED` | `claim_id`,`policy_id`,`customer_id` | `claim_amount`, `currency_code` |
-| `LOGIN` | `customer_id` | `result`, `channel`；不含认证材料 |
-| `PAYMENT_ATTEMPT` | `payment_id`,`policy_id` | `payment_amount`,`currency_code`,`result` |
+Streaming transport is retired from V2 onward. If event or interaction-history
+business data remains useful, it must arrive through an approved Batch or CDC
+contract and retain a stable business event ID and timestamp. This section does
+not authorize Kinesis, Firehose, pseudo-streaming, or a replacement transport.
 
 ## 8. CDC Envelope
 
@@ -184,7 +163,7 @@ Customer 中现有 `address` 字段在 address 实体实施后仅作为兼容输
 | claim_item | `claim_item_id` | `claim_id` FK、`item_type`,`claimed_amount`,`approved_amount`,`item_status`,`created_at`,`updated_at` |
 | policy_status_history | `policy_id + status_change_time + source_order` | `previous_status`,`new_status`,`reason_code`,`status_change_time`,`source_order`；不可覆盖历史 |
 | claim_status_history | `claim_id + status_change_time + source_order` | `previous_status`,`new_status`,`reason_code`,`status_change_time`,`source_order`；不可覆盖历史 |
-| interaction_history | `event_id` | 复用 Streaming envelope 和业务 ID；payload 禁止秘密/无必要 PII |
+| interaction_history | `event_id` | 可由 Batch/CDC 提供的业务事件及业务 ID；payload 禁止秘密/无必要 PII |
 
 ### Silver 发布契约
 

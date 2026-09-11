@@ -1,8 +1,7 @@
 # 初始实施路线图
 
 > 当前交付策略改为累计版本 V1–V5；完整定义见
-> `docs/version-roadmap.md`，当前 V1 工作包见
-> `docs/v1-implementation-plan.md`。本文原阶段划分作为最终能力映射保留，
+> `docs/version-roadmap.md`。V1 已验收并标记，当前 V2 已授权。本文原阶段划分作为最终能力映射保留，
 > 不再表示要先完成全部生产强化才打通 happy path。
 
 ## 1. 使用方式
@@ -15,7 +14,7 @@
 |---|---|---|---|
 | 0 架构与基础 | Manager | 本架构包、标准、README、路线图、ADR | Gate 1 已于 2026-09-08 批准 |
 | 1 Terraform foundation | Worker 1 | bootstrap、remote state、module 骨架、DEV 网络/KMS/S3/IAM/日志基线 | fmt/validate/security/plan；Gate 2 核心基础设施评审 |
-| 2 Ingestion foundations | W1 + W2 | 合成 OLTP、CSV、DMS landing、Kinesis/Firehose landing、运行审计 | 三种来源落地、重复与失败测试 |
+| 2 Ingestion foundations | W1 + W2 | 合成 OLTP、CSV、DMS landing、运行审计 | Batch/CDC 两种来源落地、重复与失败测试 |
 | 3 Lakehouse core | W2，W1 支持 | Bronze/Silver/Gold Iceberg、Catalog/LF、DQ/quarantine/reconcile、编排监控 | 数据契约、幂等、E2E、故障测试；Gate 3 |
 | 4 BI | W2 + W1 | Athena workgroup、Gold queries、QuickSight 数据集/仪表 | 指标核对、权限/扫描成本验证 |
 | 5 ML | Worker 3 | 特征、XGBoost training/eval/registry/batch、claim_risk | 指标/偏差/可追溯/批推理验证 |
@@ -33,10 +32,10 @@
 
 ### Wave B — Source-to-Bronze
 
-- W2：合成无 PII 数据、CSV schema/validator、PostgreSQL schema/data generator、event producer contract。
-- W1：RDS/DMS/Kinesis/Firehose/EventBridge/Step Functions DEV 基础。
-- 接口：Landing prefix、run envelope、CDC/event envelope 和 quarantine schema 先完成契约测试。
-- Bronze 对所有三种来源统一采用 Iceberg，并保留源操作与审计元数据。
+- W2：合成无 PII 数据、CSV schema/validator、PostgreSQL schema/data generator。
+- W1：RDS/DMS/EventBridge/Step Functions DEV 基础。
+- 接口：Landing prefix、run envelope、CDC envelope 和 quarantine schema 先完成契约测试。
+- Bronze 对 Batch/CDC 两种来源统一采用 Iceberg，并保留源操作与审计元数据。
 
 ### Wave C — Silver/Gold
 
@@ -63,9 +62,8 @@
 
 ## 5. 决策/批准清单
 
-Gate 1 后、Gate 2 前仍需明确：AWS account/执行身份、预算阈值、保留期、PII identity-to-role/column grants 和告警接收者。默认 region 已定为 Sydney，DEV-first、初始 RPO/RTO 与角色边界已批准。Bedrock model、DMS 模式、Kinesis 模式和具体规格需基于 Sydney 可用性、价格和测量值详细设计。
+V2 保持 Sydney、DEV-first、FREE account 与已批准成本边界。Streaming 已退出；PII 身份分离和列级治理留到 V3。
 
 ## 6. 当前停止点
 
-Gate 1 与基础设施实施计划已批准。当前只授权 V1；正在延续现有 Terraform
-计划准备。真实 plan 获 Human 批准前不得执行任何 AWS 资源变更。
+V1 已验收并标记 `v1.0-happy-path`。当前仅授权 V2 可靠性与数据质量；完成真实 AWS 验证、提交和推送后停止，等待 Human 综合验收。

@@ -18,10 +18,10 @@
 | payment | 已实现；待扩展 | payment | type、amount、status、method | payment timestamp | provider reference | 收支 BI、历史失败支付特征 |
 | policy_status_history | 设计 | policy + change time + sequence | previous/new status、reason | status_change_time | 无 | 状态迁移、变更频率 |
 | claim_status_history | 设计 | claim + change time + sequence | previous/new status、reason | status_change_time | 无 | 漏斗/时效；预测后状态禁作特征 |
-| interaction_history | Streaming 设计就绪、账号阻塞 | event | type、source、channel、business IDs | event_timestamp | payload 禁止无必要 PII | 渠道趋势和预测前行为 |
+| interaction_history | 业务概念保留；无流式入口 | event | type、source、channel、business IDs | event_timestamp | payload 禁止无必要 PII | 仅可经 Batch/CDC 提供渠道趋势和预测前行为 |
 | customer_claim_features | 设计 | customer + as_of | 30/365 日理赔、保单数、存续期、支付失败 | as_of_timestamp | 默认无直接 PII | ML 共享特征 |
 | policy_risk_features | 设计 | policy + as_of | 存续期、保费、保障额、免赔额、历史理赔/变更 | as_of_timestamp | 无 | ML 共享特征 |
-| claim_risk_features | V1 文件特征已实现 | claim_id | 产品、broker、地区风险、vehicle、coverage、申报额和监督标签 | submitted_at/reference snapshot | 默认无直接 PII | 待配额开放后的 XGBoost 训练/推理 |
+| claim_risk_features | V1 已实现；V2 已增加验证与版本 | claim_id | 产品、broker、地区风险、vehicle、coverage、申报额和监督标签 | submitted_at/reference snapshot | 默认无直接 PII | XGBoost 训练/推理与可追溯重处理 |
 | claim_risk | 已有输出契约 | claim + model version | high-risk probability、risk level、model version | prediction_timestamp | 无 | ML 输出与 BI 展示 |
 | broker_claims 文件 | 已实现 | claim_id | OLTP policy/customer 键、broker/claim type/region/coverage/vehicle 键、金额、状态、结果标签 | incident/submitted/updated | claim number/description 为虚构值 | Batch 理赔事实、跨源丰富化和 ML readiness |
 | product_master 文件 | 已实现 | product_id | type/status、base premium、risk/underwriting、channel、max sum insured | effective_from/to、source updated | 无 | 连接 OLTP product/policy；产品 BI/ML 属性 |

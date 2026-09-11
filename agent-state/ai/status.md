@@ -1,16 +1,11 @@
 # AI Engineering Worker Status
 
-- Worker role: SageMaker / ML / Bedrock / RAG
-- Current task: V1 ML and RAG package closeout.
-- Status: V1 ML COMPLETE; V1 RAG COMPLETE.
-- Completed tasks: 120-row point-in-time feature preparation, one-instance
-  XGBoost Training, Batch Transform, independent Test evaluation, Glue Gold
-  `claim_risk`, Athena validation, and transient model cleanup.
-- Metrics: validation AUC 0.65556; Test AUC 0.62222 and log loss 0.65632.
-- RAG evidence: Support case `178899964200695` corrected the effective Titan V2
-  limits to 6,000 RPM/300,000 TPM. Ingestion job `U0DDU3DXFT` completed with
-  two documents indexed and zero failures; S3 Vectors contains two vectors;
-  retrieval and three grounded Nova Micro answers returned S3 citations.
-- Blockers: none for ML or RAG. Streaming remains a separate FREE-plan blocker.
-- Next action: retain V1 evidence and wait for Human authorization; do not begin V2.
-- Last updated: 2026-09-10
+- Current package: V2 ML and RAG reliability — COMPLETE.
+- ML: validates nulls, domains, unique claim IDs, labels, as-of semantics and class balance; emits deterministic dataset version and structured Training/Transform audit; postprocessing validates prediction counts and publishes an idempotent snapshot with model/dataset/run lineage.
+- RAG: stable per-document SHA-256 identity/version, empty/malformed validation, manifest diff, unchanged-sync skip, non-overlap guard, bounded transient/429 retry, ingestion reconciliation and citation validation.
+- Real RAG proof: document validation 2 valid/0 rejected; ingestion `JPIWFL7ZWT` scanned 2/failed 0/indexed-or-modified 0 and reconciled 2 unchanged; immediate repeat recorded `UNCHANGED_SKIPPED` without another ingestion job.
+- Three fixed Nova Micro questions returned non-empty grounded answers with S3 citations.
+- Existing architecture remains SageMaker XGBoost batch and Bedrock KB + Titan V2 + S3 Vectors. No endpoint, notebook, new model, subscription or recurring resource was introduced.
+- Real ML proof: accepted transform output reprocessed twice; both Glue runs succeeded and Athena confirmed 120 rows/120 unique claims, zero missing lineage and stable probability range.
+
+Last updated: 2026-09-11.

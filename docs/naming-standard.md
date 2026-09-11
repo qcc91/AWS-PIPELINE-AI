@@ -21,7 +21,6 @@
 | Glue job | `insurance-{env}-{layer}-{entity}` | `insurance-dev-silver-claim` |
 | Step Functions | `insurance-{env}-{pipeline}-sfn` | `insurance-dev-claim-batch-sfn` |
 | DMS task | `insurance-{env}-{source}-{mode}` | `insurance-dev-oltp-full-cdc` |
-| Kinesis stream | `insurance-{env}-{domain}-events` | `insurance-dev-policy-events` |
 | SNS topic | `insurance-{env}-{severity}-alerts` | `insurance-dev-critical-alerts` |
 | Secret | `insurance/{env}/{system}/{credential}` | `insurance/dev/postgres/dms` |
 | CloudWatch log group | `/insurance/{env}/{service}/{component}` | `/insurance/dev/glue/silver-claim` |

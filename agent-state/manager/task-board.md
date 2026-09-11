@@ -1,17 +1,14 @@
 # Manager Work-Package Board
 
-| Package | Owner | Scope | Status | Human gate |
-|---|---|---|---|---|
-| V1-INFRASTRUCTURE | Sol Manager + Luna Infrastructure Worker | Continue TASK-INF-001–005 as one package: validation, discovery, Human-approved V1 root shortcut, bootstrap/foundation plans, security and cost review | Complete and deployed; bootstrap state 9, foundation state 62, zero drift | Gate 2 approved 2026-09-09 |
-| DEV APPLY AND VERIFICATION | Luna Infrastructure Worker | Former TASK-INF-006; apply only the approved plans and verify controls | Complete; critical AWS controls verified | Gate 2 approved 2026-09-09 |
-| V1-BATCH-LAKEHOUSE | Data Engineering + Infrastructure Workers | CSV happy path and minimum Bronze/Silver/Gold Iceberg | COMPLETE; real DEV execution and Athena outputs verified, zero Terraform drift | Batch apply approved 2026-09-09 |
-| V1-FILE-SOURCE-EXPANSION | Data Engineering + Infrastructure Workers | Seven reference/master CSVs plus expanded broker claims, cross-source Gold and ML features | COMPLETE; 8 files, 15 Iceberg outputs/marts, Athena and point-in-time proof passed | Package approved and executed 2026-09-10 |
-| V1-CDC | Data Engineering + Infrastructure Workers | RDS PostgreSQL, DMS full load/CDC and current-state lakehouse flow | COMPLETE; real full-load/CDC, Glue and Athena proof passed | Package approved and executed |
-| V1-STREAMING | Data Engineering + Infrastructure Workers | Python producer, Kinesis, Firehose and event lakehouse flow | ACCOUNT_PLAN_BLOCKED; FREE excludes Kinesis/Firehose; 4 resources remain unapplied | Preserve ready code; no FREE activation exists |
-| V1-BI | BI Worker | Gold Iceberg through Athena and optional QuickSight | Athena COMPLETE; QuickSight disabled/not subscribed | QuickSight intentionally deferred |
-| V1-ML | AI Worker | Shared business data -> point-in-time high_risk_claim XGBoost -> claim_risk | COMPLETE; real Training, Batch Transform, Glue Gold and Athena proof passed for 120 rows | Package approved and executed 2026-09-10 |
-| V1-RAG | AI Worker | Bedrock KB, S3 Vectors, retrieval and citations | COMPLETE; job U0DDU3DXFT indexed 2/2 documents, vectors/retrieval/three cited answers verified | Package executed 2026-09-10; no quota increase |
-| DOCUVERA-CLEANUP | Manager | Remove all AWS resources belonging to the former DocuVera simulation | COMPLETE; post-delete inventory found no DocuVera-named resources in reviewed services | Destructive cleanup explicitly approved |
+| Package | Owner | Scope | Status |
+|---|---|---|---|
+| V1 Happy Path | Manager + Workers | DEV Batch, CDC, Athena BI, ML and RAG happy paths | ACCEPTED; tag `v1.0-happy-path` at `9d4f625` |
+| V2 Streaming Retirement | Infrastructure + Data Workers | Remove Kinesis/Firehose-only code, Terraform, AWS orchestration, tests and docs | IMPLEMENTED; 14 Terraform-managed Streaming-only resources removed, no replacement |
+| V2 Batch Reliability | Data + Infrastructure Workers | Stage boundaries, content idempotency, DQ, quarantine, audit, reconciliation | COMPLETE; normal, duplicate, negative-DQ, failure and recovery proofs passed |
+| V2 CDC Reliability | Data + Infrastructure Workers | Stage boundaries, stable change identity, replay-safe current state, audit/reconciliation | COMPLETE; two replays and Athena I/U/D current-state proof passed |
+| V2 ML Reliability | AI Worker | dataset validation/version, structured job audit, idempotent prediction publication | COMPLETE; two postprocessing runs and 120/120 Athena proof passed |
+| V2 RAG Reliability | AI Worker | document identity/version, validation, overlap/throttling bounds, sync reconciliation | COMPLETE; real AWS sync/unchanged/retrieval proof passed |
+| V2 Final Integration | Manager | consolidated review, tests, Terraform drift, docs, Git push | COMPLETE; awaiting Human review |
 
-Routine rework stays internal to each package. Consolidated V1 review is
-complete; V2–V5 are not authorized.
+V3–V5, PROD, CI/CD, comprehensive observability, IAM/Lake Formation hardening,
+QuickSight subscription, and any replacement streaming architecture are out of scope.

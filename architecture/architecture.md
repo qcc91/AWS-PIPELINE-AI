@@ -2,8 +2,8 @@
 
 ## 1. 状态与范围
 
-- 状态：Gate 1 已由 Human Owner 于 2026-09-08 批准
-- 阶段：Phase 1 计划评审中；尚未授权实施或部署
+- 状态：V1 已验收并标记 `v1.0-happy-path`；V2 可靠性与数据质量已授权
+- 阶段：V2 DEV 实施与真实 AWS 验证；V3–V5 未授权
 - 目标：以最小成本展示生产质量的数据与 AI 工程能力
 - 规模假设：数据量小、吞吐低、非实时欺诈评分可接受；具体容量在部署前用测量值校准
 - 主区域：`ap-southeast-2`（Sydney）；所有服务默认部署在该区域
@@ -22,39 +22,33 @@
 ## 3. 逻辑架构
 
 ```text
-┌──────────────────── Sources ────────────────────┐
-│ Broker CSV       RDS PostgreSQL       App events│
-└──────┬────────────────┬──────────────────┬──────┘
-       │                │ DMS full+CDC     │ Kinesis
-       │                │                  v
-       │                │             Data Firehose
-       └────────────────┴──────────────────┬──────┐
-                                           v      │
-                                   S3 Landing     │
-                                           │ EventBridge
-                                           v      │
-                                  Step Functions <┘
-                                           │
-                  ┌────────────────────────┴──────────────────────┐
-                  v                        v                      v
-             Glue ETL                Glue Data Quality       Quarantine
-                  │
-                  v
- S3 + Iceberg: Bronze ─────> Silver ─────> Gold
-                  │              │            │
-                  └──────────────┴────────────┤
-                                              ├─ Athena ─ QuickSight
-                                              ├─ SageMaker Processing/Training/
-                                              │  Registry/Batch Inference
-                                              └─ approved downstream use
+┌──────────── Active structured sources ────────────┐
+│ Batch / Files             RDS PostgreSQL full+CDC │
+└──────┬──────────────────────────────┬─────────────┘
+       └──────────────┬───────────────┘
+                      v
+                  S3 Landing
+                      │ EventBridge / controlled CDC boundary
+                      v
+               Step Functions
+                      v
+                Glue Bronze
+                      v
+                Glue Silver ─────> Quarantine
+                      v
+                 Glue Gold
+                      ├─ Athena / BI
+                      └─ SageMaker batch ML
 
  S3 governed documents ─> Bedrock Knowledge Bases ─> S3 Vectors
                                       │
                                       └─ Retrieve/Generate with source citations
 
  Cross-cutting: Glue Catalog, Lake Formation, IAM, KMS, Secrets Manager,
- CloudWatch, SNS, CloudTrail, GitHub + CodePipeline/CodeBuild
+ CloudWatch, SNS, CloudTrail and GitHub
 ```
+
+Batch 和 CDC 是一个共享 Medallion Lakehouse 的两种入口，不是两套数据平台。V2 按 Human 决策退出 Kinesis/Firehose Streaming，且不提供替代流式架构；原因与影响见 ADR-006。
 
 RAG 的非结构化文档区与 Lakehouse 共用治理、安全、审计和生命周期原则，但不把文档伪装成 Gold 表。结构化业务上下文若用于 RAG，必须由 Silver/Gold 受控导出，保留来源和版本。
 
@@ -64,7 +58,7 @@ RAG 的非结构化文档区与 Lakehouse 共用治理、安全、审计和生�
 
 | 逻辑存储 | 用途 | 可变性 | 关键控制 |
 |---|---|---|---|
-| landing | CSV、DMS full/CDC、Firehose 原始对象 | 追加、不可就地改写 | 版本控制、SSE-KMS、生命周期、来源前缀 |
+| landing | CSV、DMS full/CDC 原始对象 | 追加、不可就地改写 | 版本控制、SSE-KMS、生命周期、来源前缀 |
 | lakehouse | Bronze/Silver/Gold Iceberg 数据 | 仅管道角色写 | Glue Catalog、Lake Formation、快照维护 |
 | control | pipeline run、reconciliation、quality 与审计控制数据 | 仅平台控制角色写 | 与业务数据分离、明确保留期、Lake Formation 注册 |
 | quarantine | schema/DQ/duplicate/parsing 失败 | 追加，按保留策略清理 | 严格访问、原因与原始记录 |
@@ -146,8 +140,8 @@ RegisterRun -> ValidateEnvelope -> ProcessBronze -> GateBronzeDQ
 
 - S3 为事实存储，利用版本控制、Iceberg 快照和明确保留期支持恢复；恢复演练包含误删/坏批次回滚。
 - 初始项目假设：batch analytics RPO 为 24 小时，analytical pipeline RTO 为 4 小时；它们是项目假设，不是真实业务 SLA。
-- Streaming 为 best-effort near-real-time，不属于生命关键型事务工作负载；其重放与监控仍需满足生产工程要求。
-- DMS、Kinesis、Firehose、Glue、Step Functions 指标进入 CloudWatch；SNS 通知到环境对应渠道。
+- Streaming 自 V2 起已主动退出项目范围；不再保留其运行或恢复承诺。
+- DMS、Glue、Step Functions 指标进入 CloudWatch；SNS 通知到环境对应渠道。
 - Runbook 应覆盖重放、隔离修复、CDC 延迟、Schema 演进、Iceberg 小文件/快照维护、密钥与凭据轮换。
 - 小数据量不引入跨区域复制、多区域主动主动或常驻灾备计算；如 PROD 业务目标要求，必须提交 ADR、成本和安全影响供批准。
 

@@ -41,6 +41,10 @@ variable "lakehouse_bucket_name" {
 variable "control_bucket_name" {
   type = string
 }
+variable "quarantine_bucket_name" {
+  type        = string
+  description = "Existing S3 bucket for rejected V2 CDC records and traceability metadata."
+}
 variable "kms_key_arn" {
   type = string
 }

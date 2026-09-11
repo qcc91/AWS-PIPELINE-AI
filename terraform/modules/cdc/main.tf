@@ -1,16 +1,17 @@
 locals {
-  name                 = "insurance-${var.environment}-cdc"
-  landing_bucket_arn   = "arn:aws:s3:::${var.landing_bucket_name}"
-  lakehouse_bucket_arn = "arn:aws:s3:::${var.lakehouse_bucket_name}"
-  control_bucket_arn   = "arn:aws:s3:::${var.control_bucket_name}"
-  dms_prefix           = "oltp"
-  cdc_job_name         = "insurance-${var.environment}-cdc-iceberg"
-  seed_job_name        = "insurance-${var.environment}-cdc-sql-bootstrap"
-  state_machine_name   = "insurance-${var.environment}-cdc-iceberg"
-  glue_catalog_arn     = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
-  glue_connection_arn  = "arn:aws:glue:${var.aws_region}:${var.account_id}:connection/${local.name}-rds-connection"
-  glue_database_arns   = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names[layer]}"]
-  glue_table_arns      = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names[layer]}/*"]
+  name                  = "insurance-${var.environment}-cdc"
+  landing_bucket_arn    = "arn:aws:s3:::${var.landing_bucket_name}"
+  lakehouse_bucket_arn  = "arn:aws:s3:::${var.lakehouse_bucket_name}"
+  control_bucket_arn    = "arn:aws:s3:::${var.control_bucket_name}"
+  quarantine_bucket_arn = "arn:aws:s3:::${var.quarantine_bucket_name}"
+  dms_prefix            = "oltp"
+  cdc_job_name          = "insurance-${var.environment}-cdc-iceberg"
+  seed_job_name         = "insurance-${var.environment}-cdc-sql-bootstrap"
+  state_machine_name    = "insurance-${var.environment}-cdc-iceberg"
+  glue_catalog_arn      = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
+  glue_connection_arn   = "arn:aws:glue:${var.aws_region}:${var.account_id}:connection/${local.name}-rds-connection"
+  glue_database_arns    = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names[layer]}"]
+  glue_table_arns       = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names[layer]}/*"]
 }
 
 resource "aws_security_group" "dms" {
@@ -384,6 +385,14 @@ resource "aws_cloudwatch_log_group" "cdc" {
   tags              = merge(var.tags, { Purpose = "cdc-glue-logs" })
 }
 
+resource "aws_cloudwatch_log_group" "cdc_stage" {
+  for_each = toset(["silver", "gold"])
+
+  name              = "/aws-glue/jobs/${local.cdc_job_name}-${each.key}"
+  retention_in_days = 30
+  tags              = merge(var.tags, { Purpose = "cdc-${each.key}-glue-logs", Stage = each.key })
+}
+
 resource "aws_cloudwatch_log_group" "seed" {
   name              = "/aws-glue/jobs/${local.seed_job_name}"
   retention_in_days = 30
@@ -402,16 +411,17 @@ resource "aws_iam_role_policy" "glue" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      { Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = [local.landing_bucket_arn, local.lakehouse_bucket_arn, local.control_bucket_arn] },
+      { Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = [local.landing_bucket_arn, local.lakehouse_bucket_arn, local.control_bucket_arn, local.quarantine_bucket_arn] },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion"], Resource = ["${local.landing_bucket_arn}/${local.dms_prefix}/*", "${local.control_bucket_arn}/*"] },
       { Effect = "Allow", Action = ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = ["${local.lakehouse_bucket_arn}/*", "${local.control_bucket_arn}/*"] },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = "${local.quarantine_bucket_arn}/quarantine/v2/*" },
       { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*"], Resource = var.kms_key_arn },
       { Effect = "Allow", Action = ["glue:CreateTable", "glue:DeleteTable", "glue:GetDatabase", "glue:GetTable", "glue:GetTables", "glue:UpdateTable"], Resource = concat([local.glue_catalog_arn], local.glue_database_arns, local.glue_table_arns) },
       { Effect = "Allow", Action = ["glue:GetConnection"], Resource = [local.glue_catalog_arn, local.glue_connection_arn] },
       { Effect = "Allow", Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"], Resource = aws_secretsmanager_secret.source.arn },
       { Effect = "Allow", Action = ["ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeRouteTables"], Resource = "*" },
       { Effect = "Allow", Action = ["ec2:CreateTags", "ec2:DeleteTags"], Resource = "arn:aws:ec2:${var.aws_region}:${var.account_id}:network-interface/*", Condition = { "ForAllValues:StringEquals" = { "aws:TagKeys" = ["aws-glue-service-resource"] } } },
-      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = [aws_cloudwatch_log_group.cdc.arn, "${aws_cloudwatch_log_group.cdc.arn}:*", aws_cloudwatch_log_group.seed.arn, "${aws_cloudwatch_log_group.seed.arn}:*"] },
+      { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = concat([aws_cloudwatch_log_group.cdc.arn, "${aws_cloudwatch_log_group.cdc.arn}:*", aws_cloudwatch_log_group.seed.arn, "${aws_cloudwatch_log_group.seed.arn}:*"], flatten([for group in aws_cloudwatch_log_group.cdc_stage : [group.arn, "${group.arn}:*"]])) },
     ]
   })
 }
@@ -456,17 +466,64 @@ resource "aws_glue_job" "cdc" {
     "--CDC_PREFIX"                       = local.dms_prefix
     "--CDC_OBJECT_KEY"                   = "manual"
     "--RUN_ID"                           = "manual"
+    "--PROCESSING_STAGE"                 = "bronze"
     "--LANDING_BUCKET"                   = var.landing_bucket_name
     "--LAKEHOUSE_BUCKET"                 = var.lakehouse_bucket_name
     "--BRONZE_DATABASE"                  = var.glue_database_names["bronze"]
     "--SILVER_DATABASE"                  = var.glue_database_names["silver"]
     "--GOLD_DATABASE"                    = var.glue_database_names["gold"]
+    "--CONTROL_BUCKET"                   = var.control_bucket_name
+    "--CONTROL_PREFIX"                   = "control/v2"
+    "--QUARANTINE_BUCKET"                = var.quarantine_bucket_name
+    "--QUARANTINE_PREFIX"                = "quarantine/v2"
   }
   execution_property {
     max_concurrent_runs = 1
   }
   depends_on = [aws_s3_object.cdc_script, aws_cloudwatch_log_group.cdc]
-  tags       = merge(var.tags, { Purpose = "cdc-iceberg-processing" })
+  tags       = merge(var.tags, { Purpose = "cdc-iceberg-processing", Stage = "bronze" })
+}
+
+resource "aws_glue_job" "cdc_stage" {
+  for_each = toset(["silver", "gold"])
+
+  name              = "${local.cdc_job_name}-${each.key}"
+  role_arn          = aws_iam_role.glue.arn
+  glue_version      = "5.0"
+  worker_type       = "G.1X"
+  number_of_workers = 2
+  max_retries       = 0
+  timeout           = 15
+  command {
+    name            = "glueetl"
+    script_location = "s3://${var.control_bucket_name}/artifacts/glue/glue_cdc_pipeline.py"
+    python_version  = "3"
+  }
+  default_arguments = {
+    "--job-language"                     = "python"
+    "--datalake-formats"                 = "iceberg"
+    "--enable-metrics"                   = "true"
+    "--enable-continuous-cloudwatch-log" = "true"
+    "--continuous-log-logGroup"          = aws_cloudwatch_log_group.cdc_stage[each.key].name
+    "--CDC_PREFIX"                       = local.dms_prefix
+    "--CDC_OBJECT_KEY"                   = "manual"
+    "--RUN_ID"                           = "manual"
+    "--PROCESSING_STAGE"                 = each.key
+    "--LANDING_BUCKET"                   = var.landing_bucket_name
+    "--LAKEHOUSE_BUCKET"                 = var.lakehouse_bucket_name
+    "--BRONZE_DATABASE"                  = var.glue_database_names["bronze"]
+    "--SILVER_DATABASE"                  = var.glue_database_names["silver"]
+    "--GOLD_DATABASE"                    = var.glue_database_names["gold"]
+    "--CONTROL_BUCKET"                   = var.control_bucket_name
+    "--CONTROL_PREFIX"                   = "control/v2"
+    "--QUARANTINE_BUCKET"                = var.quarantine_bucket_name
+    "--QUARANTINE_PREFIX"                = "quarantine/v2"
+  }
+  execution_property {
+    max_concurrent_runs = 1
+  }
+  depends_on = [aws_s3_object.cdc_script, aws_cloudwatch_log_group.cdc_stage]
+  tags       = merge(var.tags, { Purpose = "cdc-iceberg-processing", Stage = each.key })
 }
 
 resource "aws_glue_job" "seed" {
@@ -518,6 +575,8 @@ resource "aws_iam_role_policy" "step_functions" {
     Statement = [
       { Effect = "Allow", Action = ["glue:BatchStopJobRun", "glue:GetJobRun", "glue:GetJobRuns", "glue:StartJobRun"], Resource = "*" },
       { Effect = "Allow", Action = ["logs:CreateLogDelivery", "logs:GetLogDelivery", "logs:UpdateLogDelivery", "logs:DeleteLogDelivery", "logs:ListLogDeliveries", "logs:PutResourcePolicy", "logs:DescribeResourcePolicies", "logs:DescribeLogGroups"], Resource = "*" },
+      { Effect = "Allow", Action = "s3:PutObject", Resource = "${local.control_bucket_arn}/control/v2/pipeline_runs/*" },
+      { Effect = "Allow", Action = ["kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey"], Resource = var.kms_key_arn },
     ]
   })
 }
@@ -526,13 +585,121 @@ resource "aws_sfn_state_machine" "cdc" {
   name     = local.state_machine_name
   role_arn = aws_iam_role.step_functions.arn
   definition = jsonencode({
-    Comment = "V1 DMS S3 CDC to Bronze/Silver/Gold Iceberg"
-    StartAt = "RunCdcGlue"
+    Comment = "V2 CDC Bronze, Silver, and Gold with independent retry and failure boundaries"
+    StartAt = "RunBronze"
     States = {
-      RunCdcGlue = {
-        Type       = "Task", Resource = "arn:aws:states:::glue:startJobRun.sync"
-        Parameters = { JobName = aws_glue_job.cdc.name, Arguments = { "--CDC_OBJECT_KEY.$" = "$.detail.object.key", "--RUN_ID.$" = "$.id" } }
-        End        = true
+      RunBronze = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::glue:startJobRun.sync"
+        Parameters = {
+          JobName = aws_glue_job.cdc.name
+          Arguments = {
+            "--CDC_OBJECT_KEY.$" = "$.detail.object.key"
+            "--RUN_ID.$"         = "$.id"
+            "--PROCESSING_STAGE" = "bronze"
+          }
+        }
+        ResultPath = "$.bronze_result"
+        Retry = [{
+          ErrorEquals     = ["Glue.ConcurrentRunsExceededException", "States.Timeout"]
+          IntervalSeconds = 10
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.failure", Next = "RecordBronzeFailure" }]
+        Next  = "RunSilver"
+      }
+      RunSilver = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::glue:startJobRun.sync"
+        Parameters = {
+          JobName = aws_glue_job.cdc_stage["silver"].name
+          Arguments = {
+            "--CDC_OBJECT_KEY.$" = "$.detail.object.key"
+            "--RUN_ID.$"         = "$.id"
+            "--PROCESSING_STAGE" = "silver"
+          }
+        }
+        ResultPath = "$.silver_result"
+        Retry = [{
+          ErrorEquals     = ["Glue.ConcurrentRunsExceededException", "States.Timeout"]
+          IntervalSeconds = 10
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.failure", Next = "RecordSilverFailure" }]
+        Next  = "RunGold"
+      }
+      RunGold = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::glue:startJobRun.sync"
+        Parameters = {
+          JobName = aws_glue_job.cdc_stage["gold"].name
+          Arguments = {
+            "--CDC_OBJECT_KEY.$" = "$.detail.object.key"
+            "--RUN_ID.$"         = "$.id"
+            "--PROCESSING_STAGE" = "gold"
+          }
+        }
+        ResultPath = "$.gold_result"
+        Retry = [{
+          ErrorEquals     = ["Glue.ConcurrentRunsExceededException", "States.Timeout"]
+          IntervalSeconds = 10
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.failure", Next = "RecordGoldFailure" }]
+        End   = true
+      }
+      RecordBronzeFailure = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::aws-sdk:s3:putObject"
+        Parameters = {
+          Bucket               = var.control_bucket_name
+          "Key.$"              = "States.Format('control/v2/pipeline_runs/{}/bronze-failure.json', $.id)"
+          "Body.$"             = "States.JsonToString($.failure)"
+          ServerSideEncryption = "aws:kms"
+          SsekmsKeyId          = var.kms_key_arn
+          ContentType          = "application/json"
+        }
+        ResultPath = "$.failure_audit"
+        Catch      = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.failure_audit_error", Next = "PipelineFailed" }]
+        Next       = "PipelineFailed"
+      }
+      RecordSilverFailure = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::aws-sdk:s3:putObject"
+        Parameters = {
+          Bucket               = var.control_bucket_name
+          "Key.$"              = "States.Format('control/v2/pipeline_runs/{}/silver-failure.json', $.id)"
+          "Body.$"             = "States.JsonToString($.failure)"
+          ServerSideEncryption = "aws:kms"
+          SsekmsKeyId          = var.kms_key_arn
+          ContentType          = "application/json"
+        }
+        ResultPath = "$.failure_audit"
+        Catch      = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.failure_audit_error", Next = "PipelineFailed" }]
+        Next       = "PipelineFailed"
+      }
+      RecordGoldFailure = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::aws-sdk:s3:putObject"
+        Parameters = {
+          Bucket               = var.control_bucket_name
+          "Key.$"              = "States.Format('control/v2/pipeline_runs/{}/gold-failure.json', $.id)"
+          "Body.$"             = "States.JsonToString($.failure)"
+          ServerSideEncryption = "aws:kms"
+          SsekmsKeyId          = var.kms_key_arn
+          ContentType          = "application/json"
+        }
+        ResultPath = "$.failure_audit"
+        Catch      = [{ ErrorEquals = ["States.ALL"], ResultPath = "$.failure_audit_error", Next = "PipelineFailed" }]
+        Next       = "PipelineFailed"
+      }
+      PipelineFailed = {
+        Type  = "Fail"
+        Error = "CdcMedallionStageFailed"
+        Cause = "A V2 CDC stage exhausted its bounded retries; execution history and stage audit identify the failure."
       }
     }
   })

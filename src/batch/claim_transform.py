@@ -10,7 +10,10 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from hashlib import sha256
+from dataclasses import dataclass
 from typing import Iterable, Mapping
+
+from src.reliability.control import PipelineAudit, QuarantineRecord, file_identity, reconcile_batch
 
 REQUIRED_COLUMNS = (
     "claim_id",
@@ -30,6 +33,16 @@ VALID_CLAIM_STATUSES = frozenset(
     {"SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "PAID", "CLOSED"}
 )
 MONEY_QUANTUM = Decimal("0.01")
+
+
+@dataclass(frozen=True)
+class BatchFileResult:
+    """Outcome of one logical file before persistence to trusted layers."""
+
+    source_file_id: str
+    accepted: tuple[dict[str, object], ...]
+    quarantined: tuple[QuarantineRecord, ...]
+    audit: PipelineAudit
 
 
 def validate_headers(headers: Iterable[str]) -> list[str]:
@@ -181,3 +194,79 @@ def build_claim_daily_summary(records: Iterable[Mapping[str, object]]) -> list[d
         current["total_claim_amount"] += record["claim_amount"]
         current["total_approved_amount"] += record.get("approved_amount") or Decimal("0.00")
     return [grouped[key] for key in sorted(grouped)]
+
+
+def process_claim_file(
+    rows: Iterable[Mapping[str, object]],
+    *,
+    content: bytes,
+    run_id: str,
+    source_object: str,
+    ingested_at: datetime,
+    processed_file_ids: set[str] | frozenset[str] = frozenset(),
+) -> BatchFileResult:
+    """Validate a file with content identity, quarantine, and reconciliation.
+
+    A file already present in ``processed_file_ids`` is a successful duplicate
+    no-op. Within a new file, invalid rows are quarantined and repeated claim
+    versions are deterministically collapsed before trusted output.
+    """
+
+    materialized = [dict(row) for row in rows]
+    source_file_id = file_identity(content)
+    audit = PipelineAudit(
+        run_id=run_id,
+        pipeline_name="batch-file",
+        source=source_object,
+        stage="silver",
+        source_identity=source_file_id,
+    )
+    if source_file_id in processed_file_ids:
+        audit.finish(
+            "DUPLICATE",
+            input_count=len(materialized),
+            output_count=0,
+            duplicate_count=len(materialized),
+            reconciliation_passed=True,
+        )
+        return BatchFileResult(source_file_id, (), (), audit)
+
+    valid: list[dict[str, object]] = []
+    quarantined: list[QuarantineRecord] = []
+    for row in materialized:
+        record, errors = normalize_claim_row(
+            row, run_id=run_id, source_object=source_object, ingested_at=ingested_at
+        )
+        if record is not None:
+            record["_source_file_id"] = source_file_id
+            valid.append(record)
+        else:
+            quarantined.append(
+                QuarantineRecord.create(
+                    run_id=run_id,
+                    source=source_object,
+                    entity="claim",
+                    source_record=row,
+                    failed_rules=errors,
+                    rejected_at=ingested_at,
+                )
+            )
+
+    accepted = deduplicate_claims(valid)
+    duplicate_count = len(valid) - len(accepted)
+    reconciled = reconcile_batch(
+        input_count=len(materialized),
+        output_count=len(accepted),
+        rejected_count=len(quarantined),
+        duplicate_count=duplicate_count,
+    )
+    status = "SUCCEEDED" if accepted or not quarantined else "QUARANTINED"
+    audit.finish(
+        status,
+        input_count=len(materialized),
+        output_count=len(accepted),
+        rejected_count=len(quarantined),
+        duplicate_count=duplicate_count,
+        reconciliation_passed=reconciled,
+    )
+    return BatchFileResult(source_file_id, tuple(accepted), tuple(quarantined), audit)

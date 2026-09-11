@@ -15,11 +15,13 @@ The platform uses a Lakehouse architecture with the Medallion pattern:
 - Silver
 - Gold
 
-The platform supports three ingestion patterns:
+The platform supports two active structured ingestion patterns:
 
 1. Batch CSV files
 2. PostgreSQL OLTP database with CDC
-3. Streaming events
+
+Streaming was part of V1 but is intentionally retired from V2 onward by Human
+decision. Do not introduce a replacement streaming technology.
 
 The Gold/Silver data platform supports three downstream branches:
 
@@ -122,7 +124,6 @@ Responsible for:
 - Security Groups
 - RDS infrastructure
 - DMS infrastructure
-- Kinesis infrastructure
 - Glue infrastructure
 - Step Functions infrastructure
 - EventBridge
@@ -145,7 +146,6 @@ Responsible for:
 - PostgreSQL source schema
 - synthetic OLTP data generation
 - DMS CDC processing
-- streaming producers
 - Bronze processing
 - Silver processing
 - Gold processing
@@ -209,14 +209,6 @@ OLTP:
 Amazon RDS for PostgreSQL
 → AWS DMS
 → S3
-
-Streaming:
-
-Producer
-→ Amazon Kinesis Data Streams
-→ Amazon Data Firehose
-→ S3
-
 
 ## Lakehouse
 
@@ -486,23 +478,11 @@ PostgreSQL tables:
 - payments
 
 
-## Streaming Source
+## Retired Streaming Source
 
-Example event types:
-
-- QUOTE_CREATED
-- POLICY_VIEWED
-- CLAIM_SUBMITTED
-- LOGIN
-- PAYMENT_ATTEMPT
-
-Every streaming event must contain:
-
-- event_id
-- event_type
-- event_timestamp
-- source
-- relevant business identifiers
+Kinesis Data Streams and Data Firehose are not part of the active architecture
+from V2 onward. Useful event-shaped business data may enter through Batch or CDC,
+but no substitute streaming architecture may be introduced.
 
 ---
 
@@ -739,7 +719,6 @@ Example modules:
 - networking
 - rds
 - dms
-- kinesis
 - glue
 - lakeformation
 - step-functions
@@ -899,7 +878,6 @@ Intentionally test:
 - negative claim amount
 - Glue failure
 - retry exhaustion
-- malformed streaming event
 
 ---
 
@@ -1175,7 +1153,6 @@ Report:
 - CSV ingestion
 - OLTP ingestion
 - CDC
-- streaming ingestion
 - Bronze
 - Silver
 - Gold
@@ -1327,10 +1304,11 @@ team designs for V5 but implements only the currently authorized version in one
 evolving codebase:
 
 - V1 — End-to-end happy path: functional DEV infrastructure, batch, CDC,
-  streaming, Bronze/Silver/Gold Iceberg, Athena/QuickSight, SageMaker batch ML,
+  the historically account-blocked streaming branch, Bronze/Silver/Gold Iceberg, Athena/QuickSight, SageMaker batch ML,
   and Bedrock Knowledge Bases with S3 Vectors.
-- V2 — Reliability and data quality: retries, idempotency, deduplication, DQ,
-  quarantine, audit metadata, reconciliation, and recovery.
+- V2 — Reliability and data quality: retire Streaming; add stage boundaries,
+  retries, idempotency, deduplication, DQ, quarantine, audit metadata,
+  reconciliation, and recovery to Batch, CDC, ML, and RAG.
 - V3 — Security and governance: least privilege, Lake Formation role/PII
   controls, KMS refinement, Secrets Manager, audit, and security validation.
 - V4 — CI/CD and environment automation: independent remote DEV/PROD state,
@@ -1348,7 +1326,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V1 — END-TO-END HAPPY PATH / CONSOLIDATED COMPLETION REVIEW
+V2 — RELIABILITY + DATA QUALITY + STREAMING RETIREMENT
 
 The Human Owner requires this project to remain on the AWS `FREE` account plan.
 Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a
@@ -1389,13 +1367,7 @@ model artifact -> one `ml.m5.large` Batch Transform -> Glue -> Gold
 `claim_risk` -> Athena. The run produced 120 predictions; validation AUC was
 0.65556 and independent Test AUC was 0.62222. No endpoint or notebook was
 created, and the transient SageMaker Model was deleted after publication.
-Streaming remains blocked by account capability; RAG runtime proof is complete:
-
-- The account plan is `FREE`; Kinesis and Firehose return
-  `SubscriptionRequiredException`. AWS provides no separate FREE activation,
-  so four Streaming resources remain unapplied and the branch is
-  `ACCOUNT_PLAN_BLOCKED`.
-- AWS Support case `178899964200695` confirmed that the Service Quotas display
+- RAG runtime proof is complete. AWS Support case `178899964200695` confirmed that the Service Quotas display
   of zero is a known inconsistency. The actual Titan Text Embeddings V2 backend
   limits are 6,000 RPM and 300,000 TPM. The earlier HTTP 429 responses were
   genuine transient ingestion throttling, not a FREE-plan entitlement block.
@@ -1403,28 +1375,35 @@ Streaming remains blocked by account capability; RAG runtime proof is complete:
   failures. S3 Vectors retrieval and three Nova Micro grounded answers with S3
   citations passed real AWS validation.
 
-Do not retry Streaming until a read-only account capability check shows that
-Kinesis and Firehose are available. Do not request a Titan quota increase for
-the small V1 corpus. Existing later-version hardening may remain when correct
-and non-blocking, but V2–V5 implementation is not authorized.
+Do not request a Titan quota increase for the small corpus. Streaming is retired,
+not blocked or pending activation. Do not restore or replace it.
 
-The approved scope and task contracts are defined in:
+Historical Phase 1 scope and task contracts are defined in:
 
 docs/phase-1-execution-plan.md
 
 Routine formatting, validation, lint, provider download, local syntax, test
 failures, and Worker rework are handled internally without Human checkpoints.
-Any future AWS-changing operation must remain inside an approved V1 package;
+Any AWS-changing operation must remain inside the approved V2 package;
 destructive actions, new services, material architecture/security/cost changes,
 and all production operations require Human approval.
 
 Do NOT deploy PROD resources.
 
-V1 package execution and its consolidated review are complete. Streaming is
-reported honestly as `ACCOUNT_PLAN_BLOCKED`, and QuickSight as intentionally
-deferred; neither is redesigned merely to turn it green. V1 ML and RAG are
-complete. `PACKAGE-OBSERVABILITY` and V2–V5 remain out of scope. Stop and wait
-for Human authorization before beginning V2. Each future package follows:
+V1 package execution and its consolidated review are complete and preserved by
+tag `v1.0-happy-path` at commit `9d4f625`. Human authorized V2 on 2026-09-11.
+From V2 onward Streaming is intentionally retired: remove its active code,
+Terraform, AWS orchestration, tests, docs, and task state without introducing a
+replacement. Batch/File and PostgreSQL full-load+CDC are the two structured
+ingestion patterns feeding one shared Bronze/Silver/Gold Iceberg Lakehouse.
+
+V2 is limited to stage/failure boundaries, bounded transient retry, idempotency,
+DQ, quarantine, run audit, reconciliation, and recovery validation for Batch,
+CDC, ML, and RAG. V3 least-privilege hardening, V4 CI/CD, V5 production
+readiness, PROD deployment, QuickSight subscription, account-plan upgrade, and
+Marketplace purchases remain out of scope. After V2 implementation, real AWS
+evidence, documentation, commit, and push, STOP for Human consolidated review.
+Each package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager
 review -> internal rework as needed -> meaningful Human gate.

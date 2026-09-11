@@ -172,16 +172,6 @@ $resourceScopes = @(
     )
   }
   [pscustomobject]@{
-    Name = "streaming"
-    Prefix = (Join-Path $terraformRoot "modules/streaming") + [System.IO.Path]::DirectorySeparatorChar
-    AllowedTypes = @(
-      "aws_cloudwatch_event_rule", "aws_cloudwatch_event_target", "aws_cloudwatch_log_group"
-      "aws_glue_job", "aws_iam_policy", "aws_iam_role", "aws_iam_role_policy"
-      "aws_kinesis_firehose_delivery_stream", "aws_kinesis_stream"
-      "aws_s3_bucket_notification", "aws_s3_object", "aws_sfn_state_machine"
-    )
-  }
-  [pscustomobject]@{
     Name = "bi"
     Prefix = (Join-Path $terraformRoot "modules/bi") + [System.IO.Path]::DirectorySeparatorChar
     AllowedTypes = @("aws_athena_named_query", "aws_athena_workgroup", "aws_quicksight_data_set", "aws_quicksight_data_source")

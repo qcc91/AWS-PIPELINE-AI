@@ -70,15 +70,16 @@ module "glue" {
 module "batch_ingestion" {
   source = "../../modules/batch-ingestion"
 
-  environment           = local.environment
-  aws_region            = var.aws_region
-  account_id            = var.account_id
-  landing_bucket_name   = module.storage["landing"].bucket_id
-  lakehouse_bucket_name = module.storage["lakehouse"].bucket_id
-  control_bucket_name   = module.storage["control"].bucket_id
-  kms_key_arn           = module.platform_kms.key_arn
-  glue_database_names   = module.glue.database_names
-  glue_script_path      = abspath("${path.root}/../../../jobs/glue_claim_pipeline.py")
+  environment            = local.environment
+  aws_region             = var.aws_region
+  account_id             = var.account_id
+  landing_bucket_name    = module.storage["landing"].bucket_id
+  lakehouse_bucket_name  = module.storage["lakehouse"].bucket_id
+  control_bucket_name    = module.storage["control"].bucket_id
+  quarantine_bucket_name = module.storage["quarantine"].bucket_id
+  kms_key_arn            = module.platform_kms.key_arn
+  glue_database_names    = module.glue.database_names
+  glue_script_path       = abspath("${path.root}/../../../jobs/glue_claim_pipeline.py")
   # One prefix intentionally covers the original broker claims file and the
   # V1 file-based master/reference datasets under batch/reference/.
   batch_key_prefix = "batch/"
@@ -88,36 +89,23 @@ module "batch_ingestion" {
 module "cdc" {
   source = "../../modules/cdc"
 
-  environment           = local.environment
-  aws_region            = var.aws_region
-  account_id            = var.account_id
-  vpc_id                = module.networking.vpc_id
-  private_subnet_ids    = module.networking.private_subnet_ids
-  landing_bucket_name   = module.storage["landing"].bucket_id
-  lakehouse_bucket_name = module.storage["lakehouse"].bucket_id
-  control_bucket_name   = module.storage["control"].bucket_id
-  kms_key_arn           = module.platform_kms.key_arn
-  glue_database_names   = module.glue.database_names
-  cdc_script_path       = abspath("${path.root}/../../../jobs/glue_cdc_pipeline.py")
-  seed_script_path      = abspath("${path.root}/../../../jobs/glue_cdc_sql_bootstrap.py")
-  schema_sql_path       = abspath("${path.root}/../../../sql/cdc/001_schema.sql")
-  seed_sql_path         = abspath("${path.root}/../../../sql/cdc/002_seed.sql")
-  mutation_sql_path     = abspath("${path.root}/../../../sql/cdc/003_mutations.sql")
-  tags                  = module.common.tags
-}
-
-module "streaming" {
-  source = "../../modules/streaming"
-
-  environment           = local.environment
-  aws_region            = var.aws_region
-  account_id            = var.account_id
-  lakehouse_bucket_name = module.storage["lakehouse"].bucket_id
-  control_bucket_name   = module.storage["control"].bucket_id
-  kms_key_arn           = module.platform_kms.key_arn
-  glue_database_names   = module.glue.database_names
-  glue_script_path      = abspath("${path.root}/../../../jobs/glue_streaming_pipeline.py")
-  tags                  = module.common.tags
+  environment            = local.environment
+  aws_region             = var.aws_region
+  account_id             = var.account_id
+  vpc_id                 = module.networking.vpc_id
+  private_subnet_ids     = module.networking.private_subnet_ids
+  landing_bucket_name    = module.storage["landing"].bucket_id
+  lakehouse_bucket_name  = module.storage["lakehouse"].bucket_id
+  control_bucket_name    = module.storage["control"].bucket_id
+  quarantine_bucket_name = module.storage["quarantine"].bucket_id
+  kms_key_arn            = module.platform_kms.key_arn
+  glue_database_names    = module.glue.database_names
+  cdc_script_path        = abspath("${path.root}/../../../jobs/glue_cdc_pipeline.py")
+  seed_script_path       = abspath("${path.root}/../../../jobs/glue_cdc_sql_bootstrap.py")
+  schema_sql_path        = abspath("${path.root}/../../../sql/cdc/001_schema.sql")
+  seed_sql_path          = abspath("${path.root}/../../../sql/cdc/002_seed.sql")
+  mutation_sql_path      = abspath("${path.root}/../../../sql/cdc/003_mutations.sql")
+  tags                   = module.common.tags
 }
 
 module "monitoring" {

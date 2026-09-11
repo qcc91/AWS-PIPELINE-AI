@@ -9,7 +9,11 @@ JOB = (ROOT / "jobs/glue_claim_pipeline.py").read_text(encoding="utf-8")
 
 
 def test_all_layers_are_iceberg_and_paths_are_stable():
-    assert MODULE.count('aws_glue_job"') == 1
+    # V2 uses one Bronze resource plus a Silver/Gold for_each resource. This is
+    # three jobs at runtime without one-job-per-table proliferation.
+    assert MODULE.count('aws_glue_job"') == 2
+    assert 'for_each = toset(["silver", "gold"])' in MODULE
+    assert '"--PROCESSING_STAGE"' in MODULE
     for layer in ("bronze", "silver", "gold"):
         assert layer in MODULE
     assert JOB.count(".using(\"iceberg\")") == 1

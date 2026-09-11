@@ -38,6 +38,11 @@ variable "control_bucket_name" {
   type        = string
 }
 
+variable "quarantine_bucket_name" {
+  description = "Existing S3 bucket for rejected V2 records and traceability metadata."
+  type        = string
+}
+
 variable "kms_key_arn" {
   description = "Existing platform KMS key used by S3 data and job artifacts."
   type        = string

@@ -8,6 +8,15 @@ output "glue_job_arn" {
   value       = aws_glue_job.batch.arn
 }
 
+output "glue_job_names" {
+  description = "V2 Batch Glue jobs by independently observable Medallion stage."
+  value = {
+    bronze = aws_glue_job.batch.name
+    silver = aws_glue_job.stage["silver"].name
+    gold   = aws_glue_job.stage["gold"].name
+  }
+}
+
 output "state_machine_name" {
   description = "V1 batch Step Functions state machine name."
   value       = aws_sfn_state_machine.batch.name

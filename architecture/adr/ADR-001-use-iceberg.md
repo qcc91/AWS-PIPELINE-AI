@@ -8,7 +8,7 @@
 
 ## Decision
 
-Bronze、Silver、Gold 全部采用 Amazon S3 上的 Apache Iceberg，并使用 Glue Data Catalog。Landing 保留原始 CSV/DMS/Firehose 对象，不属于 Iceberg 层。Glue 负责写入/MERGE；Athena 通过 Catalog 查询。表维护包括小文件治理、快照过期和孤儿文件清理，保留期需先批准。
+Bronze、Silver、Gold 全部采用 Amazon S3 上的 Apache Iceberg，并使用 Glue Data Catalog。Landing 保留原始 CSV/DMS 对象，不属于 Iceberg 层。Glue 负责写入/MERGE；Athena 通过 Catalog 查询。表维护包括小文件治理、快照过期和孤儿文件清理，保留期需先批准。
 
 ## Alternatives
 

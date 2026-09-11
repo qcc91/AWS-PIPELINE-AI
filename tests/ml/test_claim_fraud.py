@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
+import json
+from types import SimpleNamespace
 
-from jobs.ml_claim_fraud_pipeline import build_training_request, build_transform_request, evaluate_auc, evaluate_predictions, submit_batch_transform
+import pytest
+
+from jobs.ml_claim_fraud_pipeline import JobExecutionError, bounded_call, build_training_request, build_transform_request, evaluate_auc, evaluate_predictions, run_pipeline, submit_batch_transform, wait_for_training, wait_for_transform
 from src.ml.claim_fraud import claim_features, deterministic_dataset, format_claim_risk, to_xgboost_csv
 
 
@@ -48,3 +52,61 @@ def test_auc_is_dependency_free_and_requires_both_classes():
     assert evaluate_auc([0.9, 0.1], [1, 0]) == 1.0
     metrics = evaluate_predictions([0.1, 0.4, 0.6, 0.9], [0, 0, 1, 1])
     assert metrics["auc"] == metrics["f1"] == 1.0
+
+
+def test_terminal_training_and_transform_failures_are_structured_for_audit():
+    class TrainingClient:
+        def describe_training_job(self, **_kwargs):
+            return {"TrainingJobStatus": "Failed", "FailureReason": "bad input"}
+
+    class TransformClient:
+        def describe_transform_job(self, **_kwargs):
+            return {"TransformJobStatus": "Stopped", "FailureReason": "operator stop"}
+
+    with pytest.raises(JobExecutionError, match="bad input") as training:
+        wait_for_training(client=TrainingClient(), job_name="train", poll_seconds=0)
+    assert training.value.stage == "training" and training.value.status == "Failed"
+    with pytest.raises(JobExecutionError, match="operator stop") as transform:
+        wait_for_transform(client=TransformClient(), job_name="transform", poll_seconds=0)
+    assert transform.value.stage == "transform" and transform.value.status == "Stopped"
+
+
+def test_bounded_retry_retries_only_transient_aws_errors(monkeypatch):
+    calls = []
+
+    class Transient(Exception):
+        response = {"Error": {"Code": "ThrottlingException"}}
+
+    def operation():
+        calls.append(1)
+        if len(calls) < 3:
+            raise Transient()
+        return "ok"
+
+    monkeypatch.setattr("jobs.ml_claim_fraud_pipeline.time.sleep", lambda _seconds: None)
+    assert bounded_call(operation, max_attempts=3) == "ok"
+    assert len(calls) == 3
+
+
+def test_pipeline_records_training_failure_with_dataset_and_model_run(tmp_path, monkeypatch):
+    class Client:
+        def create_training_job(self, **_kwargs):
+            return {}
+
+        def describe_training_job(self, **_kwargs):
+            return {"TrainingJobStatus": "Failed", "FailureReason": "invalid training input"}
+
+    args = SimpleNamespace(
+        region="ap-southeast-2", xgboost_version="1.7-1", role_arn="role",
+        output_path="s3://bucket/out", train_uri="s3://bucket/train",
+        validation_uri="s3://bucket/validation", job_name="model-run-1",
+        kms_key_id="key", poll_seconds=0, dataset_version="claim-risk-v2-abc",
+        retain_model=False, audit_output=tmp_path / "audit.json",
+    )
+    monkeypatch.setattr("jobs.ml_claim_fraud_pipeline.resolve_xgboost_image_uri", lambda **_kwargs: "image")
+    with pytest.raises(JobExecutionError):
+        run_pipeline(client=Client(), glue_client=None, s3_client=None, args=args)
+    events = json.loads(args.audit_output.read_text(encoding="utf-8"))
+    assert events[-1]["terminal_status"] == "Failed"
+    assert events[-1]["model_run_id"] == "model-run-1"
+    assert events[-1]["dataset_version"] == "claim-risk-v2-abc"

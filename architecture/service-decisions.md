@@ -15,8 +15,7 @@
 | 触发 | EventBridge | S3 到达、计划任务和事件路由 | 合并/过滤事件，幂等处理重复投递 | 不轮询 S3 |
 | OLTP | RDS for PostgreSQL | 模拟核心保险事务源 | 小规格、DEV 可停机；PROD HA 需需求支持 | 不自管 EC2 PostgreSQL |
 | CDC | AWS DMS | PostgreSQL full load + CDC 到 S3 | 复制计算是主要持续成本之一；规格/Serverless 需成本测试 | 不自写 WAL 消费器 |
-| 流入口 | Kinesis Data Streams | 低延迟、可重放的事件入口 | DEV 按需或最小容量，设置保留期 | 不采用 MSK |
-| 流交付 | Amazon Data Firehose | 缓冲、压缩并交付原始事件到 S3 | 调整 buffer，接受分钟级落地延迟 | 不写常驻消费者 |
+| 流式入口 | 不采用 | V2 起 Streaming 由 Human 主动退出项目范围 | 无持续成本 | 不引入替代流技术；见 ADR-006 |
 | 查询 | Athena | 对 Gold Iceberg 做 serverless SQL | 列式格式、分区、workgroup 扫描限制 | 不采用 provisioned Redshift |
 | BI | QuickSight | Gold 数据集的托管可视化 | 作者/读者数量和缓存策略部署前确认 | 不建自托管 BI |
 | ML | SageMaker | Processing、Training、Registry、Batch Transform | XGBoost、短时作业、无持久 endpoint | 不建实时 endpoint |
@@ -30,7 +29,7 @@
 ## 2. 关键服务边界
 
 - DMS 只负责把 full load/CDC 可靠落到 Landing；Glue 负责解释操作顺序并 MERGE 至 Iceberg。
-- Firehose 只将流事件缓冲落 Landing S3；Glue 再写入 Bronze Iceberg，Silver 以 `event_id` 去重。
+- Batch/File 与 PostgreSQL CDC 共用同一 Bronze/Silver/Gold Lakehouse；来源机制不同不等于复制 Medallion 架构。
 - Glue crawler 不作为受控 Iceberg 业务契约的唯一 schema 管理方式；契约变更需显式评审。
 - Athena/QuickSight 只面向获批 Silver/Gold 数据，不直接读取 PII 原始区。
 - SageMaker 和 Bedrock 复用数据平台的身份、审计和 S3 数据源，不另建数据湖。
@@ -38,7 +37,7 @@
 
 ## 3. 延后到详细设计的选择
 
-以下仍延后到详细设计：RDS engine minor version、DMS provisioned/Serverless 与规格、Kinesis capacity mode、Glue version/worker type、QuickSight edition/capacity、Bedrock foundation/embedding model、S3 bucket 物理合并方式。选择标准是 Sydney 可用性、最小满足、安全和总成本，并在对应实施 gate 前呈现 plan 与估算。任何需要第二区域的情况必须先返回 `ARCHITECTURE_DECISION_REQUIRED`。
+以下仍延后到后续批准版本：RDS/DMS 生产规格、QuickSight edition/capacity、Bedrock 模型演进和 S3 物理整合。选择标准是 Sydney 可用性、最小满足、安全和总成本。任何需要第二区域的情况必须先返回 `ARCHITECTURE_DECISION_REQUIRED`。
 
 ## 4. ADR 索引
 

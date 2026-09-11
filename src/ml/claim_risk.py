@@ -1,17 +1,30 @@
-"""Leakage-safe dataset preparation and evaluation for V1 claim risk."""
+"""Leakage-safe, reproducible dataset preparation for claim risk."""
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 SEED = 42
 LABEL_COLUMN = "high_risk_claim"
 ID_COLUMN = "claim_id"
+DATASET_VERSION_PREFIX = "claim-risk-v2"
+LEAKAGE_FIELDS = frozenset(
+    {
+        "approved_amount",
+        "paid_amount",
+        "claim_status",
+        "outcome_severity",
+        "investigation_result",
+        "settlement_duration",
+        "updated_at",
+    }
+)
 
 # Every feature is known at claim submission. Outcome severity, approved/paid
 # amounts, final status, settlement duration and update timestamps are excluded.
@@ -46,6 +59,120 @@ CATEGORICAL_LEVELS = {
 
 def feature_names() -> list[str]:
     return [*NUMERIC_FEATURES, *(f"{column}__{level}" for column, levels in CATEGORICAL_LEVELS.items() for level in levels)]
+
+
+class DatasetValidationError(ValueError):
+    """Raised before any ML compute is submitted when the dataset is unsafe."""
+
+    def __init__(self, issues: Sequence[str]):
+        self.issues = list(issues)
+        super().__init__("feature dataset validation failed: " + "; ".join(self.issues))
+
+
+def _parse_date(value: object, field: str) -> date:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError(f"{field} is null")
+    if text.endswith(" UTC"):
+        text = text[:-4] + "+00:00"
+    text = text.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(text).date()
+    except ValueError as exc:
+        raise ValueError(f"{field} is invalid") from exc
+
+
+def dataset_version(rows: Sequence[Mapping[str, object]]) -> str:
+    """Return a stable version for the logical, order-independent dataset."""
+    fields = [ID_COLUMN, LABEL_COLUMN, "submitted_at", "as_of_date", "feature_version", *NUMERIC_FEATURES, *CATEGORICAL_LEVELS]
+    logical_rows = [
+        {field: str(row.get(field, "")).strip() for field in fields}
+        for row in sorted(rows, key=lambda item: str(item.get(ID_COLUMN, "")))
+    ]
+    digest = hashlib.sha256(
+        json.dumps(logical_rows, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"{DATASET_VERSION_PREFIX}-{digest[:16]}"
+
+
+def validate_feature_dataset(rows: Sequence[Mapping[str, object]]) -> dict[str, object]:
+    """Validate the prediction-time contract and return auditable DQ results."""
+    issues: list[str] = []
+    seen: Counter[str] = Counter()
+    labels: Counter[int] = Counter()
+    as_of_dates: list[date] = []
+    if not rows:
+        issues.append("dataset is empty")
+    if LEAKAGE_FIELDS.intersection(feature_names()):
+        issues.append("feature contract contains post-submission leakage fields")
+
+    for index, row in enumerate(rows, 1):
+        claim_id = str(row.get(ID_COLUMN, "")).strip()
+        if not claim_id:
+            issues.append(f"row {index}: claim_id is null")
+        else:
+            seen[claim_id] += 1
+        try:
+            label = int(str(row.get(LABEL_COLUMN, "")).strip())
+            if label not in {0, 1}:
+                raise ValueError
+            labels[label] += 1
+        except (TypeError, ValueError):
+            issues.append(f"row {index}: {LABEL_COLUMN} must be 0 or 1")
+
+        for feature in NUMERIC_FEATURES:
+            try:
+                if feature != "reporting_delay_days" and not str(row.get(feature, "")).strip():
+                    raise ValueError
+                value = _reporting_delay(row) if feature == "reporting_delay_days" else _number(row.get(feature))
+                if not math.isfinite(value):
+                    raise ValueError
+                if feature in {"claim_amount", "reporting_delay_days", "years_experience", "deductible_aud", "coverage_limit_aud", "market_value_aud", "vehicle_age"} and value < 0:
+                    raise ValueError
+                if feature in {"catastrophe_risk_score", "region_theft_risk_score", "weather_risk_score", "accident_risk_score"} and not 0 <= value <= 1:
+                    raise ValueError
+                if feature == "optional_flag" and value not in {0, 1}:
+                    raise ValueError
+                if feature == "safety_rating" and not 1 <= value <= 5:
+                    raise ValueError
+                if feature == "years_experience" and value > 80:
+                    raise ValueError
+                if feature == "vehicle_age" and value > 100:
+                    raise ValueError
+            except (TypeError, ValueError, KeyError):
+                issues.append(f"row {index}: {feature} is null, invalid, or outside its allowed range")
+        for feature in CATEGORICAL_LEVELS:
+            if not str(row.get(feature, "")).strip():
+                issues.append(f"row {index}: {feature} is null")
+        try:
+            submitted = _parse_date(row.get("submitted_at"), "submitted_at")
+            as_of = _parse_date(row.get("as_of_date") or row.get("submitted_at"), "as_of_date")
+            if as_of > submitted:
+                issues.append(f"row {index}: as_of_date is after claim submission")
+            as_of_dates.append(as_of)
+        except ValueError as exc:
+            issues.append(f"row {index}: {exc}")
+
+    duplicates = sorted(key for key, count in seen.items() if count > 1)
+    if duplicates:
+        issues.append(f"duplicate claim_id values: {','.join(duplicates)}")
+    if rows and set(labels) != {0, 1}:
+        issues.append("label distribution must contain both classes")
+    if issues:
+        raise DatasetValidationError(issues)
+    version = dataset_version(rows)
+    return {
+        "status": "PASSED",
+        "row_count": len(rows),
+        "unique_claim_count": len(seen),
+        "duplicate_claim_count": 0,
+        "class_distribution": dict(labels),
+        "dataset_version": version,
+        "as_of_date_min": min(as_of_dates).isoformat(),
+        "as_of_date_max": max(as_of_dates).isoformat(),
+        "feature_count": len(feature_names()),
+        "leakage_fields_in_feature_contract": [],
+    }
 
 
 def _number(value: object) -> float:
@@ -131,6 +258,7 @@ def evaluate_binary(labels: Sequence[int], probabilities: Sequence[float], thres
 
 def prepare_dataset(rows: Sequence[Mapping[str, object]], output_dir: Path, seed: int = SEED) -> dict[str, object]:
     """Write deterministic SageMaker CSVs, manifests and audit metadata."""
+    validation = validate_feature_dataset(rows)
     output_dir.mkdir(parents=True, exist_ok=True)
     splits = chronological_split(rows)
     for name, split_rows in splits.items():
@@ -138,13 +266,16 @@ def prepare_dataset(rows: Sequence[Mapping[str, object]], output_dir: Path, seed
     ordered = [row for name in ("train", "validation", "test") for row in splits[name]]
     (output_dir / "inference.csv").write_text("\n".join(xgboost_lines(ordered, include_label=False)) + "\n", encoding="utf-8")
     with (output_dir / "claim_ids.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["claim_id", "as_of_date", "feature_version", "source_split", "high_risk_claim"])
+        writer = csv.DictWriter(handle, fieldnames=["claim_id", "as_of_date", "feature_version", "dataset_version", "source_split", "high_risk_claim"])
         writer.writeheader()
         for name in ("train", "validation", "test"):
             for row in splits[name]:
-                writer.writerow({"claim_id": row[ID_COLUMN], "as_of_date": str(row["submitted_at"])[:10], "feature_version": str(row.get("feature_version") or "v1"), "source_split": name, "high_risk_claim": row[LABEL_COLUMN]})
+                writer.writerow({"claim_id": row[ID_COLUMN], "as_of_date": str(row.get("as_of_date") or row["submitted_at"])[:10], "feature_version": str(row.get("feature_version") or "v1"), "dataset_version": validation["dataset_version"], "source_split": name, "high_risk_claim": row[LABEL_COLUMN]})
     metadata = {
         "seed": seed,
+        "prepared_at": datetime.now(timezone.utc).isoformat(),
+        "validation": validation,
+        "dataset_version": validation["dataset_version"],
         "target": LABEL_COLUMN,
         "target_definition": "Future synthetic high-severity or high-cost outcome after claim submission",
         "prediction_time": "claim submitted_at",

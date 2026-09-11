@@ -10,8 +10,43 @@ import csv
 import io
 import json
 import math
+import sys
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+
+TRANSIENT_ERROR_CODES = {"Throttling", "ThrottlingException", "TooManyRequestsException", "ServiceUnavailable", "InternalFailure"}
+
+
+class JobExecutionError(RuntimeError):
+    """Terminal AWS job failure with structured details for audit recording."""
+
+    def __init__(self, stage: str, job_name: str, status: str, reason: str):
+        self.stage, self.job_name, self.status, self.reason = stage, job_name, status, reason
+        super().__init__(f"{stage} job {job_name} ended {status}: {reason}")
+
+
+def _event(events: list[dict[str, Any]], stage: str, status: str, **details: Any) -> None:
+    events.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "status": status, **details})
+
+
+def _error_code(exc: Exception) -> str:
+    response = getattr(exc, "response", {})
+    return str(response.get("Error", {}).get("Code", "")) if isinstance(response, dict) else ""
+
+
+def bounded_call(operation, *, max_attempts: int = 3, base_delay_seconds: float = 1.0):
+    """Retry only explicitly transient AWS API failures with exponential backoff."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return operation()
+        except Exception as exc:
+            if _error_code(exc) not in TRANSIENT_ERROR_CODES or attempt == max_attempts:
+                raise
+            time.sleep(base_delay_seconds * (2 ** (attempt - 1)))
+    raise AssertionError("unreachable")
 
 
 def resolve_xgboost_image_uri(*, region: str, version: str) -> str:
@@ -74,7 +109,7 @@ def wait_for_training(*, client: Any, job_name: str, poll_seconds: int = 20) -> 
         status = result["TrainingJobStatus"]
         if status in {"Completed", "Failed", "Stopped"}:
             if status != "Completed":
-                raise RuntimeError(f"training job {job_name} ended {status}: {result.get('FailureReason', 'unknown')}")
+                raise JobExecutionError("training", job_name, status, result.get("FailureReason", "unknown"))
             return result
         time.sleep(poll_seconds)
 
@@ -138,8 +173,21 @@ def evaluate_transform_test(*, s3_client: Any, transform_output_uri: str, claim_
     manifest = list(csv.DictReader(io.StringIO(manifest_text)))
     if len(manifest) != len(probabilities):
         raise RuntimeError(f"prediction/manifest row mismatch: {len(probabilities)} != {len(manifest)}")
+    claim_ids = [row["claim_id"] for row in manifest]
+    if len(set(claim_ids)) != len(claim_ids):
+        raise RuntimeError("prediction manifest contains duplicate claim_id values")
+    if any(not math.isfinite(value) or value < 0 or value > 1 for value in probabilities):
+        raise RuntimeError("Batch Transform produced an invalid probability")
     test_pairs = [(probability, int(row["high_risk_claim"])) for probability, row in zip(probabilities, manifest) if row["source_split"] == "test"]
-    return evaluate_predictions([pair[0] for pair in test_pairs], [pair[1] for pair in test_pairs])
+    metrics = evaluate_predictions([pair[0] for pair in test_pairs], [pair[1] for pair in test_pairs])
+    return {
+        **metrics,
+        "prediction_input_count": len(manifest),
+        "prediction_output_count": len(probabilities),
+        "unique_claim_count": len(set(claim_ids)),
+        "duplicate_claim_count": 0,
+        "reconciliation_status": "PASSED",
+    }
 
 
 def create_model(*, client: Any, model_name: str, image_uri: str, role_arn: str, model_artifact_uri: str) -> dict[str, Any]:
@@ -152,7 +200,7 @@ def wait_for_transform(*, client: Any, job_name: str, poll_seconds: int = 20) ->
         status = result["TransformJobStatus"]
         if status in {"Completed", "Failed", "Stopped"}:
             if status != "Completed":
-                raise RuntimeError(f"transform job {job_name} ended {status}: {result.get('FailureReason', 'unknown')}")
+                raise JobExecutionError("transform", job_name, status, result.get("FailureReason", "unknown"))
             return result
         time.sleep(poll_seconds)
 
@@ -171,30 +219,59 @@ def wait_for_glue(*, client: Any, job_name: str, run_id: str, poll_seconds: int 
 
 def run_pipeline(*, client: Any, glue_client: Any, s3_client: Any, args: Any) -> dict[str, Any]:
     """Execute the complete train/evaluate/model/transform/Glue sequence."""
+    events: list[dict[str, Any]] = []
+    model_name: str | None = None
+    cleanup_error: Exception | None = None
     image = resolve_xgboost_image_uri(region=args.region, version=args.xgboost_version)
-    client.create_training_job(**build_training_request(image_uri=image, role_arn=args.role_arn, output_path=args.output_path, train_uri=args.train_uri, validation_uri=args.validation_uri, job_name=args.job_name, kms_key_id=args.kms_key_id))
-    training = wait_for_training(client=client, job_name=args.job_name, poll_seconds=args.poll_seconds)
-    final_metrics = {
-        metric["MetricName"]: float(metric["Value"])
-        for metric in training.get("FinalMetricDataList", [])
-    }
-    validation_auc = final_metrics.get("validation:auc")
-    if validation_auc is None or validation_auc != validation_auc:
-        raise RuntimeError("training did not emit a finite validation:auc metric")
-    if validation_auc < args.min_auc:
-        raise RuntimeError(f"validation AUC {validation_auc:.4f} below minimum {args.min_auc:.4f}")
-    artifact = training["ModelArtifacts"]["S3ModelArtifacts"]
-    model_name = f"{args.job_name}-model"
-    create_model(client=client, model_name=model_name, image_uri=image, role_arn=args.role_arn, model_artifact_uri=artifact)
-    transform_name = f"{args.job_name}-transform"
-    client.create_transform_job(**build_transform_request(model_name=model_name, input_uri=args.inference_uri, output_uri=args.transform_output_uri, job_name=transform_name, kms_key_id=args.kms_key_id))
-    transform = wait_for_transform(client=client, job_name=transform_name, poll_seconds=args.poll_seconds)
-    test_metrics = evaluate_transform_test(s3_client=s3_client, transform_output_uri=args.transform_output_uri, claim_ids_uri=args.claim_ids_uri)
-    glue_run = glue_client.start_job_run(JobName=args.postprocess_job_name, Arguments={"--TRANSFORM_OUTPUT_URI": args.transform_output_uri, "--CLAIM_IDS_URI": args.claim_ids_uri, "--GOLD_DATABASE": args.gold_database, "--GOLD_TABLE": "claim_risk", "--MODEL_VERSION": model_name, "--RUN_ID": args.job_name})
-    glue_result = wait_for_glue(client=glue_client, job_name=args.postprocess_job_name, run_id=glue_run["JobRunId"], poll_seconds=args.poll_seconds)
-    if not args.retain_model:
-        client.delete_model(ModelName=model_name)
-    return {"training": training, "validation_auc": validation_auc, "test_metrics": test_metrics, "transform": transform, "glue": glue_result, "model_name": model_name, "model_deleted_after_transform": not args.retain_model}
+    try:
+        _event(events, "training", "SUBMITTING", model_run_id=args.job_name, dataset_version=args.dataset_version)
+        bounded_call(lambda: client.create_training_job(**build_training_request(image_uri=image, role_arn=args.role_arn, output_path=args.output_path, train_uri=args.train_uri, validation_uri=args.validation_uri, job_name=args.job_name, kms_key_id=args.kms_key_id)))
+        training = wait_for_training(client=client, job_name=args.job_name, poll_seconds=args.poll_seconds)
+        final_metrics = {metric["MetricName"]: float(metric["Value"]) for metric in training.get("FinalMetricDataList", [])}
+        validation_auc = final_metrics.get("validation:auc")
+        if validation_auc is None or validation_auc != validation_auc:
+            raise RuntimeError("training did not emit a finite validation:auc metric")
+        if validation_auc < args.min_auc:
+            raise RuntimeError(f"validation AUC {validation_auc:.4f} below minimum {args.min_auc:.4f}")
+        _event(events, "training", "SUCCEEDED", model_run_id=args.job_name, dataset_version=args.dataset_version, metrics=final_metrics)
+        artifact = training["ModelArtifacts"]["S3ModelArtifacts"]
+        model_name = f"{args.job_name}-model"
+        bounded_call(lambda: create_model(client=client, model_name=model_name, image_uri=image, role_arn=args.role_arn, model_artifact_uri=artifact))
+        transform_name = f"{args.job_name}-transform"
+        _event(events, "transform", "SUBMITTING", model_run_id=args.job_name, dataset_version=args.dataset_version, job_name=transform_name)
+        bounded_call(lambda: client.create_transform_job(**build_transform_request(model_name=model_name, input_uri=args.inference_uri, output_uri=args.transform_output_uri, job_name=transform_name, kms_key_id=args.kms_key_id)))
+        transform = wait_for_transform(client=client, job_name=transform_name, poll_seconds=args.poll_seconds)
+        test_metrics = evaluate_transform_test(s3_client=s3_client, transform_output_uri=args.transform_output_uri, claim_ids_uri=args.claim_ids_uri)
+        _event(events, "transform", "SUCCEEDED", model_run_id=args.job_name, dataset_version=args.dataset_version, reconciliation=test_metrics)
+        glue_run = bounded_call(lambda: glue_client.start_job_run(JobName=args.postprocess_job_name, Arguments={"--TRANSFORM_OUTPUT_URI": args.transform_output_uri, "--CLAIM_IDS_URI": args.claim_ids_uri, "--GOLD_DATABASE": args.gold_database, "--GOLD_TABLE": "claim_risk", "--MODEL_VERSION": model_name, "--RUN_ID": args.job_name}))
+        glue_result = wait_for_glue(client=glue_client, job_name=args.postprocess_job_name, run_id=glue_run["JobRunId"], poll_seconds=args.poll_seconds)
+        _event(events, "postprocess", "SUCCEEDED", model_run_id=args.job_name, glue_run_id=glue_run["JobRunId"])
+        return {"training": training, "validation_auc": validation_auc, "test_metrics": test_metrics, "transform": transform, "glue": glue_result, "model_name": model_name, "model_run_id": args.job_name, "audit_events": events, "model_deleted_after_transform": not args.retain_model}
+    except Exception as exc:
+        _event(
+            events,
+            getattr(exc, "stage", "pipeline"),
+            "FAILED",
+            model_run_id=args.job_name,
+            dataset_version=args.dataset_version,
+            job_name=getattr(exc, "job_name", args.job_name),
+            terminal_status=getattr(exc, "status", None),
+            failure_reason=getattr(exc, "reason", str(exc)),
+        )
+        raise
+    finally:
+        if model_name and not args.retain_model:
+            try:
+                client.delete_model(ModelName=model_name)
+                _event(events, "model_cleanup", "SUCCEEDED", model_run_id=args.job_name, model_name=model_name)
+            except Exception as exc:
+                _event(events, "model_cleanup", "FAILED", model_run_id=args.job_name, error=str(exc))
+                cleanup_error = exc
+        if getattr(args, "audit_output", None):
+            Path(args.audit_output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.audit_output).write_text(json.dumps(events, indent=2, default=str) + "\n", encoding="utf-8")
+        if cleanup_error and sys.exc_info()[0] is None:
+            raise RuntimeError(f"transient SageMaker model cleanup failed: {cleanup_error}") from cleanup_error
 
 
 def main() -> None:
@@ -206,6 +283,7 @@ def main() -> None:
     parser.add_argument("--validation-uri", required=True)
     parser.add_argument("--output-path", required=True)
     parser.add_argument("--job-name", required=True)
+    parser.add_argument("--dataset-version", required=True, help="stable version emitted by dataset preparation metadata")
     parser.add_argument("--inference-uri", required=True)
     parser.add_argument("--transform-output-uri", required=True)
     parser.add_argument("--claim-ids-uri", required=True)
@@ -215,6 +293,7 @@ def main() -> None:
     parser.add_argument("--min-auc", type=float, default=0.50)
     parser.add_argument("--poll-seconds", type=int, default=20)
     parser.add_argument("--retain-model", action="store_true", help="Keep the transient SageMaker Model after Batch Transform")
+    parser.add_argument("--audit-output", type=Path, help="write structured stage/failure audit JSON locally")
     args = parser.parse_args()
     import boto3
     result = run_pipeline(client=boto3.client("sagemaker", region_name=args.region), glue_client=boto3.client("glue", region_name=args.region), s3_client=boto3.client("s3", region_name=args.region), args=args)

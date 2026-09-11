@@ -1,24 +1,15 @@
 # Data Engineering Worker Status
 
-- Worker role: ingestion / Glue / Iceberg / Bronze / Silver / Gold / data quality
-- Current task: V1 FILE-BASED SOURCE EXPANSION package.
-- Status: COMPLETE on 2026-09-10; real Landing/EventBridge/Step Functions/Glue,
-  Bronze/Silver/Gold Iceberg, Athena joins, and ML-readiness checks passed.
-- Completed foundation: Real Batch and CDC happy paths and Athena BI are already
-  verified. Existing PostgreSQL OLTP remains unchanged.
-- Actual rows: broker claims 120, product 30, broker 80, branch 20, claim type
-  16, region risk 40, vehicle 500, and coverage 20 in both Bronze and Silver.
-  Gold has 120 enriched claims/features and three policy/broker performance rows.
-- Key boundary: OLTP lacks broker/region/coverage/vehicle/claim-type transaction
-  keys. The external broker-claim file carries these reference keys and reuses
-  existing OLTP policy/customer IDs; it does not replace the OLTP claim source.
-- ML status: downstream V1 ML completed from the 120-row point-in-time feature
-  table through SageMaker Training, Batch Transform, Glue, Gold and Athena.
-- Blockers: none for file processing, ML, or RAG. Streaming remains a separate
-  FREE-account plan blocker.
-- Evidence: zero missing product/broker/claim-type/region/coverage/motor-vehicle
-  joins; point-in-time query found zero future reference versions across 120 rows;
-  39 earlier local tests passed; the ML package added passing tests and
-  completed real SageMaker execution.
-- Next action: retain these tables for downstream BI/ML use. Do not begin V2.
-- Last updated: 2026-09-10.
+- Current package: V2 Batch/File and PostgreSQL CDC reliability — COMPLETE.
+- One shared Medallion Lakehouse remains; Batch and CDC are source mechanics, not separate data platforms.
+- Batch: SHA-256 content identity, processed-file ledger, run/stage audit, row DQ, quarantine, within-file deduplication, reconciliation and idempotent Gold refresh.
+- Real Batch baseline: 120 input, 120 output, 0 rejected, 0 duplicate in each stage.
+- Real duplicate replay: same bytes under a different key produced `DUPLICATE`, input 120, output 0, duplicate 120 in Bronze/Silver/Gold.
+- CDC: stable `_source_change_id`, I/U/D handling, source-order latest-state resolution, delete tombstones, run/stage audit and change-log-to-current-state reconciliation.
+- Local V2 data tests: 34 passed; integrated Data/ML/RAG/Infrastructure suite: 79 passed.
+- Streaming-specific source/runtime/tests are removed by Human decision; no replacement is planned.
+- Real DQ proof: 121 input, 120 valid output, one negative amount quarantined, reconciliation passed and invalid claim absent from Gold.
+- Real CDC proof: two identical 14-change replays produced the same current state; Athena confirmed three unique claims, the expected insert/update, and deleted payment absence.
+- Controlled missing-object failure wrote stage/orchestrator audit; supplying the object produced a successful duplicate-safe recovery.
+
+Last updated: 2026-09-11.

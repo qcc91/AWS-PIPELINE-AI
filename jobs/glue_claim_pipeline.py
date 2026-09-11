@@ -1,15 +1,19 @@
-"""AWS Glue 5 Spark job for the V1 broker claim happy path.
+"""Stage-dispatched V2 Batch/File Medallion processing for AWS Glue 5.
 
-One invocation reads one immutable landing CSV and refreshes the Bronze,
-Silver, and Gold Iceberg tables. Full replay/idempotency and quarantine
-workflows are intentionally deferred to V2.
+Terraform creates three Glue jobs from this script and supplies
+``PROCESSING_STAGE``. Stable content identity makes a completed file replay a
+traceable no-op; Silver owns row DQ/quarantine and Gold owns the completion
+marker. The groupings are by operational stage, not one job per table.
 """
 
 from __future__ import annotations
 
 import sys
+import hashlib
+import json
 from urllib.parse import unquote_plus
 
+import boto3
 from awsglue.utils import getResolvedOptions
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
@@ -40,6 +44,7 @@ OPTIONAL_CLAIM_COLUMNS = [
     "high_risk_claim",
 ]
 VALID_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "PAID", "CLOSED"]
+_FAILURE_CONTEXT: dict[str, str] = {}
 
 REFERENCE_DATASETS = {
     "product_master": {
@@ -83,6 +88,91 @@ REFERENCE_DATASETS = {
 }
 
 
+def _optional_arg(name: str, default: str = "") -> str:
+    flag = f"--{name}"
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
+
+
+def _file_id(bucket: str, key: str) -> str:
+    body = boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"]
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: body.read(1024 * 1024), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _control_key(prefix: str, run_id: str, stage: str) -> str:
+    return f"{prefix.strip('/')}/pipeline_runs/{run_id}/{stage}.json"
+
+
+def _processed_key(prefix: str, source_file_id: str) -> str:
+    return f"{prefix.strip('/')}/processed_files/{source_file_id}.json"
+
+
+def _processed_payload(bucket: str, prefix: str, source_file_id: str) -> dict[str, object] | None:
+    if not bucket:
+        return None
+    client = boto3.client("s3")
+    try:
+        response = client.get_object(Bucket=bucket, Key=_processed_key(prefix, source_file_id))
+        return json.loads(response["Body"].read())
+    except client.exceptions.ClientError as error:
+        if error.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+            return None
+        raise
+
+
+def _run_stage_payload(bucket: str, prefix: str, run_id: str, stage: str) -> dict[str, object] | None:
+    if not bucket:
+        return None
+    client = boto3.client("s3")
+    try:
+        response = client.get_object(Bucket=bucket, Key=_control_key(prefix, run_id, stage))
+        return json.loads(response["Body"].read())
+    except client.exceptions.ClientError as error:
+        if error.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+            return None
+        raise
+
+
+def _put_json(bucket: str, key: str, payload: dict[str, object]) -> None:
+    if bucket:
+        boto3.client("s3").put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=json.dumps(payload, sort_keys=True, default=str).encode(),
+            ContentType="application/json",
+        )
+
+
+def _audit(
+    args: dict[str, str], stage: str, status: str, *, source_file_id: str,
+    input_count: int, output_count: int, rejected_count: int = 0,
+    duplicate_count: int = 0, error_message: str | None = None,
+) -> None:
+    reconciled = status != "FAILED" and input_count == output_count + rejected_count + duplicate_count
+    payload = {
+        "run_id": args["RUN_ID"], "pipeline_name": "batch-file", "source": args["LANDING_KEY"],
+        "stage": stage, "status": status, "source_file_id": source_file_id,
+        "input_count": input_count, "output_count": output_count,
+        "rejected_count": rejected_count, "duplicate_count": duplicate_count,
+        "quality_score": round((output_count + duplicate_count) / input_count, 6) if input_count else 1.0,
+        "reconciliation_passed": reconciled, "error_message": error_message,
+    }
+    _put_json(args.get("CONTROL_BUCKET", ""), _control_key(args.get("CONTROL_PREFIX", "control/v2"), args["RUN_ID"], stage), payload)
+
+
+def _write_quarantine(frame, args: dict[str, str], entity: str) -> int:
+    count = frame.count()
+    if count and args.get("QUARANTINE_BUCKET"):
+        location = (
+            f"s3://{args['QUARANTINE_BUCKET']}/{args.get('QUARANTINE_PREFIX', 'quarantine/v2').strip('/')}"
+            f"/batch/{entity}/{args['RUN_ID']}/"
+        )
+        frame.write.mode("overwrite").json(location)
+    return count
+
+
 def _write_iceberg(frame, database: str, table: str, location: str) -> None:
     """Create or replace a named Glue Catalog Iceberg table at a stable path."""
 
@@ -96,19 +186,33 @@ def _write_iceberg(frame, database: str, table: str, location: str) -> None:
     )
 
 
-def _process_reference(raw, dataset: str, args: dict[str, str], input_uri: str, warehouse: str) -> None:
+def _process_reference(spark, raw, dataset: str, stage: str, args: dict[str, str], input_uri: str, warehouse: str) -> tuple[int, int, int, int]:
     spec = REFERENCE_DATASETS[dataset]
-    missing = sorted(set(spec["columns"]) - set(raw.columns))
-    if missing:
-        raise ValueError(f"{dataset} schema is missing required columns: {','.join(missing)}")
-    ingested_at = F.current_timestamp()
-    bronze = raw.select(*spec["columns"]).withColumn("_run_id", F.lit(args["RUN_ID"])).withColumn(
-        "_source_system", F.lit("file_reference")
-    ).withColumn("_source_object", F.lit(input_uri)).withColumn("_ingested_at", ingested_at).withColumn(
-        "_schema_version", F.lit(1)
-    ).withColumn("_record_hash", F.sha2(F.concat_ws("||", *[F.col(column) for column in spec["columns"]]), 256))
-    _write_iceberg(bronze, args["BRONZE_DATABASE"], dataset, f"{warehouse}bronze/{dataset}/")
+    if stage == "bronze":
+        missing = sorted(set(spec["columns"]) - set(raw.columns))
+        if missing:
+            raise ValueError(f"{dataset} schema is missing required columns: {','.join(missing)}")
+        bronze = raw.select(*spec["columns"]).withColumn("_run_id", F.lit(args["RUN_ID"])).withColumn(
+            "_source_system", F.lit("file_reference")
+        ).withColumn("_source_object", F.lit(input_uri)).withColumn("_source_file_id", F.lit(args["SOURCE_FILE_ID"])).withColumn(
+            "_ingested_at", F.current_timestamp()
+        ).withColumn("_schema_version", F.lit(1)).withColumn(
+            "_record_hash", F.sha2(F.concat_ws("||", *[F.col(column) for column in spec["columns"]]), 256)
+        )
+        count = bronze.count()
+        _write_iceberg(bronze, args["BRONZE_DATABASE"], dataset, f"{warehouse}bronze/{dataset}/")
+        return count, count, 0, 0
 
+    if stage == "gold":
+        current = spark.table(f"glue_catalog.{args['SILVER_DATABASE']}.{dataset}")
+        gold = current.drop("_source_object").withColumn("_effective_at", F.current_timestamp())
+        _write_iceberg(gold, args["GOLD_DATABASE"], spec["gold_table"], f"{warehouse}gold/{spec['gold_table']}/")
+        count = gold.count()
+        return count, count, 0, 0
+
+    bronze = spark.table(f"glue_catalog.{args['BRONZE_DATABASE']}.{dataset}").filter(
+        F.col("_source_file_id") == args["SOURCE_FILE_ID"]
+    )
     typed = bronze
     for column in spec["columns"]:
         typed = typed.withColumn(column, F.trim(F.col(column)))
@@ -120,12 +224,21 @@ def _process_reference(raw, dataset: str, args: dict[str, str], input_uri: str, 
         typed = typed.withColumn(column, F.col(column).cast("int"))
     typed = typed.withColumn("source_updated_at", F.to_timestamp("source_updated_at"))
     key = spec["key"]
-    current = typed.filter(F.col(key).isNotNull() & (F.col(key) != "")).withColumn(
+    invalid = typed.filter(F.col(key).isNull() | (F.col(key) == "")).select(
+        F.lit(args["RUN_ID"]).alias("run_id"), F.lit(input_uri).alias("source"),
+        F.lit(dataset).alias("entity"), F.to_json(F.struct(*[F.col(c) for c in spec["columns"]])).alias("source_record"),
+        F.array(F.lit(f"{key} must not be null or blank")).alias("failed_rules"), F.current_timestamp().alias("rejected_at"),
+    )
+    rejected = _write_quarantine(invalid, args, dataset)
+    accepted = typed.filter(F.col(key).isNotNull() & (F.col(key) != ""))
+    accepted_count = accepted.count()
+    current = accepted.withColumn(
         "_rank", F.row_number().over(Window.partitionBy(key).orderBy(F.col("source_updated_at").desc(), F.col("_record_hash").desc()))
     ).filter(F.col("_rank") == 1).drop("_rank")
+    current_count = current.count()
+    duplicates = accepted_count - current_count
     _write_iceberg(current, args["SILVER_DATABASE"], dataset, f"{warehouse}silver/{dataset}/")
-    gold = current.drop("_source_object").withColumn("_effective_at", F.current_timestamp())
-    _write_iceberg(gold, args["GOLD_DATABASE"], spec["gold_table"], f"{warehouse}gold/{spec['gold_table']}/")
+    return accepted_count + rejected, current_count, rejected, duplicates
 
 
 def _table_or_none(spark, database: str, table: str):
@@ -230,12 +343,37 @@ def main() -> None:
             "GOLD_DATABASE",
         ],
     )
+    args.update(
+        {
+            "PROCESSING_STAGE": _optional_arg("PROCESSING_STAGE", "all").lower(),
+            "CONTROL_BUCKET": _optional_arg("CONTROL_BUCKET"),
+            "QUARANTINE_BUCKET": _optional_arg("QUARANTINE_BUCKET"),
+            "CONTROL_PREFIX": _optional_arg("CONTROL_PREFIX", "control/v2"),
+            "QUARANTINE_PREFIX": _optional_arg("QUARANTINE_PREFIX", "quarantine/v2"),
+        }
+    )
+    stage = args["PROCESSING_STAGE"]
+    if stage not in {"bronze", "silver", "gold", "all"}:
+        raise ValueError(f"unsupported PROCESSING_STAGE: {stage}")
+    _FAILURE_CONTEXT.update(args)
     landing_bucket = args["LANDING_BUCKET"]
     landing_key = unquote_plus(args["LANDING_KEY"])
     run_id = args["RUN_ID"]
     lakehouse_bucket = args["LAKEHOUSE_BUCKET"]
     input_uri = f"s3://{landing_bucket}/{landing_key}"
     warehouse = f"s3://{lakehouse_bucket}/lakehouse/"
+    args["SOURCE_FILE_ID"] = _file_id(landing_bucket, landing_key)
+    _FAILURE_CONTEXT.update(args)
+    completed = _processed_payload(args["CONTROL_BUCKET"], args["CONTROL_PREFIX"], args["SOURCE_FILE_ID"])
+    if completed:
+        prior_count = int(completed.get("input_count", 0))
+        stages = [stage] if stage != "all" else ["bronze", "silver", "gold"]
+        for duplicate_stage in stages:
+            _audit(
+                args, duplicate_stage, "DUPLICATE", source_file_id=args["SOURCE_FILE_ID"],
+                input_count=prior_count, output_count=0, duplicate_count=prior_count,
+            )
+        return
 
     spark = (
         SparkSession.builder.config("spark.sql.catalog.glue_catalog", "org.apache.iceberg.spark.SparkCatalog")
@@ -246,34 +384,82 @@ def main() -> None:
         .getOrCreate()
     )
 
-    raw = spark.read.option("header", "true").option("mode", "FAILFAST").csv(input_uri)
     landing_name = landing_key.rsplit("/", 1)[-1].lower()
     dataset = next((name for name in REFERENCE_DATASETS if landing_name == f"{name}.csv"), None)
-    if dataset:
-        _process_reference(raw, dataset, args, input_uri, warehouse)
-        spark.stop()
-        return
     if not landing_name.startswith("broker_claims") or not landing_name.endswith(".csv"):
-        raise ValueError(f"unsupported V1 file dataset: {landing_name}")
-    missing = sorted(set(REQUIRED_COLUMNS) - set(raw.columns))
-    if missing:
-        raise ValueError(f"broker claim schema is missing required columns: {','.join(missing)}")
-    if landing_name == "broker_claims.csv":
-        missing_optional = sorted(set(OPTIONAL_CLAIM_COLUMNS) - set(raw.columns))
-        if missing_optional:
-            raise ValueError(f"expanded broker claim schema is missing columns: {','.join(missing_optional)}")
+        if not dataset:
+            raise ValueError(f"unsupported V2 file dataset: {landing_name}")
 
-    ingested_at = F.current_timestamp()
-    claim_columns = REQUIRED_COLUMNS + [column for column in OPTIONAL_CLAIM_COLUMNS if column in raw.columns]
-    bronze = raw.select(*claim_columns).withColumn("_run_id", F.lit(run_id)).withColumn(
-        "_source_system", F.lit("broker_csv")
-    ).withColumn("_source_object", F.lit(input_uri)).withColumn("_ingested_at", ingested_at).withColumn(
-        "_schema_version", F.lit(1)
-    ).withColumn("_record_hash", F.sha2(F.concat_ws("||", *[F.col(column) for column in claim_columns]), 256))
-    _write_iceberg(bronze, args["BRONZE_DATABASE"], "claim", f"{warehouse}bronze/claim/")
+    requested_stages = [stage] if stage != "all" else ["bronze", "silver", "gold"]
+    for current_stage in requested_stages:
+        raw = None
+        if current_stage == "bronze":
+            raw = spark.read.option("header", "true").option("mode", "FAILFAST").csv(input_uri)
+        if dataset:
+            counts = _process_reference(spark, raw, dataset, current_stage, args, input_uri, warehouse)
+            _audit(
+                args, current_stage, "SUCCEEDED", source_file_id=args["SOURCE_FILE_ID"],
+                input_count=counts[0], output_count=counts[1], rejected_count=counts[2], duplicate_count=counts[3],
+            )
+            if current_stage == "gold":
+                silver_audit = _run_stage_payload(args["CONTROL_BUCKET"], args["CONTROL_PREFIX"], run_id, "silver") or {}
+                _put_json(
+                    args["CONTROL_BUCKET"], _processed_key(args["CONTROL_PREFIX"], args["SOURCE_FILE_ID"]),
+                    {"source_file_id": args["SOURCE_FILE_ID"], "source": input_uri, "run_id": run_id, "input_count": int(silver_audit.get("input_count", counts[0])), "status": "SUCCEEDED"},
+                )
+            continue
 
-    typed = (
-        bronze.withColumn("claim_id", F.trim("claim_id"))
+        if current_stage == "bronze":
+            missing = sorted(set(REQUIRED_COLUMNS) - set(raw.columns))
+            if missing:
+                raise ValueError(f"broker claim schema is missing required columns: {','.join(missing)}")
+            if landing_name == "broker_claims.csv":
+                missing_optional = sorted(set(OPTIONAL_CLAIM_COLUMNS) - set(raw.columns))
+                if missing_optional:
+                    raise ValueError(f"expanded broker claim schema is missing columns: {','.join(missing_optional)}")
+            claim_columns = REQUIRED_COLUMNS + [column for column in OPTIONAL_CLAIM_COLUMNS if column in raw.columns]
+            bronze = raw.select(*claim_columns).withColumn("_run_id", F.lit(run_id)).withColumn(
+                "_source_system", F.lit("broker_csv")
+            ).withColumn("_source_object", F.lit(input_uri)).withColumn("_source_file_id", F.lit(args["SOURCE_FILE_ID"])).withColumn(
+                "_ingested_at", F.current_timestamp()
+            ).withColumn("_schema_version", F.lit(2)).withColumn(
+                "_record_hash", F.sha2(F.concat_ws("||", *[F.col(column) for column in claim_columns]), 256)
+            )
+            input_count = bronze.count()
+            _write_iceberg(bronze, args["BRONZE_DATABASE"], "claim", f"{warehouse}bronze/claim/")
+            _audit(args, "bronze", "SUCCEEDED", source_file_id=args["SOURCE_FILE_ID"], input_count=input_count, output_count=input_count)
+            continue
+
+        if current_stage == "gold":
+            latest = spark.table(f"glue_catalog.{args['SILVER_DATABASE']}.claim")
+            fact = latest.drop("description").withColumn("_effective_at", F.current_timestamp())
+            _write_iceberg(fact, args["GOLD_DATABASE"], "fact_claim", f"{warehouse}gold/fact_claim/")
+            summary = latest.groupBy("incident_date", "claim_status", "currency_code").agg(
+                F.count("claim_id").alias("claim_count"),
+                F.sum("claim_amount").cast(DecimalType(18, 2)).alias("total_claim_amount"),
+                F.sum(F.coalesce(F.col("approved_amount"), F.lit(0).cast(DecimalType(18, 2)))).cast(DecimalType(18, 2)).alias("total_approved_amount"),
+            ).withColumn("_run_id", F.lit(run_id)).withColumn("_source_system", F.lit("broker_csv")).withColumn(
+                "_ingested_at", F.current_timestamp()
+            ).withColumn("_effective_at", F.current_timestamp()).withColumn("_schema_version", F.lit(2)).withColumn(
+                "_record_hash", F.sha2(F.concat_ws("||", "incident_date", "claim_status", "currency_code"), 256)
+            )
+            _write_iceberg(summary, args["GOLD_DATABASE"], "claim_daily_summary", f"{warehouse}gold/claim_daily_summary/")
+            if set(OPTIONAL_CLAIM_COLUMNS).issubset(set(latest.columns)):
+                _refresh_enriched_claims(spark, args, warehouse)
+            output_count = latest.count()
+            _audit(args, "gold", "SUCCEEDED", source_file_id=args["SOURCE_FILE_ID"], input_count=output_count, output_count=output_count)
+            silver_audit = _run_stage_payload(args["CONTROL_BUCKET"], args["CONTROL_PREFIX"], run_id, "silver") or {}
+            _put_json(
+                args["CONTROL_BUCKET"], _processed_key(args["CONTROL_PREFIX"], args["SOURCE_FILE_ID"]),
+                {"source_file_id": args["SOURCE_FILE_ID"], "source": input_uri, "run_id": run_id, "input_count": int(silver_audit.get("input_count", output_count)), "status": "SUCCEEDED"},
+            )
+            continue
+
+        bronze = spark.table(f"glue_catalog.{args['BRONZE_DATABASE']}.claim").filter(
+            F.col("_source_file_id") == args["SOURCE_FILE_ID"]
+        )
+        typed = (
+            bronze.withColumn("claim_id", F.trim("claim_id"))
         .withColumn("claim_number", F.trim("claim_number"))
         .withColumn("policy_id", F.trim("policy_id"))
         .withColumn("customer_id", F.trim("customer_id"))
@@ -284,13 +470,13 @@ def main() -> None:
         .withColumn("updated_at", F.to_timestamp("updated_at"))
         .withColumn("claim_amount", F.col("claim_amount").cast(DecimalType(18, 2)))
         .withColumn("approved_amount", F.col("approved_amount").cast(DecimalType(18, 2)))
-    )
-    for column in [name for name in OPTIONAL_CLAIM_COLUMNS if name in raw.columns and name != "high_risk_claim"]:
-        typed = typed.withColumn(column, F.trim(F.col(column)))
-    if "high_risk_claim" in raw.columns:
-        typed = typed.withColumn("high_risk_claim", F.col("high_risk_claim").cast("int"))
-    valid = typed.filter(
-        F.col("claim_id").isNotNull()
+        )
+        for column in [name for name in OPTIONAL_CLAIM_COLUMNS if name in bronze.columns and name != "high_risk_claim"]:
+            typed = typed.withColumn(column, F.trim(F.col(column)))
+        if "high_risk_claim" in bronze.columns:
+            typed = typed.withColumn("high_risk_claim", F.col("high_risk_claim").cast("int"))
+        valid_condition = F.coalesce((
+            F.col("claim_id").isNotNull()
         & (F.col("claim_id") != "")
         & F.col("claim_number").isNotNull()
         & (F.trim(F.col("claim_number")) != "")
@@ -309,30 +495,47 @@ def main() -> None:
         & F.col("claim_amount").isNotNull()
         & (F.col("claim_amount") >= F.lit(0))
         & (F.col("approved_amount").isNull() | (F.col("approved_amount") >= F.lit(0)))
-        & (F.col("approved_amount").isNull() | (F.col("approved_amount") <= F.col("claim_amount")))
-    )
-    latest = valid.withColumn(
-        "_rank", F.row_number().over(Window.partitionBy("claim_id").orderBy(F.col("updated_at").desc(), F.col("_record_hash").desc()))
-    ).filter(F.col("_rank") == 1).drop("_rank")
-    _write_iceberg(latest, args["SILVER_DATABASE"], "claim", f"{warehouse}silver/claim/")
-
-    fact = latest.drop("description").withColumn("_effective_at", F.current_timestamp())
-    _write_iceberg(fact, args["GOLD_DATABASE"], "fact_claim", f"{warehouse}gold/fact_claim/")
-    summary = latest.groupBy("incident_date", "claim_status", "currency_code").agg(
-        F.count("claim_id").alias("claim_count"),
-        F.sum("claim_amount").cast(DecimalType(18, 2)).alias("total_claim_amount"),
-        F.sum(F.coalesce(F.col("approved_amount"), F.lit(0).cast(DecimalType(18, 2)))).cast(DecimalType(18, 2)).alias("total_approved_amount"),
-    ).withColumn("_run_id", F.lit(run_id)).withColumn("_source_system", F.lit("broker_csv")).withColumn(
-        "_ingested_at", ingested_at
-    ).withColumn("_effective_at", F.current_timestamp()).withColumn("_schema_version", F.lit(1))
-    summary = summary.withColumn(
-        "_record_hash", F.sha2(F.concat_ws("||", "incident_date", "claim_status", "currency_code"), 256)
-    )
-    _write_iceberg(summary, args["GOLD_DATABASE"], "claim_daily_summary", f"{warehouse}gold/claim_daily_summary/")
-    if set(OPTIONAL_CLAIM_COLUMNS).issubset(set(raw.columns)):
-        _refresh_enriched_claims(spark, args, warehouse)
+            & (F.col("approved_amount").isNull() | (F.col("approved_amount") <= F.col("claim_amount")))
+        ), F.lit(False))
+        invalid = typed.filter(~valid_condition).select(
+            F.lit(run_id).alias("run_id"), F.lit(input_uri).alias("source"), F.lit("claim").alias("entity"),
+            F.to_json(F.struct(*[F.col(c) for c in REQUIRED_COLUMNS])).alias("source_record"),
+            F.array(F.lit("claim_contract_v2")).alias("failed_rules"), F.current_timestamp().alias("rejected_at"),
+        )
+        rejected_count = _write_quarantine(invalid, args, "claim")
+        valid = typed.filter(valid_condition)
+        valid_count = valid.count()
+        latest = valid.withColumn(
+            "_rank", F.row_number().over(Window.partitionBy("claim_id").orderBy(F.col("updated_at").desc(), F.col("_record_hash").desc()))
+        ).filter(F.col("_rank") == 1).drop("_rank")
+        output_count = latest.count()
+        duplicate_count = valid_count - output_count
+        _write_iceberg(latest, args["SILVER_DATABASE"], "claim", f"{warehouse}silver/claim/")
+        _audit(
+            args, "silver", "SUCCEEDED", source_file_id=args["SOURCE_FILE_ID"],
+            input_count=valid_count + rejected_count, output_count=output_count,
+            rejected_count=rejected_count, duplicate_count=duplicate_count,
+        )
     spark.stop()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if _FAILURE_CONTEXT:
+            try:
+                _audit(
+                    _FAILURE_CONTEXT,
+                    _FAILURE_CONTEXT.get("PROCESSING_STAGE", "unknown"),
+                    "FAILED",
+                    source_file_id=_FAILURE_CONTEXT.get("SOURCE_FILE_ID", "unknown"),
+                    input_count=0,
+                    output_count=0,
+                    error_message=str(error),
+                )
+            except Exception:
+                # Never mask the original processing failure if audit persistence
+                # is also unavailable; Glue and Step Functions retain it.
+                pass
+        raise
