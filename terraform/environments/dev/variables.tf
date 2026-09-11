@@ -251,6 +251,19 @@ variable "rag_application_role_arn" {
   }
 }
 
+variable "v3_operator_trusted_principal_arns" {
+  description = "Existing non-root same-account console-only user or federated role ARNs permitted to assume the V3 operator role. Empty keeps V3 security resources disabled."
+  type        = list(string)
+  default     = []
+  validation {
+    condition = alltrue([
+      for arn in var.v3_operator_trusted_principal_arns :
+      can(regex("^arn:aws:iam::${var.account_id}:(role|user)/.+$", arn)) && arn != "arn:aws:iam::${var.account_id}:root"
+    ])
+    error_message = "V3 operator trust may contain only explicit existing non-root same-account IAM user or role ARNs."
+  }
+}
+
 variable "data_noncurrent_retention_days" {
   description = "Approved noncurrent-version retention for the five data buckets."
   type        = number

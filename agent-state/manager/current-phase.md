@@ -1,7 +1,7 @@
 # Manager Current Phase
 
-- Phase: V2 — Reliability + Data Quality + Streaming Retirement; Glue Data Quality acceptance amendment implemented, awaiting Human acceptance.
-- Authorization: Human-approved package on 2026-09-11; V3–V5 and PROD are not authorized.
+- Phase: V3 — Security + Governance; authorized, preparation complete, identity decision required before plan/apply.
+- Authorization: Human-approved V3 package on 2026-09-12; V4–V5 and PROD are not authorized.
 - V1 baseline: accepted tag `v1.0-happy-path` remains at `9d4f625`.
 - Active structured ingestion: Batch/File and PostgreSQL full-load+CDC feed one shared Bronze/Silver/Gold Iceberg Lakehouse.
 - Streaming: RETIRED by Human decision. Code, Terraform, tests, AWS orchestration, docs, and active task state are removed; no replacement is allowed.
@@ -12,7 +12,10 @@
 - CDC evidence: two full-history replays passed; Athena confirmed three unique claims, INSERT/UPDATE semantics and the deleted payment absent.
 - ML evidence: two identical postprocessing runs passed; Athena confirmed 120 unique predictions with complete run/model/dataset lineage.
 - Glue DQ amendment: inline DQDL gates existing Silver jobs after row quarantine and before trusted writes. Real FAIL `dqresult-9459d89040c80af3581e3ee410fec754a9f7e8e7` scored 0.75 and left Silver/Gold unchanged; real PASS `dqresult-aa2e19613ead964a3c870ccc4b194b7fc4c88e8e` scored 1.0 and completed Gold.
-- Local integrated focused suite: 82 passed. Terraform fmt/validate and post-apply zero-drift plan passed.
-- Next: STOP at the V2 Glue Data Quality amendment review and await Human acceptance; do not begin V3 and do not move/create a release tag.
+- V2 release: accepted tag `v2.0-reliable` at `40855ff589314231c257a0b4441929178eea3b0b`.
+- V3 preparation: security inventory, PII classification, conditional IAM/Lake Formation/KMS/CloudTrail Terraform and access-test design complete; local focused suite `87 passed`; Terraform fmt/validate passed.
+- Real DEV baseline plan with V3 disabled: `0 add / 1 in-place change / 0 destroy`; only CloudTrail log-file validation would change, and it was not applied. An identity-enabled V3 plan was not fabricated.
+- Identity blocker: no IAM user, Identity Center, SAML/OIDC provider, or human federation exists. Root cannot assume a role. No V3 AWS change has been applied.
+- Next: obtain Human decision for a real non-root entry principal, then generate/apply the V3 plan and run real ALLOW/DENY plus V2 regression tests. Do not begin V4/V5 or create a V3 tag.
 
 Last updated: 2026-09-12.

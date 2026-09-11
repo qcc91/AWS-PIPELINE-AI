@@ -159,3 +159,18 @@ variable "tags" {
     error_message = "tags must contain the complete non-empty project contract and approved environment/classification values."
   }
 }
+
+variable "analyst_gold_tables" {
+  description = "Explicit non-PII Gold tables approved for Analyst SELECT."
+  type        = set(string)
+}
+
+variable "ml_gold_tables" {
+  description = "Explicit Gold feature/output tables approved for MLEngineer SELECT."
+  type        = set(string)
+}
+
+variable "pipeline_role_arns" {
+  description = "Existing Glue/DMS execution roles requiring DATA_LOCATION_ACCESS after registration."
+  type        = set(string)
+}

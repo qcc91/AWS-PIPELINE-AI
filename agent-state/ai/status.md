@@ -8,4 +8,10 @@
 - Existing architecture remains SageMaker XGBoost batch and Bedrock KB + Titan V2 + S3 Vectors. No endpoint, notebook, new model, subscription or recurring resource was introduced.
 - Real ML proof: accepted transform output reprocessed twice; both Glue runs succeeded and Athena confirmed 120 rows/120 unique claims, zero missing lineage and stable probability range.
 
-Last updated: 2026-09-11.
+## V3 support package
+
+- ML/RAG security boundary audit and least-privilege persona design completed in `docs/v3-ai-security.md`.
+- Existing managed-service roles remain separate from proposed caller personas: MLEngineer orchestrates only the approved batch workflow; RAGApplication uses only service-mediated Knowledge Base retrieval.
+- No AWS resources or Terraform were changed and no billable workload was run. Live IAM/KMS/S3/Bedrock readback matched the current Terraform state, found no managed-policy attachments or unexpected AI KMS grants, and confirmed root is still the current CLI caller.
+
+Last updated: 2026-09-12.

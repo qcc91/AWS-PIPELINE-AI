@@ -12,3 +12,21 @@
 - TFLint and Checkov remain unavailable; Terraform fmt/validate, focused tests and state/plan checks pass.
 
 Last updated: 2026-09-11.
+# V3 infrastructure security — identity decision required (2026-09-12)
+
+- Read-only V2 inventory completed in account `199476069493`, region
+  `ap-southeast-2`: root is current operator; IAM users and IAM Identity Center
+  instances are absent; LF uses IAM-compatible defaults and has no registered
+  locations; CloudTrail is logging but log validation is off.
+- Prepared conditional Terraform for Operator/TerraformExecution and four
+  persona roles, explicit Lake Formation grants/hybrid opt-ins, platform/audit
+  KMS role transition, state-backend transition, and CloudTrail validation.
+- V3 resources are intentionally disabled while no real non-root trusted
+  principal exists. Root is rejected as operator trust. No AWS changes applied.
+- Human decision required: approve a console-only, MFA-protected IAM user with
+  no access key and only AssumeOperator, or enable IAM Identity Center.
+- `terraform fmt` and `terraform validate` pass. Real V3 plan/apply, assumed-role
+  ALLOW/DENY tests, regression, and zero-drift proof remain blocked on identity.
+- Real DEV baseline plan with V3 disabled reports `0 add / 1 change / 0 destroy`;
+  the sole in-place change enables CloudTrail log-file validation. It was not
+  applied, and no identity-enabled plan was generated with a fabricated ARN.

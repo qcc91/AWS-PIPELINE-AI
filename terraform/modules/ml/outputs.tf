@@ -14,3 +14,7 @@ output "postprocess_job_name" {
   description = "Glue job that materializes Gold claim_risk Iceberg output."
   value       = aws_glue_job.postprocess.name
 }
+output "postprocess_role_arn" {
+  description = "Claim-risk Glue postprocess execution role ARN."
+  value       = aws_iam_role.postprocess.arn
+}

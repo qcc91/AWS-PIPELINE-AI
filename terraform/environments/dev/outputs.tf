@@ -58,13 +58,13 @@ output "storage_bucket_ids" {
 }
 
 output "terraform_execution_role_arn" {
-  description = "Deferred until V3 least-privilege IAM hardening."
-  value       = null
+  description = "V3 non-root Terraform execution role ARN."
+  value       = try(module.security_governance[0].role_arns["TerraformExecution"], null)
 }
 
 output "lakeformation_registration_role_arn" {
-  description = "Deferred until V3 Lake Formation governance."
-  value       = null
+  description = "V3 Lake Formation registration role ARN."
+  value       = try(module.security_governance[0].role_arns["LakeFormationRegistration"], null)
 }
 
 output "glue_database_names" {
@@ -73,13 +73,23 @@ output "glue_database_names" {
 }
 
 output "lakeformation_registered_location_arns" {
-  description = "Deferred until V3 Lake Formation governance."
-  value       = []
+  description = "V3 registered Lake Formation locations."
+  value       = try(module.lakeformation[0].registered_location_arns, [])
 }
 
 output "lakeformation_database_permission_matrix" {
-  description = "Deferred until V3 persona and PII governance."
-  value       = {}
+  description = "V3 Lake Formation database permissions."
+  value       = try(module.lakeformation[0].database_metadata_permission_matrix, {})
+}
+
+output "v3_security_role_arns" {
+  description = "V3 non-secret role ARNs for operator/persona access testing."
+  value       = try(module.security_governance[0].role_arns, {})
+}
+
+output "lakeformation_table_permission_matrix" {
+  description = "V3 governed table SELECT matrix."
+  value       = try(module.lakeformation[0].table_select_permission_matrix, {})
 }
 
 output "audit_kms_key_arn" {

@@ -1326,7 +1326,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V2 — RELIABILITY + DATA QUALITY + STREAMING RETIREMENT
+V3 — SECURITY + GOVERNANCE
 
 The Human Owner requires this project to remain on the AWS `FREE` account plan.
 Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a
@@ -1384,25 +1384,34 @@ docs/phase-1-execution-plan.md
 
 Routine formatting, validation, lint, provider download, local syntax, test
 failures, and Worker rework are handled internally without Human checkpoints.
-Any AWS-changing operation must remain inside the approved V2 package;
+Any AWS-changing operation must remain inside the approved V3 package;
 destructive actions, new services, material architecture/security/cost changes,
 and all production operations require Human approval.
 
 Do NOT deploy PROD resources.
 
 V1 package execution and its consolidated review are complete and preserved by
-tag `v1.0-happy-path` at commit `9d4f625`. Human authorized V2 on 2026-09-11.
+tag `v1.0-happy-path` at commit `9d4f625`. V2 Reliability + Data Quality is
+accepted and preserved by tag `v2.0-reliable` at commit
+`40855ff589314231c257a0b4441929178eea3b0b`. Human authorized V3 on 2026-09-12.
 From V2 onward Streaming is intentionally retired: remove its active code,
 Terraform, AWS orchestration, tests, docs, and task state without introducing a
 replacement. Batch/File and PostgreSQL full-load+CDC are the two structured
 ingestion patterns feeding one shared Bronze/Silver/Gold Iceberg Lakehouse.
 
-V2 is limited to stage/failure boundaries, bounded transient retry, idempotency,
-DQ, quarantine, run audit, reconciliation, and recovery validation for Batch,
-CDC, ML, and RAG. V3 least-privilege hardening, V4 CI/CD, V5 production
-readiness, PROD deployment, QuickSight subscription, account-plan upgrade, and
-Marketplace purchases remain out of scope. After V2 implementation, real AWS
-evidence, documentation, commit, and push, STOP for Human consolidated review.
+V3 is limited to security inventory, non-root operator/persona roles, IAM least
+privilege, PII classification, Lake Formation governance, S3/KMS/Secrets/
+CloudTrail hardening, and real ALLOW/DENY access tests. Current discovery found
+no IAM user, IAM Identity Center instance, SAML/OIDC provider, or human-federated
+role. Root cannot call STS AssumeRole, so a Human identity decision is required
+before the prepared V3 Terraform can be planned/applied or persona access can be
+tested. Do not invent a trust principal, create an access key, create a long-lived
+IAM user, or enable Identity Center without that decision.
+
+V4 CI/CD, V5 production readiness, PROD deployment, QuickSight subscription,
+account-plan upgrade, paid security services, and Marketplace purchases remain
+out of scope. After V3 implementation, real AWS evidence, documentation, commit,
+and push, STOP for Human consolidated review and do not create a V3 release tag.
 Each package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager

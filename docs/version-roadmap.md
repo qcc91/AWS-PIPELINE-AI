@@ -15,14 +15,14 @@ policy, claim, payment and event data plus the approved Gold datasets.
 
 V1 proves functionality. It does not require full production hardening.
 
-## V2 — Reliability and data quality (authorized)
+## V2 — Reliability and data quality (accepted and tagged)
 
 Retire Streaming by Human decision without replacement. Add Bronze/Silver/Gold
 operational boundaries, bounded retries, idempotency, duplicate handling,
 replay safety, DQ gates, quarantine, the standard audit/run envelope,
 reconciliation, failure paths and recovery proof for Batch, CDC, ML, and RAG.
 
-## V3 — Security and governance
+## V3 — Security and governance (authorized)
 
 Complete least-privilege IAM, Lake Formation role and PII controls, approved
 RAG document-only access, KMS refinement, Secrets Manager, S3 and CloudTrail
@@ -42,8 +42,10 @@ production-readiness documentation and final E2E validation.
 
 ## Delivery rule
 
-Implement only the currently authorized version. V2 must not introduce V3
-least-privilege governance, V4 CI/CD, or V5 production-readiness scope.
+Implement only the currently authorized version. V3 must not introduce V4
+CI/CD or V5 production-readiness scope. A real non-root human entry identity is
+required before V3 role/Lake Formation changes can be applied and tested; do not
+invent a trust ARN or use root as an AssumeRole source.
 
 Temporary root execution is a Human-approved V1 shortcut for DEV Terraform
 planning and deployment only. No root credential may be stored or printed, and

@@ -39,3 +39,15 @@ output "cdc_event_rule_arn" {
   description = "DMS S3 object EventBridge rule ARN."
   value       = aws_cloudwatch_event_rule.cdc_object_created.arn
 }
+output "glue_role_arn" {
+  description = "CDC Glue execution role ARN."
+  value       = aws_iam_role.glue.arn
+}
+output "dms_s3_role_arn" {
+  description = "DMS S3 target role ARN."
+  value       = aws_iam_role.dms_s3.arn
+}
+output "dms_secrets_role_arn" {
+  description = "DMS secret access role ARN."
+  value       = aws_iam_role.dms_secrets.arn
+}

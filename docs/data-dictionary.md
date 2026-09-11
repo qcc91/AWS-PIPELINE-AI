@@ -38,3 +38,30 @@
 当前 RDS 不含 broker、region、coverage、vehicle、claim type 交易外键；V1 由
 外部 broker claim 文件携带这些参考键，policy/customer 继续引用 OLTP。该文件
 来源不覆盖 PostgreSQL claim 表。
+
+## V3 实际表 PII 索引
+
+等级含义：`HIGH` 为直接身份信息、DOB 或可能包含 PII 的自由文本；`MEDIUM`
+为可回连个人的稳定标识或保密业务度量；`LOW` 为非个人参考/聚合/技术元数据。
+表级等级取其最高列等级。
+
+| 当前 Glue/Iceberg 表 | PII | 表级 | PII/敏感列 | 最小消费者 |
+|---|---|---|---|---|
+| Bronze/Silver `customers_cdc` / `customers` | YES | HIGH | HIGH: `first_name,last_name,date_of_birth,email,phone`; MEDIUM: `customer_id` | DataEngineer |
+| Bronze/Silver `policies_cdc` / `policies` | YES | MEDIUM | `policy_number,customer_id,policy_id`; 金额为 MEDIUM/非 PII | DataEngineer |
+| Bronze/Silver `claims_cdc` / `claims` | YES | HIGH | HIGH: `description`; MEDIUM: `claim_number,customer_id,policy_id,claim_id` 与金额/结果 | DataEngineer |
+| Bronze/Silver `payments_cdc` / `payments` | YES | MEDIUM | `provider_reference,claim_id,policy_id,payment_id`; 金额为 MEDIUM/非 PII | DataEngineer |
+| Bronze/Silver `claim`（broker 文件） | YES | HIGH | `description`; `claim_number,customer_id,policy_id,claim_id` | DataEngineer |
+| Bronze/Silver `products_cdc` / `products` | NO | LOW | 无 | DataEngineer |
+| Bronze/Silver 七个 file reference/master 表 | NO | LOW | `broker_name` 为虚构企业名；region 只到合成区域/城市 | DataEngineer |
+| Gold `fact_claim`,`fact_claim_cdc`,`fact_claim_enriched` | YES | MEDIUM | `claim_number,customer_id,policy_id,claim_id`; description 已移除；金额/结果为 MEDIUM/非 PII | DataEngineer；Analyst 仅列授权 |
+| Gold `policy_performance` | YES | MEDIUM | `policy_id`；金额/损失率为 MEDIUM/非 PII | DataEngineer；Analyst 仅列授权 |
+| Gold `claim_risk_features`,`claim_risk` | YES | MEDIUM | `claim_id` 为间接 PII；标签、概率为 MEDIUM/非 PII | DataEngineer、MLEngineer；Analyst 可读 `claim_risk` 批准列 |
+| Gold `claim_daily_summary`,`claim_daily_summary_cdc`,`broker_performance` | NO | LOW | 聚合数据；当前小样本 DEV 仍避免对外发布小单元 | DataEngineer、Analyst |
+| Gold `dim_product_master`,`dim_broker`,`dim_branch`,`dim_claim_type`,`dim_region_risk`,`dim_vehicle`,`dim_coverage` | NO | LOW | 参考/虚构企业属性 | DataEngineer、Analyst |
+| control run/DQ audit | NO | LOW | `error_message` 必须脱敏；不得嵌入原记录 | DataEngineer |
+| quarantine JSON | YES | HIGH | `source_record`/`original_record` 继承源记录最高等级 | 获批 DataEngineer 调查职责 |
+
+Analyst 不获得任何 Landing/Bronze/Silver/quarantine 权限。MLEngineer 的最小
+范围仅为 Gold `claim_risk_features` 和 `claim_risk`，不因“可能有用”获得通用
+Silver 访问。完整执行矩阵和正反验证见 `docs/v3-data-governance.md`。

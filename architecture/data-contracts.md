@@ -313,3 +313,35 @@ V1 文件维表的预期 Iceberg 输出为同名 Bronze/Silver 表；Gold 为
 `deductible_aud`。文件有效期/发布时间晚于 `prediction_timestamp` 的版本不得
 参与特征，预测后结果字段仍只允许用于标签或评估。SageMaker 配额未开放时，
 本包只验证特征可联接性、非空率、范围和时点规则，不运行训练或推理。
+
+## 17. V3 PII 分类与消费权限契约
+
+V3 的治理对象只包括当前实际存在的 Batch/File、CDC 和 ML Iceberg 表。第 11
+节中仍标为“设计”的实体不因此变成已实现表。分类取表内最高敏感度；列级授权
+仍按下表执行。
+
+| 等级 | PII | 实际字段 | 允许角色 |
+|---|---|---|---|
+| `HIGH` | YES | `first_name`,`last_name`,`date_of_birth`,`email`,`phone`,`description`，以及 quarantine 中可能包含这些字段的 `source_record`/`original_record` | `DataEngineer`；调查数据仅限获批治理/运维职责 |
+| `MEDIUM` | YES | `customer_id`,`policy_number`,`claim_number`,`provider_reference`；可回连个人的 `policy_id`,`claim_id`,`payment_id` | `DataEngineer`；Analyst/MLEngineer 仅在下述批准数据集中按列获得 |
+| `MEDIUM` | NO | 单笔保费、理赔、批准和支付金额，风险概率、监督标签及业务结果字段 | `DataEngineer`；按用途授予 `Analyst` 或 `MLEngineer` |
+| `LOW` | NO | 产品、broker/branch、粗粒度 region、vehicle、coverage 参考属性，聚合指标和技术审计元数据 | `DataEngineer`；批准的 Gold 表可授予 `Analyst`/`MLEngineer` |
+
+`customer_id` 等稳定键按“可关联个人的间接 PII”处理；字段是合成数据并不会
+降低其生产契约等级。`broker_name`、城市/region 和车辆参考数据当前均为虚构企业
+或粗粒度属性，不是个人 PII。任何新增自由文本默认 `HIGH/PII YES`，经治理评审
+后才能降级。
+
+### 最小角色矩阵
+
+| 角色 | 表/列契约 | 明确拒绝 |
+|---|---|---|
+| `DataEngineer` | Bronze/Silver/Gold/control 元数据与数据读写；职责所需 quarantine 调查 | 无业务必要的批量 PII 导出 |
+| `Analyst` | Gold 聚合/参考表；事实表仅批准的非直接 PII 列；`claim_risk` 可用于 BI | Landing、Bronze、Silver、quarantine；客户姓名、DOB、联系方式、自由文本、policy/claim number、provider reference |
+| `MLEngineer` | Gold `claim_risk_features` 与 `claim_risk`；训练标签和预测时点字段 | 通用 customer/policy/claim/payment Silver 表及所有直接 PII |
+| `RAGApplication` | 结构化 Lakehouse 零授权；只使用独立批准文档源 | 所有 Bronze/Silver/Gold customer/claim 数据 |
+
+Lake Formation 必须使用命名角色、数据库 `DESCRIBE`、表级或
+`TableWithColumns` 的 `SELECT` 授权落实此矩阵。不得依赖
+`IAMAllowedPrincipals`、root 或通配 S3 权限绕过列授权；底层 S3/KMS/IAM 权限
+只能作为 LF 授权之外的必要条件，不能扩大数据范围。

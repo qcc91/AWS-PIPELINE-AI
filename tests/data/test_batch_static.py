@@ -45,7 +45,12 @@ def test_review_corrections_are_present():
     assert "spark.sql.catalog.glue_catalog.io-impl" in JOB
     assert "spark.sql.catalog.glue_catalog.catalog-impl" in JOB
     assert "enable-glue-datacatalog" not in MODULE
-    assert re.search(r"user_role_arns\s*=\s*\[\]", DEV_MAIN)
+    # V1/V2 retain an empty fallback, while V3 replaces implicit root key use
+    # with explicit role principals only after a trusted non-root entry exists.
+    assert "user_role_arns = length(var.v3_operator_trusted_principal_arns) > 0 ? [" in DEV_MAIN
+    assert "] : []" in DEV_MAIN
+    for role in ("DataEngineer", "Analyst", "MLEngineer", "RAGApplication"):
+        assert f'role_arns["{role}"]' in DEV_MAIN
 
 
 def test_no_credentials_or_forbidden_always_on_services():
