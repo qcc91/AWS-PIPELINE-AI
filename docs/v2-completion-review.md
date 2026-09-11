@@ -1,11 +1,11 @@
 # V2 Consolidated Completion Review
 
-Date: 2026-09-11
+Date: 2026-09-12
 
 Region: `ap-southeast-2`
 
 Environment: DEV
-Status: COMPLETE — awaiting Human acceptance
+Status: V2 ACCEPTANCE AMENDMENT COMPLETE — awaiting Human acceptance
 
 ## Architecture
 
@@ -46,6 +46,28 @@ object or lakehouse notification; the Terraform refresh plan is zero-drift.
   `NoSuchKey`, wrote stage and orchestrator failure audits, and did not retry
   the deterministic task. After the object was supplied, recovery run
   `f2aa471c-2bea-43c4-39cd-f618f97b90d5` succeeded as a content duplicate.
+
+The custom PySpark row checks and S3 quarantine remain in place. The amendment
+adds inline AWS Glue Data Quality/DQDL to the existing Silver jobs as a second,
+dataset-level gate. Batch claims use four rules: complete and unique `claim_id`,
+nonnegative `claim_amount`, and complete `policy_id`. CDC current state uses the
+corresponding approved rules for claims, policies, customers and payments. All
+CDC candidates are evaluated before any Silver table is written. No independent
+DQ schedule, recommendation, anomaly detection or ML-based DQ was added.
+
+- FAIL: execution `c7db247d-f2c0-a256-599b-9d766c12f632...`, Silver run
+  `jr_f0f43eae12af9528b84a23e0af66fce8b1549139289a63c3b6e075d596e47981`,
+  Glue result `dqresult-9459d89040c80af3581e3ee410fec754a9f7e8e7` and score
+  `0.75`. Three rules passed; `IsUnique "claim_id"` failed. Audit recorded four
+  inputs, one quarantine rejection and zero trusted output. Athena
+  `11e03078-41cd-46ce-ab28-5b6e09a052f8` proved Silver/Gold stayed at 120/120
+  and summary at 30.
+- PASS: execution `8aa12745-1ee9-133b-6b47-1c453921d9ec...`, Silver run
+  `jr_cba863c465c4ca34168164862efcd58aefb05c6b01db4dbd3ee2dd426c8947e5`,
+  Glue result `dqresult-aa2e19613ead964a3c870ccc4b194b7fc4c88e8e` and score
+  `1.0`. Four of four rules passed, Gold completed, and Athena
+  `70bc00a9-3273-4530-95b9-64fdfcc7e390` confirmed 120/120/120 claims plus 30
+  daily-summary rows.
 
 ## CDC
 
@@ -102,7 +124,7 @@ S3 citations to the approved documents.
 
 ## Tests and runtime issues
 
-- Integrated focused suite: `79 passed`.
+- Integrated focused suite: `82 passed`.
 - Terraform recursive fmt and DEV validate: passed.
 - Terraform post-apply refresh plan: no changes.
 - Streaming post-removal AWS and Terraform inventory: passed.
@@ -124,6 +146,12 @@ eliminates unused scaffolding and any future Kinesis/Firehose recurring exposure
 The existing V1 RDS/DMS/PrivateLink baseline remains the dominant approved DEV
 cost and was not expanded.
 
+The Glue Data Quality amendment consumed 1,147 Glue DPU-seconds across the
+diagnostic FAIL, corrected FAIL proof and final PASS workflow, approximately
+USD 0.14 at the USD 0.44/DPU-hour reference rate. Athena, S3, KMS and Step
+Functions test charges are negligible. It adds no fixed recurring cost; future
+cost occurs only when an existing Silver job runs its inline rules.
+
 Known V2 limits are intentional: S3 JSON rather than an enterprise metadata
 store; CDC rebuilds from the small retained history; no broad schema-evolution
 framework; no V3 IAM/Lake Formation PII hardening; no V4 CI/CD; no V5 complete
@@ -131,5 +159,7 @@ observability/DR; no QuickSight subscription; no Streaming replacement.
 
 ## Git
 
-The V1 tag remains unchanged. V2 is committed and pushed to `origin/main` after
-the final checks below; no V2 tag is created. V3 does not begin automatically.
+The V1 tag remains unchanged. The pre-amendment `v2.0-reliable` tag already
+exists at `3fbabc3`; this amendment does not move, recreate or force-push it.
+The amendment is committed and pushed to `origin/main` after final checks. V3
+does not begin automatically.

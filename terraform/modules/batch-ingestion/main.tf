@@ -6,6 +6,7 @@ locals {
   glue_catalog_arn      = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
   glue_database_arns    = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names[layer]}"]
   glue_table_arns       = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names[layer]}/*"]
+  glue_dq_ruleset_arn   = "arn:aws:glue:${var.aws_region}:${var.account_id}:dataQualityRuleset/*"
   glue_script_key       = "artifacts/glue/glue_claim_pipeline.py"
   state_machine_name    = "insurance-${var.environment}-batch-claim-lakehouse"
   job_name              = "insurance-${var.environment}-batch-claim-lakehouse"
@@ -111,6 +112,12 @@ resource "aws_iam_role_policy" "glue" {
         Effect   = "Allow"
         Action   = ["glue:CreateTable", "glue:CreateDatabase", "glue:DeleteTable", "glue:GetDatabase", "glue:GetTable", "glue:GetTables", "glue:UpdateTable"]
         Resource = concat([local.glue_catalog_arn], local.glue_database_arns, local.glue_table_arns)
+      },
+      {
+        Sid      = "PublishGlueDataQualityResults"
+        Effect   = "Allow"
+        Action   = ["glue:GetDataQualityResult", "glue:PublishDataQuality"]
+        Resource = local.glue_dq_ruleset_arn
       },
       {
         Sid      = "WriteJobLogs"

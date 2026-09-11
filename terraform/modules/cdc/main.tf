@@ -12,6 +12,7 @@ locals {
   glue_connection_arn   = "arn:aws:glue:${var.aws_region}:${var.account_id}:connection/${local.name}-rds-connection"
   glue_database_arns    = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names[layer]}"]
   glue_table_arns       = [for layer in ["bronze", "silver", "gold"] : "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names[layer]}/*"]
+  glue_dq_ruleset_arn   = "arn:aws:glue:${var.aws_region}:${var.account_id}:dataQualityRuleset/*"
 }
 
 resource "aws_security_group" "dms" {
@@ -417,6 +418,7 @@ resource "aws_iam_role_policy" "glue" {
       { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = "${local.quarantine_bucket_arn}/quarantine/v2/*" },
       { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*"], Resource = var.kms_key_arn },
       { Effect = "Allow", Action = ["glue:CreateTable", "glue:DeleteTable", "glue:GetDatabase", "glue:GetTable", "glue:GetTables", "glue:UpdateTable"], Resource = concat([local.glue_catalog_arn], local.glue_database_arns, local.glue_table_arns) },
+      { Effect = "Allow", Action = ["glue:GetDataQualityResult", "glue:PublishDataQuality"], Resource = local.glue_dq_ruleset_arn },
       { Effect = "Allow", Action = ["glue:GetConnection"], Resource = [local.glue_catalog_arn, local.glue_connection_arn] },
       { Effect = "Allow", Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"], Resource = aws_secretsmanager_secret.source.arn },
       { Effect = "Allow", Action = ["ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeVpcAttribute", "ec2:DescribeVpcEndpoints", "ec2:DescribeRouteTables"], Resource = "*" },

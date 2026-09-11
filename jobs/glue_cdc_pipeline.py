@@ -15,6 +15,37 @@ TABLES = {"customers": "customer_id", "products": "product_id", "policies": "pol
 VALID_OPERATIONS = ["I", "U", "D"]
 
 
+class DQGateFailure(RuntimeError):
+    def __init__(self, message: str, result: dict[str, object]):
+        super().__init__(message)
+        self.result = result
+
+
+DQDL_RULES = {
+    "claims": '''Rules = [
+        IsComplete "claim_id",
+        IsUnique "claim_id",
+        ColumnValues "claim_amount" >= 0,
+        IsComplete "policy_id"
+    ]''',
+    "policies": '''Rules = [
+        IsComplete "policy_id",
+        IsUnique "policy_id",
+        ColumnValues "premium_amount" >= 0,
+        IsComplete "customer_id"
+    ]''',
+    "customers": '''Rules = [
+        IsComplete "customer_id",
+        IsUnique "customer_id"
+    ]''',
+    "payments": '''Rules = [
+        IsComplete "payment_id",
+        IsUnique "payment_id",
+        ColumnValues "payment_amount" >= 0
+    ]''',
+}
+
+
 def _optional_arg(name: str, default: str = "") -> str:
     flag = f"--{name}"
     return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else default
@@ -25,13 +56,58 @@ def _put_json(bucket: str, key: str, payload: dict[str, object]) -> None:
         boto3.client("s3").put_object(Bucket=bucket, Key=key, Body=json.dumps(payload, sort_keys=True, default=str).encode(), ContentType="application/json")
 
 
-def _audit(args: dict[str, str], stage: str, status: str, counts: dict[str, int], error: str | None = None) -> None:
-    _put_json(args.get("CONTROL_BUCKET", ""), f"{args.get('CONTROL_PREFIX', 'control/v2').strip('/')}/pipeline_runs/{args['RUN_ID']}/{stage}.json", {
+def _audit(args: dict[str, str], stage: str, status: str, counts: dict[str, int], error: str | None = None, dq_result: dict[str, object] | None = None) -> None:
+    payload = {
         "run_id": args["RUN_ID"], "pipeline_name": "postgresql-cdc", "source": args["CDC_OBJECT_KEY"], "stage": stage,
         "status": status, "input_count": counts.get("input", 0), "output_count": counts.get("output", 0),
         "rejected_count": counts.get("rejected", 0), "duplicate_count": counts.get("duplicate", 0), "error_message": error,
         "reconciliation_type": "change-log-to-current-state", "reconciliation_passed": status != "FAILED" and counts.get("input", 0) >= counts.get("rejected", 0) + counts.get("duplicate", 0),
-    })
+    }
+    if dq_result:
+        payload["data_quality"] = dq_result
+    _put_json(args.get("CONTROL_BUCKET", ""), f"{args.get('CONTROL_PREFIX', 'control/v2').strip('/')}/pipeline_runs/{args['RUN_ID']}/{stage}.json", payload)
+
+
+def _run_glue_dq(frame, args: dict[str, str], entity: str) -> dict[str, object]:
+    """Run inline DQDL on the current valid candidate before writing Silver."""
+    ruleset = DQDL_RULES.get(entity)
+    if not ruleset or not frame.take(1):
+        return {"entity": entity, "ruleset": entity, "status": "SKIPPED", "passed_rules": 0, "failed_rules": 0}
+    from awsglue.context import GlueContext
+    from awsglue.dynamicframe import DynamicFrame
+    from awsgluedq.transforms import EvaluateDataQuality
+    from pyspark import SparkContext
+
+    results = EvaluateDataQuality.apply(
+        frame=DynamicFrame.fromDF(frame, GlueContext(SparkContext.getOrCreate()), f"{entity}_candidate"),
+        ruleset=ruleset,
+        publishing_options={
+            "dataQualityEvaluationContext": f"insurance-v2-{entity}",
+            "enableDataQualityCloudWatchMetrics": False,
+            "enableDataQualityResultsPublishing": True,
+            **({"resultsS3Prefix": f"s3://{args['CONTROL_BUCKET']}/{args.get('CONTROL_PREFIX', 'control/v2').strip('/')}/data-quality/"} if args.get("CONTROL_BUCKET") else {}),
+        },
+    ).toDF().collect()
+    outcomes = [str(row.asDict().get("Outcome", "Failed")) for row in results]
+    passed = sum(outcome.lower() in {"passed", "pass"} for outcome in outcomes)
+    failed = len(outcomes) - passed
+    rule_results = [
+        {"rule": str(row.asDict().get("Rule", "unknown")), "outcome": str(row.asDict().get("Outcome", "Failed")),
+         "failure_reason": str(row.asDict().get("FailureReason", "")),
+         "evaluated_metrics": str(row.asDict().get("EvaluatedMetrics", ""))}
+        for row in results
+    ]
+    result = {
+        "entity": entity, "ruleset": entity, "status": "PASS" if failed == 0 else "FAIL",
+        "passed_rules": passed, "failed_rules": failed, "rule_count": len(outcomes),
+        "quality_score": round(passed / len(outcomes), 6) if outcomes else 1.0,
+        "rule_results": rule_results,
+        "evaluated_at": str(__import__("datetime").datetime.now(__import__("datetime").timezone.utc)),
+    }
+    if failed:
+        _audit(args, "silver", "FAILED", {"input": frame.count(), "output": 0}, f"Glue Data Quality failed for {entity}", result)
+        raise DQGateFailure(f"Glue Data Quality gate failed for {entity}: {failed} rule(s)", result)
+    return result
 
 
 def _write_quarantine(frame, args: dict[str, str], table: str) -> int:
@@ -100,6 +176,7 @@ def _bronze(spark, args: dict[str, str], warehouse: str) -> dict[str, int]:
 
 def _silver(spark, args: dict[str, str], warehouse: str) -> dict[str, int]:
     counts = {"input": 0, "output": 0, "rejected": 0, "duplicate": 0}
+    candidates = []
     for table, primary_key in TABLES.items():
         try:
             changes = spark.table(f"glue_catalog.{args['BRONZE_DATABASE']}.{table}_cdc")
@@ -110,9 +187,18 @@ def _silver(spark, args: dict[str, str], warehouse: str) -> dict[str, int]:
         input_count = changes.count()
         current_with_deletes = changes.withColumn("_rank", F.row_number().over(Window.partitionBy(primary_key).orderBy(F.col("_source_order").desc(), F.col("_source_change_id").desc()))).filter(F.col("_rank") == 1).drop("_rank")
         current = current_with_deletes.filter(F.col("_operation") != "D")
+        dq_result = _run_glue_dq(current, args, table) if table in DQDL_RULES else None
         output_count = current.count()
+        candidates.append((table, current, input_count, output_count, input_count - current_with_deletes.count(), dq_result))
+
+    # No trusted-layer writes occur until every applicable dataset gate passes.
+    for table, current, input_count, output_count, duplicate_count, dq_result in candidates:
         write_iceberg(current, args["SILVER_DATABASE"], table, f"{warehouse}silver/{table}/")
-        counts["input"] += input_count; counts["output"] += output_count; counts["duplicate"] += input_count - current_with_deletes.count()
+        if dq_result:
+            counts.setdefault("dq_results", []).append(dq_result)
+        counts["input"] += input_count
+        counts["output"] += output_count
+        counts["duplicate"] += duplicate_count
     return counts
 
 
@@ -139,8 +225,18 @@ def main() -> None:
     current_stage = stages[0]
     try:
         for current_stage in stages:
-            _audit(args, current_stage, "SUCCEEDED", handlers[current_stage](spark, args, warehouse))
+            stage_counts = handlers[current_stage](spark, args, warehouse)
+            dq_results = stage_counts.pop("dq_results", None)
+            dq_summary = None
+            if isinstance(dq_results, list):
+                passed = sum(int(result.get("passed_rules", 0)) for result in dq_results)
+                failed = sum(int(result.get("failed_rules", 0)) for result in dq_results)
+                dq_summary = {"datasets": dq_results, "passed_rules": passed, "failed_rules": failed,
+                              "quality_score": round(passed / (passed + failed), 6) if passed + failed else 1.0}
+            _audit(args, current_stage, "SUCCEEDED", stage_counts, dq_result=dq_summary)
     except Exception as error:
+        if isinstance(error, DQGateFailure):
+            raise
         _audit(args, current_stage, "FAILED", {"input": 0, "output": 0, "rejected": 0, "duplicate": 0}, str(error))
         raise
     finally:

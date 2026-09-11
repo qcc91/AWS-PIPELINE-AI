@@ -44,7 +44,26 @@ OPTIONAL_CLAIM_COLUMNS = [
     "high_risk_claim",
 ]
 VALID_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "PAID", "CLOSED"]
+
+# DQDL is intentionally small and complementary to the row-level contract
+# below.  These rules run only on the valid candidate claim dataset immediately
+# before the Silver write; the existing quarantine path remains authoritative
+# for individual bad records.
+DQDL_RULES = {
+    "claim": '''Rules = [
+        IsComplete "claim_id",
+        IsUnique "claim_id",
+        ColumnValues "claim_amount" >= 0,
+        IsComplete "policy_id"
+    ]''',
+}
 _FAILURE_CONTEXT: dict[str, str] = {}
+
+
+class DQGateFailure(RuntimeError):
+    def __init__(self, message: str, result: dict[str, object]):
+        super().__init__(message)
+        self.result = result
 
 REFERENCE_DATASETS = {
     "product_master": {
@@ -149,6 +168,7 @@ def _audit(
     args: dict[str, str], stage: str, status: str, *, source_file_id: str,
     input_count: int, output_count: int, rejected_count: int = 0,
     duplicate_count: int = 0, error_message: str | None = None,
+    dq_result: dict[str, object] | None = None,
 ) -> None:
     reconciled = status != "FAILED" and input_count == output_count + rejected_count + duplicate_count
     payload = {
@@ -159,7 +179,53 @@ def _audit(
         "quality_score": round((output_count + duplicate_count) / input_count, 6) if input_count else 1.0,
         "reconciliation_passed": reconciled, "error_message": error_message,
     }
+    if dq_result:
+        payload["data_quality"] = dq_result
     _put_json(args.get("CONTROL_BUCKET", ""), _control_key(args.get("CONTROL_PREFIX", "control/v2"), args["RUN_ID"], stage), payload)
+
+
+def _run_glue_dq(frame, args: dict[str, str], entity: str) -> dict[str, object]:
+    """Evaluate the small inline DQDL ruleset and stop before trusted writes."""
+    ruleset = DQDL_RULES.get(entity)
+    if not ruleset or not frame.take(1):
+        return {"entity": entity, "ruleset": entity, "status": "SKIPPED", "passed_rules": 0, "failed_rules": 0}
+    from awsglue.context import GlueContext
+    from awsglue.dynamicframe import DynamicFrame
+    from awsgluedq.transforms import EvaluateDataQuality
+    from pyspark import SparkContext
+
+    glue_context = GlueContext(SparkContext.getOrCreate())
+    result_frame = EvaluateDataQuality.apply(
+        frame=DynamicFrame.fromDF(frame, glue_context, f"{entity}_candidate"),
+        ruleset=ruleset,
+        publishing_options={
+            "dataQualityEvaluationContext": f"insurance-v2-{entity}",
+            "enableDataQualityCloudWatchMetrics": False,
+            "enableDataQualityResultsPublishing": True,
+            **({"resultsS3Prefix": f"s3://{args['CONTROL_BUCKET']}/{args.get('CONTROL_PREFIX', 'control/v2').strip('/')}/data-quality/"} if args.get("CONTROL_BUCKET") else {}),
+        },
+    ).toDF()
+    rows = result_frame.collect()
+    outcomes = [str(row.asDict().get("Outcome", "Failed")) for row in rows]
+    passed = sum(outcome.lower() in {"passed", "pass"} for outcome in outcomes)
+    failed = len(outcomes) - passed
+    rule_results = [
+        {"rule": str(row.asDict().get("Rule", "unknown")), "outcome": str(row.asDict().get("Outcome", "Failed")),
+         "failure_reason": str(row.asDict().get("FailureReason", "")),
+         "evaluated_metrics": str(row.asDict().get("EvaluatedMetrics", ""))}
+        for row in rows
+    ]
+    status = "PASS" if failed == 0 else "FAIL"
+    result = {
+        "entity": entity, "ruleset": entity, "status": status,
+        "passed_rules": passed, "failed_rules": failed,
+        "rule_count": len(outcomes), "quality_score": round(passed / len(outcomes), 6) if outcomes else 1.0,
+        "rule_results": rule_results,
+        "evaluated_at": str(__import__("datetime").datetime.now(__import__("datetime").timezone.utc)),
+    }
+    if failed:
+        raise DQGateFailure(f"Glue Data Quality gate failed for {entity}: {failed} rule(s)", result)
+    return result
 
 
 def _write_quarantine(frame, args: dict[str, str], entity: str) -> int:
@@ -505,6 +571,16 @@ def main() -> None:
         rejected_count = _write_quarantine(invalid, args, "claim")
         valid = typed.filter(valid_condition)
         valid_count = valid.count()
+        try:
+            dq_result = _run_glue_dq(valid, args, "claim")
+        except DQGateFailure as error:
+            _audit(
+                args, "silver", "FAILED", source_file_id=args["SOURCE_FILE_ID"],
+                input_count=valid_count + rejected_count, output_count=0,
+                rejected_count=rejected_count, duplicate_count=0,
+                dq_result=error.result, error_message=str(error),
+            )
+            raise
         latest = valid.withColumn(
             "_rank", F.row_number().over(Window.partitionBy("claim_id").orderBy(F.col("updated_at").desc(), F.col("_record_hash").desc()))
         ).filter(F.col("_rank") == 1).drop("_rank")
@@ -515,6 +591,7 @@ def main() -> None:
             args, "silver", "SUCCEEDED", source_file_id=args["SOURCE_FILE_ID"],
             input_count=valid_count + rejected_count, output_count=output_count,
             rejected_count=rejected_count, duplicate_count=duplicate_count,
+            dq_result=dq_result,
         )
     spark.stop()
 
@@ -523,7 +600,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as error:
-        if _FAILURE_CONTEXT:
+        if _FAILURE_CONTEXT and not isinstance(error, DQGateFailure):
             try:
                 _audit(
                     _FAILURE_CONTEXT,

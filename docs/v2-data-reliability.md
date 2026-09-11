@@ -44,6 +44,27 @@ jobs by entity.
 Reference files use the same stage boundary. Their primary key is required and
 newest `source_updated_at` wins deterministically.
 
+## AWS Glue Data Quality dataset gate
+
+V2 keeps custom PySpark validation as the row-level control and adds AWS Glue
+Data Quality as a complementary dataset-level gate inside the existing Silver
+Glue jobs. It creates no separate scheduled job, recommendation run, anomaly
+detector or continuously running resource.
+
+The order is: custom validation sends invalid rows to S3 quarantine; inline
+DQDL evaluates the remaining candidate DataFrame; every rule must pass before
+Silver is written. A failure raises `DQGateFailure`, preventing Gold from
+starting and preserving the prior trusted Silver/Gold state. Batch `claim`
+checks complete and unique `claim_id`, nonnegative `claim_amount`, and complete
+`policy_id`. CDC applies the approved rules to current-state claims, policies,
+customers and payments. CDC evaluates every present candidate before writing
+any Silver table, preventing partial trusted-layer updates.
+
+Glue publishes evaluations to its Data Quality result API and the existing
+encrypted control-bucket prefix. Stage audit JSON embeds entity, ruleset and
+individual rule identity, outcome, metrics, failure reason, pass/fail counts,
+score and timestamp.
+
 ## CDC contract
 
 - DMS remains Full Load + CDC to S3 CSV.
@@ -113,6 +134,20 @@ All cases below ran in `ap-southeast-2` against the deployed DEV platform on
   confirmed deleted `pay_8001` is absent and the
   current table contains zero rows, consistent with the one-row source baseline.
 
+The bounded managed Glue Data Quality amendment ran on 2026-09-12:
+
+- FAIL execution `c7db247d-f2c0-a256-599b-9d766c12f632...` quarantined one
+  negative-amount row, then evaluated three remaining candidates. Glue result
+  `dqresult-9459d89040c80af3581e3ee410fec754a9f7e8e7` scored `0.75`; only
+  `IsUnique "claim_id"` failed, at uniqueness `0.3333333333`. Silver failed,
+  Gold did not run, and Athena `11e03078-41cd-46ce-ab28-5b6e09a052f8`
+  confirmed trusted counts remained Silver 120, Gold 120 and summary 30.
+- PASS execution `8aa12745-1ee9-133b-6b47-1c453921d9ec...` evaluated 120 valid
+  claims. Glue result `dqresult-aa2e19613ead964a3c870ccc4b194b7fc4c88e8e`
+  scored `1.0` with all four rules passing. The complete workflow succeeded;
+  Athena `70bc00a9-3273-4530-95b9-64fdfcc7e390` returned 120 Bronze, 120
+  Silver, 120 Gold claims and 30 Gold daily-summary rows.
+
 ## Known V2 limits
 
 - Control JSON is intentionally small and S3-based; it is not an enterprise
@@ -122,3 +157,5 @@ All cases below ran in `ap-southeast-2` against the deployed DEV platform on
 - Detailed referential DQ is limited to relationships already enforced by the
   PostgreSQL source and the shared trusted joins. Broader governance belongs to
   later versions.
+- Inline DQDL is intentionally limited to stable, high-value dataset invariants;
+  row-specific error routing remains the custom quarantine control.

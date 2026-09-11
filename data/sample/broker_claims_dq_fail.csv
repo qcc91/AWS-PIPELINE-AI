@@ -1,0 +1,5 @@
+claim_id,claim_number,policy_id,customer_id,claim_status,incident_date,submitted_at,claim_amount,approved_amount,currency_code,description,updated_at
+CLM-DQ-001,DQ-FAIL-001,POL-DQ-001,CUS-DQ-001,SUBMITTED,2026-09-10,2026-09-11T01:00:00Z,1250.00,,AUD,Valid candidate one,2026-09-11T01:05:00Z
+CLM-DQ-001,DQ-FAIL-002,POL-DQ-001,CUS-DQ-001,UNDER_REVIEW,2026-09-10,2026-09-11T01:01:00Z,1300.00,,AUD,Duplicate claim identifier,2026-09-11T01:06:00Z
+CLM-DQ-002,DQ-FAIL-003,POL-DQ-002,CUS-DQ-002,SUBMITTED,2026-09-10,2026-09-11T01:02:00Z,850.00,,AUD,Valid candidate two,2026-09-11T01:07:00Z
+CLM-DQ-003,DQ-FAIL-004,POL-DQ-003,CUS-DQ-003,SUBMITTED,2026-09-10,2026-09-11T01:03:00Z,-25.00,,AUD,Invalid amount routed to quarantine,2026-09-11T01:08:00Z

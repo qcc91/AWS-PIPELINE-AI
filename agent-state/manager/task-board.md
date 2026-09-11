@@ -9,6 +9,7 @@
 | V2 ML Reliability | AI Worker | dataset validation/version, structured job audit, idempotent prediction publication | COMPLETE; two postprocessing runs and 120/120 Athena proof passed |
 | V2 RAG Reliability | AI Worker | document identity/version, validation, overlap/throttling bounds, sync reconciliation | COMPLETE; real AWS sync/unchanged/retrieval proof passed |
 | V2 Final Integration | Manager | consolidated review, tests, Terraform drift, docs, Git push | COMPLETE; awaiting Human review |
+| V2 Glue Data Quality Amendment | Data + Infrastructure Workers, Manager review | Inline DQDL after row quarantine and before Silver write; real PASS/FAIL evidence | COMPLETE; FAIL 0.75/PASS 1.0, 82 tests; awaiting Human acceptance |
 
 V3–V5, PROD, CI/CD, comprehensive observability, IAM/Lake Formation hardening,
 QuickSight subscription, and any replacement streaming architecture are out of scope.
