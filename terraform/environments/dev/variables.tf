@@ -251,16 +251,25 @@ variable "rag_application_role_arn" {
   }
 }
 
-variable "v3_operator_trusted_principal_arns" {
-  description = "Existing non-root same-account console-only user or federated role ARNs permitted to assume the V3 operator role. Empty keeps V3 security resources disabled."
-  type        = list(string)
-  default     = []
+variable "v3_operator_role_arn" {
+  description = "Existing bootstrap-managed V3 Operator role ARN. Null keeps foundation V3 security resources disabled."
+  type        = string
+  default     = null
+  nullable    = true
   validation {
-    condition = alltrue([
-      for arn in var.v3_operator_trusted_principal_arns :
-      can(regex("^arn:aws:iam::${var.account_id}:(role|user)/.+$", arn)) && arn != "arn:aws:iam::${var.account_id}:root"
-    ])
-    error_message = "V3 operator trust may contain only explicit existing non-root same-account IAM user or role ARNs."
+    condition     = var.v3_operator_role_arn == null || var.v3_operator_role_arn == "arn:aws:iam::${var.account_id}:role/insurance-dev-operator-role"
+    error_message = "v3_operator_role_arn must be the exact bootstrap-managed DEV Operator ARN."
+  }
+}
+
+variable "v3_terraform_execution_role_arn" {
+  description = "Existing bootstrap-managed V3 Terraform execution role ARN."
+  type        = string
+  default     = null
+  nullable    = true
+  validation {
+    condition     = var.v3_terraform_execution_role_arn == null || var.v3_terraform_execution_role_arn == "arn:aws:iam::${var.account_id}:role/insurance-dev-terraform-execution-role"
+    error_message = "v3_terraform_execution_role_arn must be the exact bootstrap-managed DEV Terraform execution ARN."
   }
 }
 

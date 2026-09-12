@@ -27,9 +27,11 @@ file validation is currently disabled; the prepared V3 Terraform enables it.
 
 ## Prepared V3 control model
 
-The Terraform module `security-governance` defines short-session roles for
-Operator, TerraformExecution, DataEngineer, Analyst, MLEngineer,
-RAGApplication, and LakeFormationRegistration. It contains no `Action="*"`,
+Bootstrap Terraform defines the console-only local user plus short-session
+Operator and TerraformExecution roles. Foundation module `security-governance`
+accepts those existing role ARNs and defines DataEngineer, Analyst, MLEngineer,
+RAGApplication, and LakeFormationRegistration without duplicating bootstrap
+ownership. It contains no `Action="*"`,
 `iam:*`, `kms:*`, `s3:*`, or `secretsmanager:*` allow. Secrets access is scoped
 to the RDS secret. `iam:PassRole` for MLEngineer is scoped to the current
 SageMaker execution role and service.
@@ -48,27 +50,29 @@ the change does not intentionally interrupt Batch/CDC/ML. The prepared RAG role
 assumes that Bedrock Knowledge Base remains the service boundary; it does not
 permit direct S3 document, vector, or lakehouse access.
 
-## Identity decision required before plan/apply
+## Human enrollment checkpoint
 
-The module deliberately remains disabled while
-`v3_operator_trusted_principal_arns=[]`. A root principal is rejected as an
-operator trust input. Consequently, current formatting/validation can run, but
-no trustworthy V3 plan, apply, or positive/negative assumed-role test can be
-completed until an actual non-root human entry principal exists.
+Option A is Human-approved. Bootstrap creates `insurance-dev-local-operator`
+without a login profile, console password, MFA device, or access key, attaches
+AWS-managed `SignInLocalDevelopmentAccess`, and permits only MFA-qualified
+AssumeRole into `insurance-dev-operator-role`. The operator can assume only the
+TerraformExecution and four persona roles. TerraformExecution is bootstrap-owned
+so the first foundation apply can run through the non-root chain.
 
-The real DEV baseline plan with that input empty reports `0 add / 1 change /
-0 destroy`: the only in-place change enables CloudTrail log-file validation.
-It creates no V3 roles or Lake Formation grants and has not been applied. Exact
-identity-enabled V3 counts cannot be produced without fabricating the missing
-trusted principal ARN, which this project explicitly forbids.
+The Human Owner must now create the initial console password and enroll MFA.
+Those secrets are intentionally not Terraform-managed. Foundation V3 remains
+disabled until the non-root session and role chain are proven. Identity Center
+remains a stronger future option, but it is outside the approved V3 approach.
 
-Minimum single-account option requiring Human approval: create one console-only
-IAM user with no access key, require MFA and `aws login` temporary credentials,
-and grant only `sts:AssumeRole` on `insurance-dev-operator-role`. This is the
-smallest change but leaves an IAM user to govern. The stronger alternative is
-to enable IAM Identity Center and trust its permission-set role; that is an
-account-wide identity architecture change. No user, access key, or Identity
-Center instance has been created.
+The reviewed bootstrap plan is `7 add / 0 change / 0 destroy`: one IAM user,
+two IAM roles, two inline role policies, one inline user policy, and one
+AWS-managed sign-in policy attachment. It contains no login profile, access key,
+AdministratorAccess attachment, replacement, or deletion. Terraform applied the
+reviewed plan on 2026-09-12 with exactly `7 added / 0 changed / 0 destroyed`.
+Read-only verification confirmed no access keys, no login profile, no managed
+role policies, the exact user principal in Operator trust, and MFA-required
+AssumeRole. IAM policy simulation returned `implicitDeny` without MFA and
+`allowed` with MFA; a real session test follows Human enrollment.
 
 ## Cost and scope
 

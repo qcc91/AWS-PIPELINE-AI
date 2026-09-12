@@ -1,27 +1,11 @@
 locals {
   role_prefix = "insurance-${var.environment}"
-  operator_assumable_role_arns = [
-    aws_iam_role.terraform_execution.arn,
-    aws_iam_role.data_engineer.arn,
-    aws_iam_role.analyst.arn,
-    aws_iam_role.ml_engineer.arn,
-    aws_iam_role.rag_application.arn,
-  ]
-  operator_trust = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid       = "ExistingFederatedOperatorOnly"
-      Effect    = "Allow"
-      Principal = { AWS = var.operator_trusted_principal_arns }
-      Action    = ["sts:AssumeRole", "sts:TagSession"]
-    }]
-  })
   persona_trust = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Sid       = "OperatorTemporarySessionsOnly"
       Effect    = "Allow"
-      Principal = { AWS = aws_iam_role.operator.arn }
+      Principal = { AWS = var.operator_role_arn }
       Action    = ["sts:AssumeRole", "sts:TagSession"]
     }]
   })
@@ -29,47 +13,8 @@ locals {
   lakehouse_arn   = var.bucket_arns["lakehouse"]
   control_arn     = var.bucket_arns["control"]
   quarantine_arn  = var.bucket_arns["quarantine"]
-  documents_arn   = var.bucket_arns["documents"]
   gold_tables_arn = "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names["gold"]}/*"
   catalog_arn     = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
-}
-
-resource "aws_iam_role" "operator" {
-  name                 = "${local.role_prefix}-operator-role"
-  max_session_duration = 3600
-  assume_role_policy   = local.operator_trust
-  tags                 = merge(var.tags, { Persona = "Operator" })
-  lifecycle { prevent_destroy = true }
-}
-
-resource "aws_iam_role_policy" "operator" {
-  name = "assume-approved-project-roles"
-  role = aws_iam_role.operator.id
-  policy = jsonencode({ Version = "2012-10-17", Statement = [
-    { Sid = "AssumeApprovedRoles", Effect = "Allow", Action = "sts:AssumeRole", Resource = local.operator_assumable_role_arns },
-    { Sid = "ReadOwnIdentity", Effect = "Allow", Action = "sts:GetCallerIdentity", Resource = "*" }
-  ] })
-}
-
-resource "aws_iam_role" "terraform_execution" {
-  name                 = "${local.role_prefix}-terraform-execution-role"
-  max_session_duration = 3600
-  assume_role_policy   = local.persona_trust
-  tags                 = merge(var.tags, { Persona = "TerraformExecution" })
-  lifecycle { prevent_destroy = true }
-}
-
-resource "aws_iam_role_policy" "terraform_execution" {
-  name = "manage-approved-dev-platform"
-  role = aws_iam_role.terraform_execution.id
-  policy = jsonencode({ Version = "2012-10-17", Statement = [
-    { Sid = "StateBucket", Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:GetBucketVersioning", "s3:ListBucket"], Resource = var.state_bucket_arn },
-    { Sid = "StateObjects", Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = "${var.state_bucket_arn}/*" },
-    { Sid = "StateKey", Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey"], Resource = var.state_kms_key_arn },
-    { Sid = "ProjectKmsAdministration", Effect = "Allow", Action = ["kms:CreateGrant", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListGrants", "kms:ListResourceTags", "kms:PutKeyPolicy", "kms:TagResource", "kms:UntagResource", "kms:UpdateKeyDescription"], Resource = [var.platform_kms_key_arn, var.audit_kms_key_arn, var.state_kms_key_arn] },
-    { Sid = "ProjectRoleAdministration", Effect = "Allow", Action = ["iam:CreateRole", "iam:DeleteRole", "iam:DeleteRolePolicy", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole", "iam:ListRolePolicies", "iam:PassRole", "iam:PutRolePolicy", "iam:TagRole", "iam:UntagRole", "iam:UpdateAssumeRolePolicy", "iam:UpdateRole", "iam:UpdateRoleDescription"], Resource = "arn:aws:iam::${var.account_id}:role/${local.role_prefix}-*" },
-    { Sid = "ProjectResourceManagement", Effect = "Allow", Action = ["athena:GetNamedQuery", "athena:GetWorkGroup", "athena:ListTagsForResource", "bedrock:GetKnowledgeBase", "cloudtrail:DescribeTrails", "cloudtrail:GetEventSelectors", "cloudtrail:GetTrailStatus", "cloudwatch:ListTagsForResource", "dms:DescribeEndpoints", "dms:DescribeReplicationInstances", "dms:DescribeReplicationSubnetGroups", "dms:DescribeReplicationTasks", "ec2:DescribeAvailabilityZones", "ec2:DescribeRouteTables", "ec2:DescribeSecurityGroups", "ec2:DescribeSubnets", "ec2:DescribeVpcEndpoints", "ec2:DescribeVpcs", "events:DescribeRule", "events:ListTagsForResource", "events:ListTargetsByRule", "glue:GetConnection", "glue:GetDatabase", "glue:GetDatabases", "glue:GetJob", "glue:GetTags", "glue:GetTable", "glue:GetTables", "lakeformation:BatchGrantPermissions", "lakeformation:BatchRevokePermissions", "lakeformation:DeregisterResource", "lakeformation:GetDataLakeSettings", "lakeformation:GrantPermissions", "lakeformation:ListPermissions", "lakeformation:ListResources", "lakeformation:PutDataLakeSettings", "lakeformation:RegisterResource", "lakeformation:RevokePermissions", "logs:DescribeLogGroups", "logs:ListTagsForResource", "rds:DescribeDBInstances", "rds:DescribeDBParameterGroups", "rds:DescribeDBSubnetGroups", "s3vectors:GetIndex", "s3vectors:GetVectorBucket", "sagemaker:DescribeModelPackageGroup", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:ListSecretVersionIds", "sns:GetTopicAttributes", "sns:ListTagsForResource", "states:DescribeStateMachine", "states:ListTagsForResource", "sts:GetCallerIdentity"], Resource = "*" }
-  ] })
 }
 
 resource "aws_iam_role" "data_engineer" {

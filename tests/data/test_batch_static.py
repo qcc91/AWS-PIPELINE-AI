@@ -47,7 +47,7 @@ def test_review_corrections_are_present():
     assert "enable-glue-datacatalog" not in MODULE
     # V1/V2 retain an empty fallback, while V3 replaces implicit root key use
     # with explicit role principals only after a trusted non-root entry exists.
-    assert "user_role_arns = length(var.v3_operator_trusted_principal_arns) > 0 ? [" in DEV_MAIN
+    assert "user_role_arns = var.v3_terraform_execution_role_arn != null ? [" in DEV_MAIN
     assert "] : []" in DEV_MAIN
     for role in ("DataEngineer", "Analyst", "MLEngineer", "RAGApplication"):
         assert f'role_arns["{role}"]' in DEV_MAIN

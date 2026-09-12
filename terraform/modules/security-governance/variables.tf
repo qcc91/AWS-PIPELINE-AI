@@ -16,22 +16,26 @@ variable "account_id" {
 }
 
 variable "aws_region" { type = string }
-variable "operator_trusted_principal_arns" {
-  description = "Existing non-root same-account console-only user or federated role principals allowed to assume the operator role."
-  type        = list(string)
+variable "operator_role_arn" {
+  description = "Existing bootstrap-managed Operator role ARN."
+  type        = string
+  nullable    = true
   validation {
-    condition = length(var.operator_trusted_principal_arns) > 0 && alltrue([
-      for arn in var.operator_trusted_principal_arns :
-      can(regex("^arn:aws:iam::${var.account_id}:(role|user)/.+$", arn)) && arn != "arn:aws:iam::${var.account_id}:root"
-    ])
-    error_message = "Provide at least one explicit existing non-root same-account IAM user or role ARN; root is not accepted."
+    condition     = var.operator_role_arn == null || var.operator_role_arn == "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-operator-role"
+    error_message = "operator_role_arn must be the exact bootstrap-managed environment role."
+  }
+}
+variable "terraform_execution_role_arn" {
+  description = "Existing bootstrap-managed Terraform execution role ARN."
+  type        = string
+  nullable    = true
+  validation {
+    condition     = var.terraform_execution_role_arn == null || var.terraform_execution_role_arn == "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-terraform-execution-role"
+    error_message = "terraform_execution_role_arn must be the exact bootstrap-managed environment role."
   }
 }
 variable "bucket_arns" { type = map(string) }
-variable "state_bucket_arn" { type = string }
 variable "platform_kms_key_arn" { type = string }
-variable "audit_kms_key_arn" { type = string }
-variable "state_kms_key_arn" { type = string }
 variable "rds_secret_arn" { type = string }
 variable "glue_database_names" { type = map(string) }
 variable "batch_glue_job_names" { type = map(string) }
@@ -41,7 +45,5 @@ variable "cdc_state_machine_arn" { type = string }
 variable "athena_workgroup_name" { type = string }
 variable "sagemaker_execution_role_arn" { type = string }
 variable "rag_knowledge_base_id" { type = string }
-variable "rag_vector_bucket_arn" { type = string }
-variable "rag_vector_index_arn" { type = string }
 variable "rag_generation_model_arns" { type = list(string) }
 variable "tags" { type = map(string) }

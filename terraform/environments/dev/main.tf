@@ -11,10 +11,6 @@ locals {
   }
 }
 
-data "aws_kms_alias" "terraform_state" {
-  name = "alias/insurance/${local.environment}/terraform-state"
-}
-
 module "common" {
   source = "../../modules/common"
 
@@ -41,9 +37,9 @@ module "platform_kms" {
   environment       = local.environment
   purpose           = "platform-data"
   account_id        = var.account_id
-  admin_role_arns   = length(var.v3_operator_trusted_principal_arns) > 0 ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
-  allow_root_for_v1 = length(var.v3_operator_trusted_principal_arns) == 0
-  user_role_arns = length(var.v3_operator_trusted_principal_arns) > 0 ? [
+  admin_role_arns   = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
+  allow_root_for_v1 = var.v3_terraform_execution_role_arn == null
+  user_role_arns = var.v3_terraform_execution_role_arn != null ? [
     module.security_governance[0].role_arns["DataEngineer"], module.security_governance[0].role_arns["Analyst"],
     module.security_governance[0].role_arns["MLEngineer"], module.security_governance[0].role_arns["RAGApplication"],
     module.security_governance[0].role_arns["LakeFormationRegistration"], module.batch_ingestion.glue_role_arn,
@@ -124,8 +120,8 @@ module "monitoring" {
   environment                     = local.environment
   account_id                      = var.account_id
   bucket_name                     = "${var.org_short}-insurance-${local.environment}-audit-logs-${var.account_short}"
-  kms_admin_role_arns             = length(var.v3_operator_trusted_principal_arns) > 0 ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
-  allow_root_for_v1               = length(var.v3_operator_trusted_principal_arns) == 0
+  kms_admin_role_arns             = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
+  allow_root_for_v1               = var.v3_terraform_execution_role_arn == null
   log_retention_days              = var.log_retention_days
   audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
   audit_retention_days            = var.audit_retention_days
@@ -186,28 +182,24 @@ module "rag" {
 
 module "security_governance" {
   source = "../../modules/security-governance"
-  count  = length(var.v3_operator_trusted_principal_arns) > 0 ? 1 : 0
+  count  = var.v3_operator_role_arn != null && var.v3_terraform_execution_role_arn != null ? 1 : 0
 
-  environment                     = local.environment
-  account_id                      = var.account_id
-  aws_region                      = var.aws_region
-  operator_trusted_principal_arns = var.v3_operator_trusted_principal_arns
-  bucket_arns                     = { for purpose, bucket in module.storage : purpose => bucket.bucket_arn }
-  state_bucket_arn                = "arn:aws:s3:::${var.org_short}-insurance-${local.environment}-tfstate-${var.account_short}"
-  platform_kms_key_arn            = module.platform_kms.key_arn
-  audit_kms_key_arn               = module.monitoring.audit_kms_key_arn
-  state_kms_key_arn               = data.aws_kms_alias.terraform_state.target_key_arn
-  rds_secret_arn                  = module.cdc.rds_secret_arn
-  glue_database_names             = module.glue.database_names
-  batch_glue_job_names            = module.batch_ingestion.glue_job_names
-  cdc_glue_job_names              = module.cdc.cdc_job_names
-  batch_state_machine_arn         = module.batch_ingestion.state_machine_arn
-  cdc_state_machine_arn           = module.cdc.cdc_state_machine_arn
-  athena_workgroup_name           = module.bi.athena_workgroup_name
-  sagemaker_execution_role_arn    = module.ml.sagemaker_role_arn
-  rag_knowledge_base_id           = module.rag.knowledge_base_id
-  rag_vector_bucket_arn           = module.rag.vector_bucket_arn
-  rag_vector_index_arn            = module.rag.vector_index_arn
+  environment                  = local.environment
+  account_id                   = var.account_id
+  aws_region                   = var.aws_region
+  operator_role_arn            = var.v3_operator_role_arn
+  terraform_execution_role_arn = var.v3_terraform_execution_role_arn
+  bucket_arns                  = { for purpose, bucket in module.storage : purpose => bucket.bucket_arn }
+  platform_kms_key_arn         = module.platform_kms.key_arn
+  rds_secret_arn               = module.cdc.rds_secret_arn
+  glue_database_names          = module.glue.database_names
+  batch_glue_job_names         = module.batch_ingestion.glue_job_names
+  cdc_glue_job_names           = module.cdc.cdc_job_names
+  batch_state_machine_arn      = module.batch_ingestion.state_machine_arn
+  cdc_state_machine_arn        = module.cdc.cdc_state_machine_arn
+  athena_workgroup_name        = module.bi.athena_workgroup_name
+  sagemaker_execution_role_arn = module.ml.sagemaker_role_arn
+  rag_knowledge_base_id        = module.rag.knowledge_base_id
   rag_generation_model_arns = [
     "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-micro-v1:0",
   ]
@@ -216,7 +208,7 @@ module "security_governance" {
 
 module "lakeformation" {
   source = "../../modules/lakeformation"
-  count  = length(var.v3_operator_trusted_principal_arns) > 0 ? 1 : 0
+  count  = var.v3_operator_role_arn != null && var.v3_terraform_execution_role_arn != null ? 1 : 0
 
   environment              = local.environment
   account_id               = var.account_id

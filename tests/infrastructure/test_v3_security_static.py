@@ -5,12 +5,25 @@ ROOT = Path(__file__).resolve().parents[2]
 SECURITY = (ROOT / "terraform/modules/security-governance/main.tf").read_text(encoding="utf-8")
 DEV = (ROOT / "terraform/environments/dev/main.tf").read_text(encoding="utf-8")
 LF = (ROOT / "terraform/modules/lakeformation/main.tf").read_text(encoding="utf-8")
+BOOTSTRAP = (ROOT / "terraform/bootstrap/modules/dev-operator/main.tf").read_text(encoding="utf-8")
 
 
-def test_v3_is_disabled_without_a_real_non_root_trust_principal():
-    assert 'count  = length(var.v3_operator_trusted_principal_arns) > 0 ? 1 : 0' in DEV
-    assert 'Principal = { AWS = var.operator_trusted_principal_arns }' in SECURITY
+def test_operator_and_terraform_roles_are_bootstrap_owned():
+    assert 'resource "aws_iam_user" "operator"' in BOOTSTRAP
+    assert 'resource "aws_iam_role" "operator"' in BOOTSTRAP
+    assert 'resource "aws_iam_role" "terraform_execution"' in BOOTSTRAP
+    assert 'resource "aws_iam_user_login_profile"' not in BOOTSTRAP
+    assert 'resource "aws_iam_access_key"' not in BOOTSTRAP
+    assert 'arn:aws:iam::aws:policy/SignInLocalDevelopmentAccess' in BOOTSTRAP
+    assert 'AWSSignInLocalDevelopmentAccess' not in BOOTSTRAP
+    assert 'AdministratorAccess' not in BOOTSTRAP
+    assert '"aws:MultiFactorAuthPresent" = "true"' in BOOTSTRAP
+    assert 'resource "aws_iam_role" "operator"' not in SECURITY
+    assert 'resource "aws_iam_role" "terraform_execution"' not in SECURITY
+    assert 'Principal = { AWS = var.operator_role_arn }' in SECURITY
     assert 'Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }' not in SECURITY
+    assert 'count  = var.v3_operator_role_arn != null && var.v3_terraform_execution_role_arn != null ? 1 : 0' in DEV
+    assert 'Resource = sort(tolist(var.target_role_arns))' in BOOTSTRAP
 
 
 def test_persona_roles_and_no_admin_wildcards():
@@ -20,6 +33,7 @@ def test_persona_roles_and_no_admin_wildcards():
     assert 'Action = ["*"]' not in SECURITY
     for wildcard in ["iam:*", "kms:*", "s3:*", "secretsmanager:*"]:
         assert wildcard not in SECURITY
+        assert wildcard not in BOOTSTRAP
 
 
 def test_lakehouse_data_is_not_read_directly_by_restricted_personas():

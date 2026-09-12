@@ -1401,12 +1401,14 @@ ingestion patterns feeding one shared Bronze/Silver/Gold Iceberg Lakehouse.
 
 V3 is limited to security inventory, non-root operator/persona roles, IAM least
 privilege, PII classification, Lake Formation governance, S3/KMS/Secrets/
-CloudTrail hardening, and real ALLOW/DENY access tests. Current discovery found
-no IAM user, IAM Identity Center instance, SAML/OIDC provider, or human-federated
-role. Root cannot call STS AssumeRole, so a Human identity decision is required
-before the prepared V3 Terraform can be planned/applied or persona access can be
-tested. Do not invent a trust principal, create an access key, create a long-lived
-IAM user, or enable Identity Center without that decision.
+CloudTrail hardening, and real ALLOW/DENY access tests. Human approved Option A:
+one console-only IAM user as the authentication entry point, with no access key
+or direct project-service permissions. Bootstrap Terraform created that user,
+the MFA-protected Operator role, and the distinct TerraformExecution role on
+2026-09-12 (`7 add / 0 change / 0 destroy`). The Human Owner must now set the
+initial console password and enroll MFA interactively. After that, routine CLI
+and Terraform work must use the non-root role chain; root is not a normal
+operator. Do not enable Identity Center or create additional IAM users or keys.
 
 V4 CI/CD, V5 production readiness, PROD deployment, QuickSight subscription,
 account-plan upgrade, paid security services, and Marketplace purchases remain

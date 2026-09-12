@@ -12,7 +12,7 @@
 - TFLint and Checkov remain unavailable; Terraform fmt/validate, focused tests and state/plan checks pass.
 
 Last updated: 2026-09-11.
-# V3 infrastructure security — identity decision required (2026-09-12)
+# V3 infrastructure security — Human MFA enrollment checkpoint (2026-09-12)
 
 - Read-only V2 inventory completed in account `199476069493`, region
   `ap-southeast-2`: root is current operator; IAM users and IAM Identity Center
@@ -21,10 +21,16 @@ Last updated: 2026-09-11.
 - Prepared conditional Terraform for Operator/TerraformExecution and four
   persona roles, explicit Lake Formation grants/hybrid opt-ins, platform/audit
   KMS role transition, state-backend transition, and CloudTrail validation.
-- V3 resources are intentionally disabled while no real non-root trusted
-  principal exists. Root is rejected as operator trust. No AWS changes applied.
-- Human decision required: approve a console-only, MFA-protected IAM user with
-  no access key and only AssumeOperator, or enable IAM Identity Center.
+- Foundation V3 resources remain disabled until the real non-root session and
+  role chain are proven. Root is not trusted by the Operator role.
+- Human approved Option A: bootstrap now owns a console-only, MFA-protected IAM
+  user, Operator role, and TerraformExecution role. Terraform creates no login
+  profile, password, MFA device, or access key. Human console password/MFA
+  enrollment is now the only remaining bootstrap interaction.
+- Real bootstrap plan and apply completed: `7 add / 0 change / 0 destroy`; no
+  replacement, login profile, access key, or AdministratorAccess. Read-only IAM
+  verification passed, including no-MFA `implicitDeny` and MFA-context `allowed`
+  policy simulation.
 - `terraform fmt` and `terraform validate` pass. Real V3 plan/apply, assumed-role
   ALLOW/DENY tests, regression, and zero-drift proof remain blocked on identity.
 - Real DEV baseline plan with V3 disabled reports `0 add / 1 change / 0 destroy`;

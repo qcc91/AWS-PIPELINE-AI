@@ -102,4 +102,4 @@ terraform -chdir=terraform/environments/dev validate
 - 持久 AWS 基础设施通过 Terraform 管理，不提交状态、plan、凭据、token、`.tfvars` 或本地环境文件。
 - 优先使用 serverless、on-demand、短时批处理和小规格资源，不为假设规模预置容量。
 - AWS 账号保持 FREE plan；不自动订阅 QuickSight、Marketplace 或升级账号套餐。
-- V3 安全治理已授权；当前需先建立获批的非 root 人员入口。V4 CI/CD 与 V5 生产就绪尚未开始。
+- V3 安全治理已授权；非 root IAM 用户及 Operator → TerraformExecution 角色入口已创建，当前等待人工设置控制台密码并绑定 MFA。V4 CI/CD 与 V5 生产就绪尚未开始。
