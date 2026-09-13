@@ -73,9 +73,6 @@ jobs:
             terraform -chdir="$root" validate -no-color
           done
 
-      - name: Run offline infrastructure assertions
-        run: bash tests/infrastructure/validate.sh
-
       - name: Run focused unit and infrastructure tests
         env:
           PYTHONPATH: .

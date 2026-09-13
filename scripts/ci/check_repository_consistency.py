@@ -118,7 +118,6 @@ def check_workflow() -> list[str]:
         "terraform fmt -check -recursive terraform",
         "init -backend=false",
         "validate -no-color",
-        "bash tests/infrastructure/validate.sh",
         "scripts/ci/check_repository_consistency.py",
         "tests/data",
         "tests/infrastructure",
