@@ -12,7 +12,7 @@
 - SageMaker XGBoost 理赔风险批量训练与推理，无持久端点；
 - Bedrock Knowledge Bases + S3 Vectors 的可引用 RAG。
 
-核心业务实体为 `customer`、`policy`、`product`、`claim`、`payment`。平台以可重放、幂等、数据质量门禁、隔离、对账、审计、加密、监控和成本控制为主要工程目标。V3 Security + Governance 已完成实现与真实权限验证，当前等待 Human 验收。
+核心业务实体为 `customer`、`policy`、`product`、`claim`、`payment`。平台以可重放、幂等、数据质量门禁、隔离、对账、审计、加密、监控和成本控制为主要工程目标。V3 Security + Governance 已完成实现、真实权限验证并通过 Human 验收。
 
 ## 当前架构
 
@@ -103,4 +103,4 @@ terraform -chdir=terraform/environments/dev validate
 - 持久 AWS 基础设施通过 Terraform 管理，不提交状态、plan、凭据、token、`.tfvars` 或本地环境文件。
 - 优先使用 serverless、on-demand、短时批处理和小规格资源，不为假设规模预置容量。
 - AWS 账号保持 FREE plan；不自动订阅 QuickSight、Marketplace 或升级账号套餐。
-- V3 安全治理实现完成：Human MFA → Operator → TerraformExecution 已验证，persona ALLOW/DENY、CloudTrail 完整性和 Terraform 零漂移均通过；等待 Human 验收。V4 CI/CD 与 V5 生产就绪尚未开始。
+- V3 安全治理已验收：Human MFA → Operator → TerraformExecution、persona ALLOW/DENY、CloudTrail 完整性和 Terraform 零漂移均通过；发布标签为 `v3.0-governed`。V4 CI/CD 与 V5 生产就绪尚未开始。

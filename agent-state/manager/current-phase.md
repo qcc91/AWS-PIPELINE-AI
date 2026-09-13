@@ -1,7 +1,7 @@
 # Manager Current Phase
 
-- Phase: V3 — Security + Governance; implementation and real AWS validation complete, awaiting Human acceptance.
-- Authorization: Human-approved V3 package on 2026-09-12; V4–V5 and PROD are not authorized.
+- Phase: V3 — Security + Governance; ACCEPTED by Human on 2026-09-13.
+- Authorization: V3 is complete; V4–V5 and PROD are not authorized.
 - V1 baseline: accepted tag `v1.0-happy-path` remains at `9d4f625`.
 - Active structured ingestion: Batch/File and PostgreSQL full-load+CDC feed one shared Bronze/Silver/Gold Iceberg Lakehouse.
 - Streaming: RETIRED by Human decision. Code, Terraform, tests, AWS orchestration, docs, and active task state are removed; no replacement is allowed.
@@ -17,6 +17,7 @@
 - Real DEV baseline plan with V3 disabled: `0 add / 1 in-place change / 0 destroy`; only CloudTrail log-file validation would change, and it was not applied. An identity-enabled V3 plan was not fabricated.
 - Identity bootstrap: Option A applied exactly `7 add / 0 change / 0 destroy`; one console-only IAM user, Operator and TerraformExecution roles now exist with no access key, login profile, or AdministratorAccess. MFA-context simulation passed, while no-MFA was denied.
 - V3 result: MFA role chain, least privilege, Lake Formation persona grants, PII restrictions, KMS/S3/Secrets/CloudTrail hardening and real ALLOW/DENY tests passed. Foundation plan is zero drift and the integrated suite is 89 passed. See `docs/v3-completion-review.md`.
-- Next: Human accepts or rejects the consolidated V3 review. Do not begin V4/V5 or create a V3 tag.
+- V3 release: accepted implementation preserved by annotated tag `v3.0-governed` at `7993a73300c7d1330664bf812f5e2806c148c13e`.
+- Next: wait for separate Human authorization before beginning V4. Do not begin V4/V5 or modify PROD.
 
 Last updated: 2026-09-13.

@@ -1411,12 +1411,14 @@ ALLOW tests passed. V3 Foundation, persona governance, security tests and
 zero-drift validation completed on 2026-09-13. Routine CLI and Terraform work
 uses the non-root role chain; root is only the separately managed bootstrap/
 recovery administrator. Do not enable Identity Center or create additional IAM
-users or keys. V3 now awaits Human acceptance; do not create its release tag.
+users or keys. Human accepted V3 on 2026-09-13; the accepted implementation is
+preserved by annotated tag `v3.0-governed` at commit
+`7993a73300c7d1330664bf812f5e2806c148c13e`.
 
 V4 CI/CD, V5 production readiness, PROD deployment, QuickSight subscription,
 account-plan upgrade, paid security services, and Marketplace purchases remain
-out of scope. After V3 implementation, real AWS evidence, documentation, commit,
-and push, STOP for Human consolidated review and do not create a V3 release tag.
+out of scope. V3 is complete and accepted. Do not begin V4 without separate
+Human authorization.
 Each package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager

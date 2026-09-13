@@ -1,6 +1,7 @@
 # V3 Security + Governance Completion Review
 
-Status: implementation complete; awaiting Human acceptance. Date: 2026-09-13.
+Status: ACCEPTED by Human on 2026-09-13. Annotated release tag:
+`v3.0-governed` at `7993a73300c7d1330664bf812f5e2806c148c13e`.
 
 ## Identity and bootstrap boundary
 
