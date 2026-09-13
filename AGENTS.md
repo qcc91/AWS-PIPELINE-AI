@@ -1405,10 +1405,13 @@ CloudTrail hardening, and real ALLOW/DENY access tests. Human approved Option A:
 one console-only IAM user as the authentication entry point, with no access key
 or direct project-service permissions. Bootstrap Terraform created that user,
 the MFA-protected Operator role, and the distinct TerraformExecution role on
-2026-09-12 (`7 add / 0 change / 0 destroy`). The Human Owner must now set the
-initial console password and enroll MFA interactively. After that, routine CLI
-and Terraform work must use the non-root role chain; root is not a normal
-operator. Do not enable Identity Center or create additional IAM users or keys.
+2026-09-12 (`7 add / 0 change / 0 destroy`). The Human Owner completed console
+password and MFA enrolment; real no-MFA DENY and MFA-authenticated role-chain
+ALLOW tests passed. V3 Foundation, persona governance, security tests and
+zero-drift validation completed on 2026-09-13. Routine CLI and Terraform work
+uses the non-root role chain; root is only the separately managed bootstrap/
+recovery administrator. Do not enable Identity Center or create additional IAM
+users or keys. V3 now awaits Human acceptance; do not create its release tag.
 
 V4 CI/CD, V5 production readiness, PROD deployment, QuickSight subscription,
 account-plan upgrade, paid security services, and Marketplace purchases remain

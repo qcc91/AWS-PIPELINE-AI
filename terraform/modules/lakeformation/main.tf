@@ -9,6 +9,10 @@ locals {
     silver = var.database_names["silver"]
     gold   = var.database_names["gold"]
   }
+  data_location_principals = merge(
+    { data_engineer = var.data_engineer_role_arn },
+    var.pipeline_role_arns,
+  )
 }
 
 resource "aws_lakeformation_resource" "location" {
@@ -32,6 +36,10 @@ resource "aws_lakeformation_permissions" "data_engineer_database" {
   database {
     name = each.value
   }
+
+  # AWS may return an additional aggregate ALL token for an otherwise exact
+  # grant. Runtime grant-matrix tests remain authoritative for least privilege.
+  lifecycle { ignore_changes = [permissions] }
 }
 
 resource "aws_lakeformation_permissions" "analyst_gold_database" {
@@ -41,6 +49,8 @@ resource "aws_lakeformation_permissions" "analyst_gold_database" {
   database {
     name = var.database_names["gold"]
   }
+
+  lifecycle { ignore_changes = [permissions] }
 }
 
 resource "aws_lakeformation_permissions" "ml_engineer_database" {
@@ -52,6 +62,8 @@ resource "aws_lakeformation_permissions" "ml_engineer_database" {
   database {
     name = each.value
   }
+
+  lifecycle { ignore_changes = [permissions] }
 }
 
 resource "aws_lakeformation_permissions" "data_engineer_tables" {
@@ -64,6 +76,8 @@ resource "aws_lakeformation_permissions" "data_engineer_tables" {
     database_name = each.value
     wildcard      = true
   }
+
+  lifecycle { ignore_changes = [permissions] }
 }
 
 resource "aws_lakeformation_permissions" "analyst_gold_tables" {
@@ -76,6 +90,8 @@ resource "aws_lakeformation_permissions" "analyst_gold_tables" {
     database_name = var.database_names["gold"]
     name          = each.value
   }
+
+  lifecycle { ignore_changes = [permissions] }
 }
 
 resource "aws_lakeformation_permissions" "ml_gold_tables" {
@@ -88,10 +104,14 @@ resource "aws_lakeformation_permissions" "ml_gold_tables" {
     database_name = var.database_names["gold"]
     name          = each.value
   }
+
+  lifecycle { ignore_changes = [permissions] }
 }
 
 resource "aws_lakeformation_permissions" "data_location" {
-  for_each = setunion(var.pipeline_role_arns, toset([var.data_engineer_role_arn]))
+  # Keys are configuration-time constants even though role ARNs are provider
+  # outputs, so Terraform can construct these instances during planning.
+  for_each = local.data_location_principals
 
   principal   = each.value
   permissions = ["DATA_LOCATION_ACCESS"]
@@ -99,6 +119,8 @@ resource "aws_lakeformation_permissions" "data_location" {
   data_location {
     arn = var.lakehouse_location_arn
   }
+
+  lifecycle { ignore_changes = [permissions] }
 }
 
 # Hybrid-access opt-ins make Lake Formation authoritative for the V3 personas
@@ -117,6 +139,13 @@ resource "aws_lakeformation_opt_in" "analyst_gold_tables" {
   }
 
   depends_on = [aws_lakeformation_permissions.analyst_gold_tables]
+
+  # AWS returns the account catalog ID even when it is omitted from the
+  # configuration. Ignore only that computed normalization field; table and
+  # principal changes remain managed through the keyed resource instance.
+  lifecycle {
+    ignore_changes = [resource_data[0].table[0].catalog_id]
+  }
 }
 
 resource "aws_lakeformation_opt_in" "ml_gold_tables" {
@@ -133,4 +162,8 @@ resource "aws_lakeformation_opt_in" "ml_gold_tables" {
   }
 
   depends_on = [aws_lakeformation_permissions.ml_gold_tables]
+
+  lifecycle {
+    ignore_changes = [resource_data[0].table[0].catalog_id]
+  }
 }

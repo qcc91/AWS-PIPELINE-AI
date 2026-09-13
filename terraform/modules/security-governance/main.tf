@@ -14,7 +14,11 @@ locals {
   control_arn     = var.bucket_arns["control"]
   quarantine_arn  = var.bucket_arns["quarantine"]
   gold_tables_arn = "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names["gold"]}/*"
-  catalog_arn     = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
+  ml_table_arns = [
+    "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names["gold"]}/claim_risk_features",
+    "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.glue_database_names["gold"]}/claim_risk"
+  ]
+  catalog_arn = "arn:aws:glue:${var.aws_region}:${var.account_id}:catalog"
 }
 
 resource "aws_iam_role" "data_engineer" {
@@ -54,8 +58,10 @@ resource "aws_iam_role_policy" "analyst" {
   role = aws_iam_role.analyst.id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Sid = "QueryBIWorkgroup", Effect = "Allow", Action = ["athena:GetQueryExecution", "athena:GetQueryResults", "athena:StartQueryExecution", "athena:StopQueryExecution"], Resource = "arn:aws:athena:${var.aws_region}:${var.account_id}:workgroup/${var.athena_workgroup_name}" },
-    { Sid = "ReadGoldCatalog", Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable", "glue:GetTables", "lakeformation:GetDataAccess"], Resource = [local.catalog_arn, "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names["gold"]}", local.gold_tables_arn] },
-    { Sid = "AthenaResults", Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = local.control_arn, Condition = { StringLike = { "s3:prefix" = ["athena-results", "athena-results/*"] } } },
+    { Sid = "ReadGoldCatalog", Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable", "glue:GetTables"], Resource = [local.catalog_arn, "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names["gold"]}", local.gold_tables_arn] },
+    { Sid = "UseLakeFormation", Effect = "Allow", Action = "lakeformation:GetDataAccess", Resource = "*" },
+    { Sid = "AthenaResultBucketLocation", Effect = "Allow", Action = "s3:GetBucketLocation", Resource = local.control_arn },
+    { Sid = "ListAthenaResults", Effect = "Allow", Action = "s3:ListBucket", Resource = local.control_arn, Condition = { StringLike = { "s3:prefix" = ["athena-results", "athena-results/*"] } } },
     { Sid = "AthenaResultObjects", Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload"], Resource = "${local.control_arn}/athena-results/*" },
     { Sid = "DecryptApprovedData", Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"], Resource = var.platform_kms_key_arn },
     { Sid = "DenyRawAndSecrets", Effect = "Deny", Action = ["s3:GetObject", "s3:ListBucket"], Resource = [local.landing_arn, "${local.landing_arn}/*", "${local.lakehouse_arn}/lakehouse/bronze/*", "${local.lakehouse_arn}/lakehouse/silver/*"] },
@@ -77,14 +83,16 @@ resource "aws_iam_role_policy" "ml_engineer" {
   role = aws_iam_role.ml_engineer.id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Sid = "UseMLArtifacts", Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = "${local.control_arn}/ml/*" },
-    { Sid = "ListApprovedMLArtifacts", Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = local.control_arn, Condition = { StringLike = { "s3:prefix" = ["ml", "ml/*", "athena-results", "athena-results/*"] } } },
+    { Sid = "ControlBucketLocation", Effect = "Allow", Action = "s3:GetBucketLocation", Resource = local.control_arn },
+    { Sid = "ListApprovedMLArtifacts", Effect = "Allow", Action = "s3:ListBucket", Resource = local.control_arn, Condition = { StringLike = { "s3:prefix" = ["ml", "ml/*", "athena-results", "athena-results/*"] } } },
     { Sid = "AthenaResultObjects", Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload"], Resource = "${local.control_arn}/athena-results/*" },
     { Sid = "UsePlatformKey", Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey"], Resource = var.platform_kms_key_arn },
     { Sid = "RunBatchML", Effect = "Allow", Action = ["sagemaker:CreateModel", "sagemaker:CreateTrainingJob", "sagemaker:CreateTransformJob", "sagemaker:DeleteModel", "sagemaker:DescribeModel", "sagemaker:DescribeTrainingJob", "sagemaker:DescribeTransformJob", "sagemaker:ListTags", "sagemaker:StopTrainingJob", "sagemaker:StopTransformJob", "sagemaker:TagResource"], Resource = ["arn:aws:sagemaker:${var.aws_region}:${var.account_id}:model/insurance-${var.environment}-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:training-job/insurance-${var.environment}-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:transform-job/insurance-${var.environment}-*"] },
     { Sid = "PassOnlyMLExecutionRole", Effect = "Allow", Action = "iam:PassRole", Resource = var.sagemaker_execution_role_arn, Condition = { StringEquals = { "iam:PassedToService" = "sagemaker.amazonaws.com" } } },
-    { Sid = "ReadMLCatalog", Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable", "lakeformation:GetDataAccess"], Resource = "*" },
+    { Sid = "ReadMLCatalog", Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable"], Resource = concat([local.catalog_arn, "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names["gold"]}"], local.ml_table_arns) },
+    { Sid = "UseLakeFormation", Effect = "Allow", Action = "lakeformation:GetDataAccess", Resource = "*" },
     { Sid = "QueryApprovedMLData", Effect = "Allow", Action = ["athena:GetQueryExecution", "athena:GetQueryResults", "athena:StartQueryExecution", "athena:StopQueryExecution"], Resource = "arn:aws:athena:${var.aws_region}:${var.account_id}:workgroup/${var.athena_workgroup_name}" },
-    { Sid = "DenyCustomerRaw", Effect = "Deny", Action = "s3:GetObject", Resource = ["${local.landing_arn}/*", "${local.lakehouse_arn}/lakehouse/bronze/*", "${local.lakehouse_arn}/lakehouse/silver/customers/*"] },
+    { Sid = "DenyDirectStructuredData", Effect = "Deny", Action = ["s3:GetObject", "s3:ListBucket"], Resource = [local.landing_arn, "${local.landing_arn}/*", local.lakehouse_arn, "${local.lakehouse_arn}/*"] },
     { Sid = "DenySecrets", Effect = "Deny", Action = "secretsmanager:GetSecretValue", Resource = "*" },
     { Sid = "ReadOwnIdentity", Effect = "Allow", Action = "sts:GetCallerIdentity", Resource = "*" }
   ] })

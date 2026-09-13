@@ -1,5 +1,12 @@
 # AI Engineering Worker Status
 
+## V3 completion (2026-09-13)
+
+- MLEngineer is restricted to approved Gold feature/prediction tables; real
+  Gold ALLOW and Silver/Secrets DENY tests passed.
+- RAGApplication real Knowledge Base retrieval passed while direct Lakehouse
+  access was denied. Managed-service execution roles remain separate.
+
 - Current package: V2 ML and RAG reliability — COMPLETE.
 - ML: validates nulls, domains, unique claim IDs, labels, as-of semantics and class balance; emits deterministic dataset version and structured Training/Transform audit; postprocessing validates prediction counts and publishes an idempotent snapshot with model/dataset/run lineage.
 - RAG: stable per-document SHA-256 identity/version, empty/malformed validation, manifest diff, unchanged-sync skip, non-overlap guard, bounded transient/429 retry, ingestion reconciliation and citation validation.

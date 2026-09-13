@@ -12,7 +12,7 @@
 - SageMaker XGBoost 理赔风险批量训练与推理，无持久端点；
 - Bedrock Knowledge Bases + S3 Vectors 的可引用 RAG。
 
-核心业务实体为 `customer`、`policy`、`product`、`claim`、`payment`。平台以可重放、幂等、数据质量门禁、隔离、对账、审计、加密、监控和成本控制为主要工程目标。V3 Security + Governance 已获授权，当前正在落实最小权限、PII 分类和 Lake Formation 治理。
+核心业务实体为 `customer`、`policy`、`product`、`claim`、`payment`。平台以可重放、幂等、数据质量门禁、隔离、对账、审计、加密、监控和成本控制为主要工程目标。V3 Security + Governance 已完成实现与真实权限验证，当前等待 Human 验收。
 
 ## 当前架构
 
@@ -61,6 +61,7 @@ Batch 与 CDC 均采用串行 Bronze/Silver/Gold 阶段边界及有界重试。G
 - [V3 安全与治理清单](docs/security-governance.md)
 - [V3 数据治理与 PII 设计](docs/v3-data-governance.md)
 - [V3 ML/RAG 安全边界](docs/v3-ai-security.md)
+- [V3 完成审查](docs/v3-completion-review.md)
 - [V1–V5 累计版本路线图](docs/version-roadmap.md)
 - [退役 Streaming 的 ADR](architecture/adr/ADR-006-retire-streaming.md)
 
@@ -102,4 +103,4 @@ terraform -chdir=terraform/environments/dev validate
 - 持久 AWS 基础设施通过 Terraform 管理，不提交状态、plan、凭据、token、`.tfvars` 或本地环境文件。
 - 优先使用 serverless、on-demand、短时批处理和小规格资源，不为假设规模预置容量。
 - AWS 账号保持 FREE plan；不自动订阅 QuickSight、Marketplace 或升级账号套餐。
-- V3 安全治理已授权；非 root IAM 用户及 Operator → TerraformExecution 角色入口已创建，当前等待人工设置控制台密码并绑定 MFA。V4 CI/CD 与 V5 生产就绪尚未开始。
+- V3 安全治理实现完成：Human MFA → Operator → TerraformExecution 已验证，persona ALLOW/DENY、CloudTrail 完整性和 Terraform 零漂移均通过；等待 Human 验收。V4 CI/CD 与 V5 生产就绪尚未开始。

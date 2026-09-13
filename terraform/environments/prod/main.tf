@@ -96,6 +96,9 @@ module "lakeformation" {
   ml_engineer_role_arn     = var.ml_engineer_role_arn
   rag_application_role_arn = var.rag_application_role_arn
   database_names           = module.glue[0].database_names
+  analyst_gold_tables      = toset(["broker_performance", "claim_daily_summary", "claim_daily_summary_cdc", "dim_branch", "dim_broker", "dim_claim_type", "dim_coverage", "dim_product_master", "dim_region_risk", "dim_vehicle"])
+  ml_gold_tables           = toset(["claim_risk_features", "claim_risk"])
+  pipeline_role_arns       = {}
   tags                     = module.common.tags
 }
 

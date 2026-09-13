@@ -21,9 +21,10 @@ defaults use `IAM_ALLOWED_PRINCIPALS=ALL`, and existing grants include broad
 IAM-compatible access (for example Silver). Therefore V2 does not yet provide
 effective Lake Formation persona isolation.
 
-CloudTrail `insurance-dev-management-trail` is actively delivering regional
+At the V2 baseline, CloudTrail `insurance-dev-management-trail` was actively delivering regional
 management events to the KMS-encrypted audit bucket and CloudWatch Logs. Log
-file validation is currently disabled; the prepared V3 Terraform enables it.
+file validation was disabled. V3 enabled it; real readback on 2026-09-13 returned
+`IsLogging=true` and `LogFileValidationEnabled=true`.
 
 ## Prepared V3 control model
 
@@ -59,10 +60,20 @@ AssumeRole into `insurance-dev-operator-role`. The operator can assume only the
 TerraformExecution and four persona roles. TerraformExecution is bootstrap-owned
 so the first foundation apply can run through the non-root chain.
 
-The Human Owner must now create the initial console password and enroll MFA.
-Those secrets are intentionally not Terraform-managed. Foundation V3 remains
-disabled until the non-root session and role chain are proven. Identity Center
-remains a stronger future option, but it is outside the approved V3 approach.
+The Human Owner created the initial console password and enrolled MFA on
+2026-09-12. Those secrets remain intentionally outside Terraform. A real
+pre-enrollment AssumeRole attempt was denied, and a fresh MFA-authenticated
+`aws login` session established the non-root entry path. Identity Center remains
+a stronger future option, but it is outside the approved V3 approach.
+
+Bootstrap remains a separate administrative boundary. TerraformExecution can
+use only `foundation/terraform.tfstate`, its native S3 lock file, and the state
+KMS cryptographic operations required by that backend. It cannot access the
+bootstrap state object, change the Human IAM user, Operator role, its own
+role/policy, or the state KMS key policy. Its IAM mutation resources enumerate
+only foundation/service/persona roles; the Operator and TerraformExecution role
+names are deliberately excluded. State KMS administration remains in the
+separately operated bootstrap boundary.
 
 The reviewed bootstrap plan is `7 add / 0 change / 0 destroy`: one IAM user,
 two IAM roles, two inline role policies, one inline user policy, and one
@@ -72,7 +83,12 @@ reviewed plan on 2026-09-12 with exactly `7 added / 0 changed / 0 destroyed`.
 Read-only verification confirmed no access keys, no login profile, no managed
 role policies, the exact user principal in Operator trust, and MFA-required
 AssumeRole. IAM policy simulation returned `implicitDeny` without MFA and
-`allowed` with MFA; a real session test follows Human enrollment.
+`allowed` with MFA. Real tests then confirmed no-MFA DENY and MFA-authenticated
+Human -> Operator -> TerraformExecution ALLOW.
+
+The final DEV Foundation refresh plan returned no changes. Persona Athena,
+Secrets Manager, S3 and Bedrock ALLOW/DENY evidence is recorded in
+`docs/v3-completion-review.md`.
 
 ## Cost and scope
 

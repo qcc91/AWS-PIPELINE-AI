@@ -58,12 +58,12 @@ variable "terraform_role_arns" {
   }
 }
 variable "kms_admin_role_arns" {
-  description = "V3 non-root KMS administrators; required when terraform_role_arns enables V3 state hardening."
+  description = "Optional separately approved non-root bootstrap KMS administrators. TerraformExecution is not included."
   type        = list(string)
   default     = []
   validation {
-    condition     = (length(var.terraform_role_arns) == 0 || length(var.kms_admin_role_arns) > 0) && alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
-    error_message = "Provide explicit same-account KMS admin role ARNs."
+    condition     = alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
+    error_message = "kms_admin_role_arns must contain explicit same-account role ARNs."
   }
 }
 

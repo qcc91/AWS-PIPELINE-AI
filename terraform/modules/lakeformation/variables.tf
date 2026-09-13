@@ -171,6 +171,6 @@ variable "ml_gold_tables" {
 }
 
 variable "pipeline_role_arns" {
-  description = "Existing Glue/DMS execution roles requiring DATA_LOCATION_ACCESS after registration."
-  type        = set(string)
+  description = "Existing pipeline execution roles keyed by stable logical names for DATA_LOCATION_ACCESS."
+  type        = map(string)
 }

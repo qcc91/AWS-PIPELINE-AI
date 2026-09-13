@@ -1,13 +1,13 @@
 module "state_backend" {
   source = "../../modules/state-backend"
 
-  environment               = "prod"
-  org_short                 = var.org_short
-  account_short             = var.account_short
-  account_id                = var.account_id
-  terraform_role_arns       = var.terraform_role_arns
-  kms_admin_role_arns       = var.kms_admin_role_arns
-  allow_root_for_v1         = false
-  noncurrent_retention_days = var.noncurrent_retention_days
-  create_resources          = false
+  environment                        = "prod"
+  org_short                          = var.org_short
+  account_short                      = var.account_short
+  account_id                         = var.account_id
+  terraform_role_arns                = var.terraform_role_arns
+  kms_admin_role_arns                = var.kms_admin_role_arns
+  allow_account_root_bootstrap_admin = false
+  noncurrent_retention_days          = var.noncurrent_retention_days
+  create_resources                   = false
 }

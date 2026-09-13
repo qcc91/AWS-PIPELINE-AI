@@ -1,5 +1,11 @@
 # V3 ML and RAG security boundary
 
+> Completion update (2026-09-13): the non-root V3 implementation and real
+> access tests are complete. MLEngineer can query only the approved Gold ML
+> tables and is denied Silver customer data and Secrets Manager; RAGApplication
+> can retrieve from the approved Knowledge Base and is denied direct Lakehouse
+> access. See [V3 completion review](v3-completion-review.md) for evidence.
+
 ## Scope and evidence
 
 This is the AI Engineering support design for V3. It does not change the V2

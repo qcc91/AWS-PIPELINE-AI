@@ -6,18 +6,22 @@ data "aws_kms_alias" "audit" {
   name = "alias/insurance/dev/audit"
 }
 
+data "aws_secretsmanager_secret" "rds" {
+  name = "insurance-dev-cdc-postgres"
+}
+
 module "state_backend" {
   source = "../../modules/state-backend"
 
-  environment               = "dev"
-  org_short                 = var.org_short
-  account_short             = var.account_short
-  account_id                = var.account_id
-  terraform_role_arns       = var.terraform_role_arns
-  kms_admin_role_arns       = var.kms_admin_role_arns
-  allow_root_for_v1         = length(var.terraform_role_arns) == 0
-  noncurrent_retention_days = var.noncurrent_retention_days
-  create_resources          = true
+  environment                        = "dev"
+  org_short                          = var.org_short
+  account_short                      = var.account_short
+  account_id                         = var.account_id
+  terraform_role_arns                = var.terraform_role_arns
+  kms_admin_role_arns                = var.kms_admin_role_arns
+  allow_account_root_bootstrap_admin = true
+  noncurrent_retention_days          = var.noncurrent_retention_days
+  create_resources                   = true
 }
 
 module "dev_operator" {
@@ -37,6 +41,11 @@ module "dev_operator" {
   platform_kms_key_arns = toset([
     data.aws_kms_alias.platform.target_key_arn,
     data.aws_kms_alias.audit.target_key_arn,
+  ])
+  rds_secret_arn = data.aws_secretsmanager_secret.rds.arn
+  project_bucket_arns = toset([
+    for purpose in ["landing", "lakehouse", "control", "quarantine", "documents", "audit-logs"] :
+    "arn:aws:s3:::${var.org_short}-insurance-dev-${purpose}-${var.account_short}"
   ])
   tags = {
     Project            = "aws-insurance-data-ai-platform"

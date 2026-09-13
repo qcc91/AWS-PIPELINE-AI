@@ -1,5 +1,11 @@
 # V3 数据治理与 PII 访问设计
 
+> 2026-09-13 完成说明：下文的 2026-09-12 “当前基线/待实施”内容保留为
+> 变更前证据。V3 已部署两个注册位置、独立 persona grants 与 hybrid opt-in；
+> Analyst Gold ALLOW/Silver DENY、MLEngineer 批准 Gold ALLOW/Silver DENY、
+> Secrets DENY 和 RAG 零结构化授权均通过真实测试。最终证据见
+> `docs/v3-completion-review.md`。
+
 ## 范围与证据状态
 
 本设计基于当前 `sql/cdc/001_schema.sql`、三个 Glue 作业、V1/V2 真实运行报告
@@ -125,6 +131,57 @@ SELECT * FROM insurance_dev_gold.claim_daily_summary LIMIT 1;
 并确认 Analyst/MLEngineer 无 Bronze、quarantine、直接 PII 列或任意表 wildcard。
 验证记录必须保存 query execution ID、assumed-role ARN、时间、SQL 摘要和结果，
 不得保存查询到的 PII 值。
+
+### V3 apply 前测试设计复核（2026-09-12）
+
+当前 Terraform 使用 Lake Formation hybrid access：保留 V2 pipeline 的 IAM
+兼容路径，只把 Analyst 和 MLEngineer 对批准 Gold 表显式 opt-in 到 LF。这个
+混合迁移可接受，但实测必须同时证明：
+
+- 两个精确 S3 location 已注册，角色是独立 registration role；
+- LF admin 已从既有 SageMaker role 切换为 TerraformExecution；
+- `IAM_ALLOWED_PRINCIPALS` 默认值若为兼容 V2 而保留，只能由未 opt-in 的既有
+  pipeline 使用，不能让已 opt-in persona 绕过显式 grants；
+- Analyst/MLEngineer 只在批准表上存在 opt-in，RAGApplication 没有 LF grant；
+- 旧 root Silver grant 的处理结果被明确记录，不可误报成 persona 隔离已完成。
+
+发现一个 apply 前不一致：当前 `analyst_gold_tables` 把
+`policy_performance` 整表授权给 Analyst，而实际 Catalog 表含 MEDIUM/PII YES 的
+`policy_id`。在实现 `TableWithColumns` inclusion-list 之前，最小安全修复是从
+Analyst 整表清单移除 `policy_performance`。该问题解决前，不能把 Analyst PII
+隔离测试标记为通过。
+
+身份链必须从 Human 所称的 `aip-dev-human` 短期登录会话开始，依次 assume
+`insurance-dev-operator-role`，再分别 assume persona role。每次都先执行
+`sts get-caller-identity`，确认 ARN 是本次预期角色；不得从 root 直接测试，也不
+得把返回的 access key、secret 或 session token 写入文件或命令输出。可在单个
+PowerShell 进程内仅用内存变量切换临时环境变量：
+
+```powershell
+$operator = aws sts assume-role --role-arn arn:aws:iam::199476069493:role/insurance-dev-operator-role --role-session-name v3-operator-test --query Credentials --output json | ConvertFrom-Json
+$env:AWS_ACCESS_KEY_ID = $operator.AccessKeyId
+$env:AWS_SECRET_ACCESS_KEY = $operator.SecretAccessKey
+$env:AWS_SESSION_TOKEN = $operator.SessionToken
+$persona = aws sts assume-role --role-arn arn:aws:iam::199476069493:role/insurance-dev-analyst-role --role-session-name v3-analyst-test --query Credentials --output json | ConvertFrom-Json
+```
+
+为 DataEngineer、Analyst、MLEngineer 分别新建 `$persona` 会话并立即运行测试；
+不要复用上一 persona 的环境变量。验证项及预期：
+
+| 会话 | 操作 | 预期 |
+|---|---|---|
+| DataEngineer | Glue 获取 Bronze/Silver/Gold 表；Athena 查询 Gold | ALLOW |
+| Analyst | Athena 查询 `claim_daily_summary`、批准 `dim_*`/`broker_performance` | ALLOW |
+| Analyst | Athena 查询 Bronze/Silver、未批准事实表或直接/间接 PII 列 | DENY |
+| Analyst | `secretsmanager:GetSecretValue` 任意 secret | 显式 DENY |
+| MLEngineer | Athena 查询 `claim_risk_features`,`claim_risk` | ALLOW |
+| MLEngineer | Athena 查询 Silver `customers` 或 `claim.description` | DENY |
+| MLEngineer | `secretsmanager:GetSecretValue` 任意 secret | 显式 DENY |
+
+本 Worker 进程在身份 bootstrap 后没有可用 AWS profile 或 `AWS_*` 凭证；按包
+要求等待后只重试了一次 `sts get-caller-identity`，结果仍为 `NoCredentials`。
+因此本节是可执行测试清单，不是 runtime 通过证据。Foundation apply 和 persona
+实测须由持有 Human 临时登录上下文的 Manager 进程执行。
 
 ## 实施顺序建议
 

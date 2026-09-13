@@ -40,6 +40,7 @@ module "platform_kms" {
   admin_role_arns   = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
   allow_root_for_v1 = var.v3_terraform_execution_role_arn == null
   user_role_arns = var.v3_terraform_execution_role_arn != null ? [
+    module.security_governance[0].role_arns["TerraformExecution"],
     module.security_governance[0].role_arns["DataEngineer"], module.security_governance[0].role_arns["Analyst"],
     module.security_governance[0].role_arns["MLEngineer"], module.security_governance[0].role_arns["RAGApplication"],
     module.security_governance[0].role_arns["LakeFormationRegistration"], module.batch_ingestion.glue_role_arn,
@@ -221,8 +222,12 @@ module "lakeformation" {
   ml_engineer_role_arn     = module.security_governance[0].role_arns["MLEngineer"]
   rag_application_role_arn = module.security_governance[0].role_arns["RAGApplication"]
   database_names           = module.glue.database_names
-  analyst_gold_tables      = toset(["broker_performance", "claim_daily_summary", "claim_daily_summary_cdc", "dim_branch", "dim_broker", "dim_claim_type", "dim_coverage", "dim_product_master", "dim_region_risk", "dim_vehicle", "policy_performance"])
+  analyst_gold_tables      = toset(["broker_performance", "claim_daily_summary", "claim_daily_summary_cdc", "dim_branch", "dim_broker", "dim_claim_type", "dim_coverage", "dim_product_master", "dim_region_risk", "dim_vehicle"])
   ml_gold_tables           = toset(["claim_risk_features", "claim_risk"])
-  pipeline_role_arns       = toset([module.batch_ingestion.glue_role_arn, module.cdc.glue_role_arn, module.ml.postprocess_role_arn])
-  tags                     = module.common.tags
+  pipeline_role_arns = {
+    batch_glue     = module.batch_ingestion.glue_role_arn
+    cdc_glue       = module.cdc.glue_role_arn
+    ml_postprocess = module.ml.postprocess_role_arn
+  }
+  tags = module.common.tags
 }

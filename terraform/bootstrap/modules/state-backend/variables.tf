@@ -45,7 +45,7 @@ variable "terraform_role_arns" {
 
   validation {
     condition = (
-      (var.allow_root_for_v1 || !var.create_resources || length(var.terraform_role_arns) > 0) && alltrue([
+      (var.allow_account_root_bootstrap_admin || !var.create_resources || length(var.terraform_role_arns) > 0) && alltrue([
         for arn in var.terraform_role_arns : can(regex(
           "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
           arn,
@@ -59,12 +59,12 @@ variable "kms_admin_role_arns" {
   description = "Explicit same-account non-root administrators for the state key."
   type        = list(string)
   validation {
-    condition     = (var.allow_root_for_v1 || !var.create_resources || length(var.kms_admin_role_arns) > 0) && alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
+    condition     = (var.allow_account_root_bootstrap_admin || !var.create_resources || length(var.kms_admin_role_arns) > 0) && alltrue([for arn in var.kms_admin_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$", arn))])
     error_message = "At least one explicit same-account KMS admin role is required."
   }
 }
-variable "allow_root_for_v1" {
-  description = "Explicit V1 temporary root admin allowance."
+variable "allow_account_root_bootstrap_admin" {
+  description = "Keep the account root principal as the separately managed bootstrap KMS administrator."
   type        = bool
   default     = false
 }
