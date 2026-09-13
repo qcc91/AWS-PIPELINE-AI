@@ -42,6 +42,21 @@ intentional failing run, the corrected passing run, and the resulting merge
 decision under the protected `main` ruleset. No GitHub or AWS credential is
 stored in the repository.
 
+Evidence captured on 2026-09-13:
+
+- Pull request: `#1` (`codex/v4-cicd` -> `main`).
+- Passing run: Actions run `34753016943`, job `103712621588`.
+- Intentional failure: commit `542e6ce5e17b27886d2fdfa3bd962dbbae35ff1c`,
+  Actions run `34753153099`, job `103712975546`.
+- GitHub reported PR `mergeable_state=blocked` while that required check was
+  failing.
+- `main` protection requires a pull request and the exact check
+  `Terraform, Python, and security checks`, applies to administrators, and
+  disables force pushes and branch deletion.
+
+The intentional failing test existed only for the negative proof and was
+removed immediately afterward.
+
 ## Local invocation
 
 From the repository root:
