@@ -1,6 +1,6 @@
 # AWS Insurance Data & AI Platform
 
-本仓库实现一个面向小数据量、强调工程质量与成本控制的 AWS 保险数据与 AI 平台。V1 Happy Path 已完成并以 `v1.0-happy-path` 固化；V2 Reliability + Data Quality 也已验收，并以 `v2.0-reliable` 固化在提交 `40855ff589314231c257a0b4441929178eea3b0b`。
+本仓库实现一个面向小数据量、强调工程质量与成本控制的 AWS 保险数据与 AI 平台。V1 Happy Path、V2 Reliability + Data Quality 和 V3 Security + Governance 均已完成并以对应 release tag 固化。V4A 全仓库 PR CI 与受保护 `main` 已验收；V4B 正在实现隔离的最小成本 AWS CD 证明，不会把完整 DEV 平台复制到 PROD。
 
 ## 业务场景
 
@@ -62,6 +62,8 @@ Batch 与 CDC 均采用串行 Bronze/Silver/Gold 阶段边界及有界重试。G
 - [V3 数据治理与 PII 设计](docs/v3-data-governance.md)
 - [V3 ML/RAG 安全边界](docs/v3-ai-security.md)
 - [V3 完成审查](docs/v3-completion-review.md)
+- [V4A GitHub PR CI](docs/v4-github-ci.md)
+- [V4B 最小成本 CD 证明](docs/v4b-minimal-cd.md)
 - [V1–V5 累计版本路线图](docs/version-roadmap.md)
 - [退役 Streaming 的 ADR](architecture/adr/ADR-006-retire-streaming.md)
 
@@ -103,4 +105,5 @@ terraform -chdir=terraform/environments/dev validate
 - 持久 AWS 基础设施通过 Terraform 管理，不提交状态、plan、凭据、token、`.tfvars` 或本地环境文件。
 - 优先使用 serverless、on-demand、短时批处理和小规格资源，不为假设规模预置容量。
 - AWS 账号保持 FREE plan；不自动订阅 QuickSight、Marketplace 或升级账号套餐。
-- V3 安全治理已验收：Human MFA → Operator → TerraformExecution、persona ALLOW/DENY、CloudTrail 完整性和 Terraform 零漂移均通过；发布标签为 `v3.0-governed`。V4 CI/CD 与 V5 生产就绪尚未开始。
+- V3 安全治理已验收：Human MFA → Operator → TerraformExecution、persona ALLOW/DENY、CloudTrail 完整性和 Terraform 零漂移均通过；发布标签为 `v3.0-governed`。
+- V4A CI 继续验证完整仓库；V4B CD 只部署隔离的 CloudWatch Log Group proof stack。PROD proof 必须应用审批前生成的同一份二进制计划，完整 PROD 平台和 V5 仍未授权。

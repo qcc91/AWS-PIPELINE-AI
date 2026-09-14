@@ -1326,7 +1326,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V3 — SECURITY + GOVERNANCE
+V4B — MINIMAL-COST CD PROOF (AUTHORIZED / IN PROGRESS)
 
 The Human Owner requires this project to remain on the AWS `FREE` account plan.
 Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a
@@ -1415,10 +1415,15 @@ users or keys. Human accepted V3 on 2026-09-13; the accepted implementation is
 preserved by annotated tag `v3.0-governed` at commit
 `7993a73300c7d1330664bf812f5e2806c148c13e`.
 
-V4 CI/CD, V5 production readiness, PROD deployment, QuickSight subscription,
+V4A full-scope GitHub Actions PR CI is complete and accepted at baseline
+`7ef6eabcc52e2dc38dee306f97bcde9325471fe4`; protected `main` requires its
+checks. Human authorized V4B as a minimal-cost CD proof on 2026-09-13. V4B may
+add only the isolated CodeConnections/CodePipeline/CodeBuild control plane and
+tiny DEV/PROD proof roots. It must not redeploy the existing DEV platform, and
+must stop at the real PROD Manual Approval before applying the exact binary
+PROD proof plan. V5, full PROD platform deployment, QuickSight subscription,
 account-plan upgrade, paid security services, and Marketplace purchases remain
-out of scope. V3 is complete and accepted. Do not begin V4 without separate
-Human authorization.
+out of scope.
 Each package follows:
 
 Manager scope -> Worker implementation and tests -> one consolidated Manager

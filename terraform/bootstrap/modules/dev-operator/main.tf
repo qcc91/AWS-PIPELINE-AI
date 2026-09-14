@@ -1,6 +1,9 @@
 locals {
   user_name = "insurance-${var.environment}-local-operator"
   role_name = "insurance-${var.environment}-operator-role"
+  v4b_bucket_arns = [
+    "arn:aws:s3:::aip-insurance-dev-v4b-artifacts-dev01",
+  ]
 }
 
 # Deliberately no aws_iam_user_login_profile and no aws_iam_access_key.
@@ -214,7 +217,138 @@ resource "aws_iam_role_policy" "terraform_execution" {
           "states:DescribeStateMachine", "states:ListStateMachineVersions", "states:ListTagsForResource", "sts:GetCallerIdentity"
         ]
         Resource = "*"
-      }
+      },
     ]
   })
+}
+
+resource "aws_iam_policy" "terraform_execution_v4b_identity" {
+  name        = "insurance-${var.environment}-v4b-control-identity-state"
+  description = "Bootstrap-managed state and IAM permissions for the V4B CD control plane."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "V4BControlStateBucketMetadata"
+        Effect   = "Allow"
+        Action   = ["s3:GetBucketLocation", "s3:GetBucketVersioning", "s3:ListBucket"]
+        Resource = var.state_bucket_arn
+        Condition = {
+          StringLike = { "s3:prefix" = ["cicd-control/terraform.tfstate*"] }
+        }
+      },
+      {
+        Sid      = "V4BControlStateObject"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject"]
+        Resource = "${var.state_bucket_arn}/cicd-control/terraform.tfstate"
+      },
+      {
+        Sid      = "V4BControlStateLock"
+        Effect   = "Allow"
+        Action   = ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"]
+        Resource = "${var.state_bucket_arn}/cicd-control/terraform.tfstate.tflock"
+      },
+      {
+        Sid      = "V4BControlStateKeyUsage"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey"]
+        Resource = var.state_kms_key_arn
+      },
+      {
+        Sid    = "V4BControlPlaneRoles"
+        Effect = "Allow"
+        Action = ["iam:CreateRole", "iam:DeleteRole", "iam:DeleteRolePolicy", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole", "iam:ListRolePolicies", "iam:PassRole", "iam:PutRolePolicy", "iam:TagRole", "iam:UntagRole", "iam:UpdateAssumeRolePolicy", "iam:UpdateRole", "iam:UpdateRoleDescription"]
+        Resource = [
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-codebuild-dev-role",
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-codebuild-prod-plan-role",
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-codebuild-prod-apply-role",
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-codepipeline-role",
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-proof-dev-role",
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-proof-prod-plan-role",
+          "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-v4b-proof-prod-apply-role",
+        ]
+      },
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_policy" "terraform_execution_v4b_services" {
+  name        = "insurance-${var.environment}-v4b-control-services"
+  description = "Bootstrap-managed service permissions for the V4B CD control plane."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "V4BControlPlaneDiscovery"
+        Effect   = "Allow"
+        Action   = ["codebuild:ListProjects", "codeconnections:CreateConnection", "codeconnections:ListConnections", "codeconnections:TagResource", "codepipeline:ListPipelines"]
+        Resource = "*"
+        Condition = {
+          StringEqualsIfExists = { "aws:RequestTag/Purpose" = "v4b-minimal-cd-proof" }
+        }
+      },
+      {
+        Sid    = "V4BCodeBuildProject"
+        Effect = "Allow"
+        Action = ["codebuild:BatchGetProjects", "codebuild:CreateProject", "codebuild:DeleteProject", "codebuild:ListTagsForResource", "codebuild:TagResource", "codebuild:UntagResource", "codebuild:UpdateProject"]
+        Resource = [
+          "arn:aws:codebuild:ap-southeast-2:${var.account_id}:project/insurance-${var.environment}-v4b-deploy-dev",
+          "arn:aws:codebuild:ap-southeast-2:${var.account_id}:project/insurance-${var.environment}-v4b-plan-prod",
+          "arn:aws:codebuild:ap-southeast-2:${var.account_id}:project/insurance-${var.environment}-v4b-apply-prod",
+        ]
+      },
+      {
+        Sid    = "V4BCodePipeline"
+        Effect = "Allow"
+        Action = ["codepipeline:CreatePipeline", "codepipeline:DeletePipeline", "codepipeline:GetPipeline", "codepipeline:GetPipelineState", "codepipeline:ListPipelineExecutions", "codepipeline:ListTagsForResource", "codepipeline:TagResource", "codepipeline:UntagResource", "codepipeline:UpdatePipeline"]
+        Resource = [
+          "arn:aws:codepipeline:ap-southeast-2:${var.account_id}:insurance-${var.environment}-v4b-cd",
+          "arn:aws:codepipeline:ap-southeast-2:${var.account_id}:insurance-${var.environment}-v4b-cd/*",
+        ]
+      },
+      {
+        Sid      = "V4BCodeConnection"
+        Effect   = "Allow"
+        Action   = ["codeconnections:DeleteConnection", "codeconnections:GetConnection", "codeconnections:ListTagsForResource", "codeconnections:TagResource", "codeconnections:UntagResource", "codestar-connections:PassConnection"]
+        Resource = "arn:aws:codeconnections:ap-southeast-2:${var.account_id}:connection/*"
+      },
+      {
+        Sid    = "V4BCodeBuildLogGroups"
+        Effect = "Allow"
+        Action = ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:ListTagsForResource", "logs:PutRetentionPolicy", "logs:TagResource", "logs:UntagResource"]
+        Resource = [
+          "arn:aws:logs:ap-southeast-2:${var.account_id}:log-group:/aws/codebuild/insurance-${var.environment}-v4b-deploy-dev*",
+          "arn:aws:logs:ap-southeast-2:${var.account_id}:log-group:/aws/codebuild/insurance-${var.environment}-v4b-plan-prod*",
+          "arn:aws:logs:ap-southeast-2:${var.account_id}:log-group:/aws/codebuild/insurance-${var.environment}-v4b-apply-prod*",
+        ]
+      },
+      {
+        Sid      = "V4BBucketManagement"
+        Effect   = "Allow"
+        Action   = ["s3:CreateBucket", "s3:DeleteBucket", "s3:GetAccelerateConfiguration", "s3:GetBucketAcl", "s3:GetBucketCORS", "s3:GetBucketLocation", "s3:GetBucketLogging", "s3:GetBucketObjectLockConfiguration", "s3:GetBucketOwnershipControls", "s3:GetBucketPolicy", "s3:GetBucketPolicyStatus", "s3:GetBucketPublicAccessBlock", "s3:GetBucketRequestPayment", "s3:GetBucketTagging", "s3:GetBucketVersioning", "s3:GetBucketWebsite", "s3:GetEncryptionConfiguration", "s3:GetLifecycleConfiguration", "s3:GetReplicationConfiguration", "s3:ListBucket", "s3:PutBucketOwnershipControls", "s3:PutBucketPolicy", "s3:PutBucketPublicAccessBlock", "s3:PutBucketTagging", "s3:PutBucketVersioning", "s3:PutEncryptionConfiguration", "s3:PutLifecycleConfiguration"]
+        Resource = local.v4b_bucket_arns
+      },
+      {
+        Sid      = "V4BBucketObjects"
+        Effect   = "Allow"
+        Action   = ["s3:DeleteObject", "s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"]
+        Resource = [for arn in local.v4b_bucket_arns : "${arn}/*"]
+      },
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "terraform_execution_v4b" {
+  for_each = {
+    identity_state = aws_iam_policy.terraform_execution_v4b_identity.arn
+    services       = aws_iam_policy.terraform_execution_v4b_services.arn
+  }
+
+  role       = aws_iam_role.terraform_execution.name
+  policy_arn = each.value
 }

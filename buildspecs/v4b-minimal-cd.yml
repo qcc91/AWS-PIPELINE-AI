@@ -1,0 +1,178 @@
+version: 0.2
+
+env:
+  exported-variables:
+    - PLAN_SHA256
+    - PLAN_CREATE_COUNT
+    - PLAN_UPDATE_COUNT
+    - PLAN_DELETE_COUNT
+    - PLAN_REPLACE_COUNT
+
+# V4B only deploys terraform/cicd-proof. Each CodeBuild project receives
+# short-lived service credentials and can assume exactly one narrow proof role.
+phases:
+  install:
+    commands:
+      - |
+        set -euo pipefail
+        TERRAFORM_VERSION=1.16.1
+        ZIP="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+        curl --fail --silent --show-error --location "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${ZIP}" --output "/tmp/${ZIP}"
+        curl --fail --silent --show-error --location "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_SHA256SUMS" --output /tmp/terraform_SHA256SUMS
+        cd /tmp
+        grep " ${ZIP}$" terraform_SHA256SUMS | sha256sum --check --status
+        unzip -q -o "$ZIP" -d /usr/local/bin
+        terraform version | grep -Eq '^Terraform v1\.16\.1$'
+      - aws --version
+      - jq --version
+  pre_build:
+    commands:
+      - |
+        set -euo pipefail
+        case "${CD_ACTION:?}" in
+          DEV_PLAN|DEV_APPLY|DEV_VALIDATE) TARGET_ENV=dev ;;
+          PROD_PLAN|PROD_APPLY) TARGET_ENV=prod ;;
+          *) echo "Unsupported CD_ACTION" >&2; exit 1 ;;
+        esac
+        export TARGET_ENV
+        export SOURCE_SHA="${SOURCE_SHA:?Source revision is required}"
+        export PIPELINE_EXECUTION_ID="${PIPELINE_EXECUTION_ID:?Pipeline execution ID is required}"
+        [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source revision" >&2; exit 1; }
+
+        export SOURCE_DIR="${CODEBUILD_SRC_DIR_SourceOutput:-$CODEBUILD_SRC_DIR}"
+        export TF_ROOT="$SOURCE_DIR/terraform/cicd-proof/$TARGET_ENV"
+        test -d "$TF_ROOT"
+        export PLAN_DIR="$SOURCE_DIR/promotion"
+        mkdir -p "$PLAN_DIR"
+
+        TARGET_ROLE_ARN="${TARGET_TERRAFORM_EXECUTION_ROLE_ARN:?Target proof role is required}"
+        export TARGET_ROLE_ARN
+        export STATE_BUCKET="${STATE_BUCKET:?}"
+        export TF_VAR_aws_region="$AWS_REGION"
+        export TF_VAR_source_revision="$SOURCE_SHA"
+        export TF_VAR_pipeline_execution_id="$PIPELINE_EXECUTION_ID"
+
+        read -r role_access role_secret role_token < <(
+          aws sts assume-role \
+            --role-arn "$TARGET_ROLE_ARN" \
+            --role-session-name "v4b-${TARGET_ENV}-${CODEBUILD_BUILD_NUMBER:-0}" \
+            --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
+            --output text
+        )
+        access_name="AWS_$(printf '%s' 'ACCESS_KEY_ID')"
+        secret_name="AWS_$(printf '%s' 'SECRET_ACCESS_KEY')"
+        token_name="AWS_$(printf '%s' 'SESSION_TOKEN')"
+        export "$access_name=$role_access" "$secret_name=$role_secret" "$token_name=$role_token"
+        unset role_access role_secret role_token AWS_PROFILE
+  build:
+    commands:
+      - |
+        set -euo pipefail
+        cd "$TF_ROOT"
+        cat > /tmp/v4b-backend.hcl <<EOF
+        bucket       = "$STATE_BUCKET"
+        key          = "cicd-proof/${TARGET_ENV}/terraform.tfstate"
+        region       = "$AWS_REGION"
+        encrypt      = true
+        kms_key_id   = "$STATE_KMS_KEY_ARN"
+        use_lockfile = true
+        EOF
+        terraform init -input=false -reconfigure -backend-config=/tmp/v4b-backend.hcl
+
+        case "$CD_ACTION" in
+          DEV_PLAN|PROD_PLAN)
+            PLAN_PATH="$PLAN_DIR/${TARGET_ENV}.tfplan"
+            set +e
+            if [[ "$CD_ACTION" == "PROD_PLAN" ]]; then
+              PLAN_LOCK_ARGS=(-lock=false)
+            else
+              PLAN_LOCK_ARGS=(-lock-timeout=2m)
+            fi
+            terraform plan -input=false "${PLAN_LOCK_ARGS[@]}" -detailed-exitcode -out="$PLAN_PATH"
+            PLAN_EXIT=$?
+            set -e
+            [[ "$PLAN_EXIT" == 0 || "$PLAN_EXIT" == 2 ]] || exit "$PLAN_EXIT"
+
+            PLAN_JSON=/tmp/${TARGET_ENV}-plan.json
+            terraform show -json "$PLAN_PATH" > "$PLAN_JSON"
+            CREATE_COUNT=$(jq '[.resource_changes[]? | select(.change.actions == ["create"])] | length' "$PLAN_JSON")
+            UPDATE_COUNT=$(jq '[.resource_changes[]? | select(.change.actions == ["update"])] | length' "$PLAN_JSON")
+            DELETE_COUNT=$(jq '[.resource_changes[]? | select(.change.actions | index("delete"))] | length' "$PLAN_JSON")
+            REPLACE_COUNT=$(jq '[.resource_changes[]? | select((.change.actions | index("delete")) and (.change.actions | index("create")))] | length' "$PLAN_JSON")
+            [[ "$DELETE_COUNT" == 0 && "$REPLACE_COUNT" == 0 ]] || { echo "Destructive proof-stack plan rejected" >&2; exit 1; }
+
+            sha256sum "$PLAN_PATH" | awk '{print $1}' > "$PLAN_DIR/${TARGET_ENV}.tfplan.sha256"
+            PLAN_SHA=$(cat "$PLAN_DIR/${TARGET_ENV}.tfplan.sha256")
+            export PLAN_SHA256="$PLAN_SHA"
+            export PLAN_CREATE_COUNT="$CREATE_COUNT"
+            export PLAN_UPDATE_COUNT="$UPDATE_COUNT"
+            export PLAN_DELETE_COUNT="$DELETE_COUNT"
+            export PLAN_REPLACE_COUNT="$REPLACE_COUNT"
+            jq -n \
+              --arg environment "$TARGET_ENV" \
+              --arg source_revision "$SOURCE_SHA" \
+              --arg pipeline_execution_id "$PIPELINE_EXECUTION_ID" \
+              --arg codebuild_build_id "${CODEBUILD_BUILD_ID:-unknown}" \
+              --arg plan_sha256 "$PLAN_SHA" \
+              --argjson create "$CREATE_COUNT" \
+              --argjson update "$UPDATE_COUNT" \
+              --argjson delete "$DELETE_COUNT" \
+              --argjson replace "$REPLACE_COUNT" \
+              '{environment:$environment,source_revision:$source_revision,pipeline_execution_id:$pipeline_execution_id,codebuild_build_id:$codebuild_build_id,plan_sha256:$plan_sha256,resource_changes:{create:$create,update:$update,delete:$delete,replace:$replace}}' \
+              > "$PLAN_DIR/${TARGET_ENV}-plan-metadata.json"
+            printf '%s\n' "$SOURCE_SHA" > "$PLAN_DIR/source-revision.txt"
+            ;;
+          DEV_APPLY|PROD_APPLY)
+            if [[ "$TARGET_ENV" == dev ]]; then
+              PLAN_INPUT_DIR="${CODEBUILD_SRC_DIR_DevPlanOutput:?DEV plan artifact is required}"
+            else
+              PLAN_INPUT_DIR="${CODEBUILD_SRC_DIR_ProdPlanOutput:?PROD plan artifact is required}"
+            fi
+            PLAN_PATH="$PLAN_INPUT_DIR/promotion/${TARGET_ENV}.tfplan"
+            EXPECTED_SOURCE=$(cat "$PLAN_INPUT_DIR/promotion/source-revision.txt")
+            EXPECTED_HASH=$(cat "$PLAN_INPUT_DIR/promotion/${TARGET_ENV}.tfplan.sha256")
+            ACTUAL_HASH=$(sha256sum "$PLAN_PATH" | awk '{print $1}')
+            METADATA="$PLAN_INPUT_DIR/promotion/${TARGET_ENV}-plan-metadata.json"
+            [[ "$EXPECTED_SOURCE" == "$SOURCE_SHA" ]] || { echo "Plan/source mismatch" >&2; exit 1; }
+            [[ "$EXPECTED_HASH" == "$ACTUAL_HASH" ]] || { echo "Plan checksum mismatch" >&2; exit 1; }
+            [[ "$(jq -r .environment "$METADATA")" == "$TARGET_ENV" ]] || { echo "Plan environment metadata mismatch" >&2; exit 1; }
+            [[ "$(jq -r .source_revision "$METADATA")" == "$SOURCE_SHA" ]] || { echo "Plan source metadata mismatch" >&2; exit 1; }
+            [[ "$(jq -r .pipeline_execution_id "$METADATA")" == "$PIPELINE_EXECUTION_ID" ]] || { echo "Plan execution metadata mismatch" >&2; exit 1; }
+            [[ "$(jq -r .plan_sha256 "$METADATA")" == "$ACTUAL_HASH" ]] || { echo "Plan hash metadata mismatch" >&2; exit 1; }
+            if [[ "$TARGET_ENV" == prod ]]; then
+              [[ "${EXPECTED_PLAN_SHA256:?Approved plan hash is required}" == "$ACTUAL_HASH" ]] || { echo "Approval/hash mismatch" >&2; exit 1; }
+            fi
+            terraform apply -input=false -lock-timeout=2m "$PLAN_PATH"
+            aws logs describe-log-groups \
+              --region "$AWS_REGION" \
+              --log-group-name-prefix "/aws/insurance-cicd-proof/${TARGET_ENV}" \
+              --query "length(logGroups[?logGroupName=='/aws/insurance-cicd-proof/${TARGET_ENV}'])" \
+              --output text | grep -qx '1'
+            terraform plan -input=false -lock-timeout=2m -detailed-exitcode
+            ;;
+          DEV_VALIDATE)
+            aws logs describe-log-groups \
+              --region "$AWS_REGION" \
+              --log-group-name-prefix "/aws/insurance-cicd-proof/dev" \
+              --query "length(logGroups[?logGroupName=='/aws/insurance-cicd-proof/dev'])" \
+              --output text | grep -qx '1'
+            terraform plan -input=false -lock-timeout=2m -detailed-exitcode
+            ;;
+        esac
+  post_build:
+    commands:
+      - |
+        mkdir -p "${PLAN_DIR:-promotion}"
+        jq -n \
+          --arg action "${CD_ACTION:-unknown}" \
+          --arg environment "${TARGET_ENV:-unknown}" \
+          --arg source_revision "${SOURCE_SHA:-unknown}" \
+          --arg pipeline_execution_id "${PIPELINE_EXECUTION_ID:-unknown}" \
+          --arg codebuild_build_id "${CODEBUILD_BUILD_ID:-unknown}" \
+          '{action:$action,environment:$environment,source_revision:$source_revision,pipeline_execution_id:$pipeline_execution_id,codebuild_build_id:$codebuild_build_id}' \
+          > "${PLAN_DIR:-promotion}/execution-metadata.json"
+
+artifacts:
+  files:
+    - promotion/**/*
+  discard-paths: no

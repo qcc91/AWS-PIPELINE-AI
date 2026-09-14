@@ -1,7 +1,7 @@
 # Manager Current Phase
 
-- Phase: V3 — Security + Governance; ACCEPTED by Human on 2026-09-13.
-- Authorization: V3 is complete; V4–V5 and PROD are not authorized.
+- Phase: V4B — Minimal-cost CD proof; AUTHORIZED and in progress.
+- Authorization: V4A full-scope PR CI is accepted at `7ef6eab`; V4B may deploy only the isolated CD control plane and tiny DEV/PROD proof stacks. V5 and the full PROD platform are not authorized.
 - V1 baseline: accepted tag `v1.0-happy-path` remains at `9d4f625`.
 - Active structured ingestion: Batch/File and PostgreSQL full-load+CDC feed one shared Bronze/Silver/Gold Iceberg Lakehouse.
 - Streaming: RETIRED by Human decision. Code, Terraform, tests, AWS orchestration, docs, and active task state are removed; no replacement is allowed.
@@ -18,6 +18,9 @@
 - Identity bootstrap: Option A applied exactly `7 add / 0 change / 0 destroy`; one console-only IAM user, Operator and TerraformExecution roles now exist with no access key, login profile, or AdministratorAccess. MFA-context simulation passed, while no-MFA was denied.
 - V3 result: MFA role chain, least privilege, Lake Formation persona grants, PII restrictions, KMS/S3/Secrets/CloudTrail hardening and real ALLOW/DENY tests passed. Foundation plan is zero drift and the integrated suite is 89 passed. See `docs/v3-completion-review.md`.
 - V3 release: accepted implementation preserved by annotated tag `v3.0-governed` at `7993a73300c7d1330664bf812f5e2806c148c13e`.
-- Next: wait for separate Human authorization before beginning V4. Do not begin V4/V5 or modify PROD.
+- V4B design: protected `main` -> CodeConnections -> CodePipeline -> three isolated CodeBuild/proof-role boundaries. DEV auto plan/apply/validate; PROD read-only plan -> Human Approval -> exact binary plan apply.
+- V4B local evidence: seven Terraform roots validate; focused V4B static suite and full repository suite pass (`97 passed`); repository consistency and high-confidence credential scanning pass.
+- V4B AWS status: the bootstrap-managed narrow state/IAM handoff and all 31 isolated control-plane resources are applied with no deletion/replacement. `insurance-dev-v4b-cd` and its three CodeBuild projects exist; connection `06d021e7-aa2e-4dac-8307-cf2451a277bc` is `PENDING` one-time GitHub App authorization. DEV/PROD proof resources remain unapplied.
+- Next: authorize the pending GitHub connection, complete protected PR/CI/merge, run the real main-triggered pipeline through DEV and PROD plan, then stop at PROD Manual Approval.
 
-Last updated: 2026-09-13.
+Last updated: 2026-09-14.

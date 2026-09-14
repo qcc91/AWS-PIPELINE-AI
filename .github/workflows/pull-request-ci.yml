@@ -57,7 +57,10 @@ jobs:
             terraform/bootstrap/environments/dev \
             terraform/bootstrap/environments/prod \
             terraform/environments/dev \
-            terraform/environments/prod; do
+            terraform/environments/prod \
+            terraform/cicd-control \
+            terraform/cicd-proof/dev \
+            terraform/cicd-proof/prod; do
             terraform -chdir="$root" init -backend=false -input=false -no-color
           done
 
@@ -69,7 +72,10 @@ jobs:
             terraform/bootstrap/environments/dev \
             terraform/bootstrap/environments/prod \
             terraform/environments/dev \
-            terraform/environments/prod; do
+            terraform/environments/prod \
+            terraform/cicd-control \
+            terraform/cicd-proof/dev \
+            terraform/cicd-proof/prod; do
             terraform -chdir="$root" validate -no-color
           done
 

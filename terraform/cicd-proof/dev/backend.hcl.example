@@ -1,0 +1,6 @@
+bucket       = "aip-insurance-dev-tfstate-dev01"
+key          = "cicd-proof/dev/terraform.tfstate"
+region       = "ap-southeast-2"
+encrypt      = true
+kms_key_id   = "alias/insurance/dev/terraform-state"
+use_lockfile = true

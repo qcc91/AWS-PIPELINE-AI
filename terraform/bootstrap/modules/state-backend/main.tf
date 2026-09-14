@@ -44,6 +44,16 @@ resource "aws_kms_key" "state" {
           Resource = "*"
         }
       ],
+      length(var.future_terraform_role_arns) == 0 ? [] : [{
+        Sid       = "AllowFutureExactTerraformRoles"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }
+        Action    = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey"]
+        Resource  = "*"
+        Condition = {
+          ArnEquals = { "aws:PrincipalArn" = var.future_terraform_role_arns }
+        }
+      }],
     )
   })
 

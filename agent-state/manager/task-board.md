@@ -13,6 +13,10 @@
 | V3 Security Inventory and Design | Manager + Infrastructure/Data/AI Workers | Inventory, PII classification, persona/LF/KMS/S3/Secrets/CloudTrail design | PREPARED; 87 tests pass; no AWS changes |
 | V3 Identity Bootstrap | Human + Manager | Establish real non-root temporary-session entry for Operator | COMPLETE; MFA chain and bootstrap separation verified |
 | V3 Apply and Access Proof | Manager + Workers | Non-destructive Terraform apply, ALLOW/DENY tests, V2 regression, zero drift | ACCEPTED; tag `v3.0-governed` at `7993a73` |
+| V4A Pull Request CI | Infrastructure Worker + Manager | Full-repository GitHub Actions CI and protected-main enforcement | ACCEPTED; squash baseline `7ef6eab` |
+| V4B Minimal-cost CD Proof | Infrastructure Worker + Manager | Isolated CodePipeline/CodeBuild control plane, DEV auto proof and approved exact PROD proof plan | IN PROGRESS; 31-resource control plane deployed without delete/replace; GitHub connection authorization, protected PR and real pipeline proof remain |
 
-V4–V5, PROD, CI/CD, comprehensive observability, paid security services,
-QuickSight subscription, and any replacement streaming architecture are out of scope.
+V5, full PROD platform deployment, comprehensive observability, paid security
+services, QuickSight subscription, and any replacement streaming architecture
+are out of scope. V4B may touch only its explicitly isolated PROD proof resource
+after the required Human Manual Approval.
