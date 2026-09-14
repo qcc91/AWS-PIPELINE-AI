@@ -1,5 +1,24 @@
 # Infrastructure Worker Status
 
+## V4B minimal-cost CD proof (2026-09-14)
+
+- Implemented separate `cicd-control`, `cicd-proof/dev`, and
+  `cicd-proof/prod` Terraform roots without touching the full DEV foundation.
+- Reuses the existing versioned/KMS-encrypted state bucket with isolated keys
+  and S3 lockfiles; no new state KMS key or DynamoDB lock table.
+- Split execution into DEV, PROD-plan read-only, and PROD-apply write paths so
+  pre-approval repository code cannot mutate the PROD proof stack.
+- DEV/PROD proof resources are one 30-day CloudWatch Log Group each. No
+  RDS/DMS/VPC/Glue/SageMaker/Bedrock copy is present.
+- Terraform fmt/validate and the full local suite pass (`97 passed`). The
+  bootstrap-managed V4B policies/state-key grants were applied without delete
+  or replacement; the isolated control-plane state now owns 31 resources,
+  including one CodeConnections connection, one CodePipeline, three CodeBuild
+  projects, isolated roles/policies, one artifact bucket and three log groups.
+- `insurance-dev-v4b-cd` exists. The GitHub connection is still `PENDING` until
+  its one-time GitHub App authorization completes; neither DEV nor PROD proof
+  root has been applied yet.
+
 ## V3 completion (2026-09-13)
 
 - Human MFA -> Operator -> TerraformExecution is verified; root performed one

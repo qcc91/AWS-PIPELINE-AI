@@ -55,6 +55,19 @@ variable "terraform_role_arns" {
     error_message = "terraform_role_arns must contain at least one explicit same-account IAM role ARN."
   }
 }
+
+variable "future_terraform_role_arns" {
+  description = "Exact same-account roles created after bootstrap that may use isolated state keys."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.future_terraform_role_arns : can(regex("^arn:aws:iam::${var.account_id}:role/[A-Za-z0-9+=,.@_-]+$", arn))
+    ])
+    error_message = "future_terraform_role_arns must be explicit same-account role ARNs."
+  }
+}
 variable "kms_admin_role_arns" {
   description = "Explicit same-account non-root administrators for the state key."
   type        = list(string)

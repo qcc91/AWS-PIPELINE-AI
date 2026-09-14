@@ -22,6 +22,11 @@ module "state_backend" {
   allow_account_root_bootstrap_admin = true
   noncurrent_retention_days          = var.noncurrent_retention_days
   create_resources                   = true
+  future_terraform_role_arns = [
+    "arn:aws:iam::${var.account_id}:role/insurance-dev-v4b-proof-dev-role",
+    "arn:aws:iam::${var.account_id}:role/insurance-dev-v4b-proof-prod-plan-role",
+    "arn:aws:iam::${var.account_id}:role/insurance-dev-v4b-proof-prod-apply-role",
+  ]
 }
 
 module "dev_operator" {
