@@ -110,17 +110,6 @@ resource "aws_s3_bucket_policy" "all" {
         Resource  = ["arn:aws:s3:::${each.value}", "arn:aws:s3:::${each.value}/*"]
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
       },
-      {
-        Sid       = "DenyIncorrectExplicitEncryption"
-        Effect    = "Deny"
-        Principal = "*"
-        Action    = "s3:PutObject"
-        Resource  = "arn:aws:s3:::${each.value}/*"
-        Condition = {
-          StringNotEquals = { "s3:x-amz-server-side-encryption" = "AES256" }
-          Null            = { "s3:x-amz-server-side-encryption" = "false" }
-        }
-      },
     ]
   })
 }
