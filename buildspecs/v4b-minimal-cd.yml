@@ -1,6 +1,7 @@
 version: 0.2
 
 env:
+  shell: bash
   exported-variables:
     - PLAN_SHA256
     - PLAN_CREATE_COUNT
