@@ -41,7 +41,9 @@ resource "aws_iam_role_policy" "data_engineer" {
     { Sid = "RunPipelines", Effect = "Allow", Action = ["states:DescribeExecution", "states:DescribeStateMachine", "states:ListExecutions", "states:StartExecution"], Resource = [var.batch_state_machine_arn, var.cdc_state_machine_arn, "${replace(var.batch_state_machine_arn, ":stateMachine:", ":execution:")}:*", "${replace(var.cdc_state_machine_arn, ":stateMachine:", ":execution:")}:*"] },
     { Sid = "EngineeringAthena", Effect = "Allow", Action = ["athena:GetQueryExecution", "athena:GetQueryResults", "athena:StartQueryExecution", "athena:StopQueryExecution"], Resource = "arn:aws:athena:${var.aws_region}:${var.account_id}:workgroup/${var.athena_workgroup_name}" },
     { Sid = "ReadDatabaseSecret", Effect = "Allow", Action = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue"], Resource = var.rds_secret_arn },
-    { Sid = "OperationalVisibility", Effect = "Allow", Action = ["dms:DescribeReplicationTasks", "events:DescribeRule", "events:ListTargetsByRule", "sts:GetCallerIdentity"], Resource = "*" }
+    { Sid = "OperationalVisibility", Effect = "Allow", Action = ["dms:DescribeReplicationTasks", "events:DescribeRule", "events:ListTargetsByRule", "sts:GetCallerIdentity"], Resource = "*" },
+    { Sid = "V5ReadOperationalAlarms", Effect = "Allow", Action = ["cloudwatch:DescribeAlarms", "cloudwatch:DescribeAlarmHistory"], Resource = "arn:aws:cloudwatch:${var.aws_region}:${var.account_id}:alarm:insurance-${var.environment}-*" },
+    { Sid = "V5ReadOperationalMetrics", Effect = "Allow", Action = ["cloudwatch:GetMetricData", "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.aws_region } } }
   ] })
 }
 

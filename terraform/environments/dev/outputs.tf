@@ -117,6 +117,21 @@ output "sns_topic_arn" {
   value       = module.monitoring.sns_topic_arn
 }
 
+output "operational_alarm_arns" {
+  description = "Focused V5 operational CloudWatch alarms."
+  value       = module.monitoring.operational_alarm_arns
+}
+
+output "glue_failure_rule_arn" {
+  description = "V5 EventBridge rule for approved Glue job failures."
+  value       = module.monitoring.glue_failure_rule_arn
+}
+
+output "dms_failure_subscription_name" {
+  description = "V5 DMS task failure event subscription."
+  value       = module.monitoring.dms_failure_subscription_name
+}
+
 output "batch_glue_job_name" {
   description = "V2 Batch Bronze Glue job (legacy V1 name retained for an in-place migration)."
   value       = module.batch_ingestion.glue_job_name

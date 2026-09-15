@@ -3,7 +3,10 @@
 Creates one complete low-volume audit chain: a dedicated customer-managed KMS
 key/alias, private versioned audit bucket, retained encrypted CloudWatch log
 group, CloudTrail delivery role/policy, regional management-event CloudTrail,
-and one encrypted SNS topic. It creates zero subscriptions and zero alarms.
+and one encrypted SNS topic. V5 can optionally add a focused DEV operational
+set: two Step Functions alarms, one CodePipeline alarm, one CodeBuild aggregate
+alarm, one Glue terminal-failure EventBridge route, and one DMS task-failure
+event subscription. It still creates zero SNS subscriptions.
 
 The KMS key has rotation, a 30-day deletion window, and `prevent_destroy`.
 It has no account-root delegation; explicit same-account non-root admins use

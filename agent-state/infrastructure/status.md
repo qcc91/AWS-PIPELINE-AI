@@ -1,5 +1,21 @@
 # Infrastructure Worker Status
 
+## V5 focused monitoring package (2026-09-15)
+
+- Prepared DEV-only operational monitoring that reuses the existing encrypted
+  SNS topic: Batch/CDC Step Functions alarms, CodePipeline/CodeBuild alarms,
+  Glue terminal-failure EventBridge routing, and an exact-task DMS failure
+  subscription. No SNS endpoint, Lambda/poller, PROD expansion or paid service
+  was added.
+- Existing retention already matches the approved direction: logs 30 days,
+  quarantine 90 days, audit 365 days, and V4B artifacts 90 days. No lifecycle
+  capable of deleting accepted current business data was introduced.
+- Bedrock Knowledge Base ingestion has no suitable low-cost native failure
+  metric, so RAG continues to use job-status/CloudTrail/runtime regression
+  evidence rather than new infrastructure.
+- Apply is pending Manager review of the bootstrap and foundation plans. Both
+  must remain zero-destroy and zero-replacement.
+
 ## V4B minimal-cost CD proof (2026-09-14)
 
 - Implemented separate `cicd-control`, `cicd-proof/dev`, and

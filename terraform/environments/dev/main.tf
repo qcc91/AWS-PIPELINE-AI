@@ -126,7 +126,24 @@ module "monitoring" {
   log_retention_days              = var.log_retention_days
   audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
   audit_retention_days            = var.audit_retention_days
-  tags                            = module.common.tags
+  enable_operational_alerting     = true
+  workflow_state_machine_arns = {
+    batch = module.batch_ingestion.state_machine_arn
+    cdc   = module.cdc.cdc_state_machine_arn
+  }
+  glue_job_names = setunion(
+    toset(values(module.batch_ingestion.glue_job_names)),
+    toset(values(module.cdc.cdc_job_names)),
+    toset([module.cdc.seed_job_name]),
+  )
+  dms_replication_task_id = module.cdc.dms_task_id
+  codepipeline_name       = "insurance-dev-v4b-cd"
+  codebuild_project_names = {
+    dev        = "insurance-dev-v4b-deploy-dev"
+    prod_plan  = "insurance-dev-v4b-plan-prod"
+    prod_apply = "insurance-dev-v4b-apply-prod"
+  }
+  tags = module.common.tags
 }
 
 module "bi" {

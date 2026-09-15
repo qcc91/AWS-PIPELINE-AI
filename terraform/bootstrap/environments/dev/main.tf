@@ -1,11 +1,3 @@
-data "aws_kms_alias" "platform" {
-  name = "alias/insurance/dev/platform-data"
-}
-
-data "aws_kms_alias" "audit" {
-  name = "alias/insurance/dev/audit"
-}
-
 data "aws_secretsmanager_secret" "rds" {
   name = "insurance-dev-cdc-postgres"
 }
@@ -44,8 +36,8 @@ module "dev_operator" {
   state_bucket_arn  = "arn:aws:s3:::${module.state_backend.bucket_name}"
   state_kms_key_arn = module.state_backend.kms_key_arn
   platform_kms_key_arns = toset([
-    data.aws_kms_alias.platform.target_key_arn,
-    data.aws_kms_alias.audit.target_key_arn,
+    var.platform_kms_key_arn,
+    var.audit_kms_key_arn,
   ])
   rds_secret_arn = data.aws_secretsmanager_secret.rds.arn
   project_bucket_arns = toset([

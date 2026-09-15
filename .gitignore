@@ -10,6 +10,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .pytest-tmp*/
+.v5-drill/
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
