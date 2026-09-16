@@ -1,7 +1,11 @@
 # Manager Current Phase
 
-- Phase: V4B — Minimal-cost CD proof; AUTHORIZED and in progress.
-- Authorization: V4A full-scope PR CI is accepted at `7ef6eab`; V4B may deploy only the isolated CD control plane and tiny DEV/PROD proof stacks. V5 and the full PROD platform are not authorized.
+- Phase: V5 — Production readiness / operational hardening; IMPLEMENTATION COMPLETE, awaiting Human acceptance.
+- Authorization: V5 monitoring, controlled DEV failure/recovery/replay, reconciliation, security regression and runbooks are approved. Full PROD platform expansion remains out of scope; V5 release tagging requires Human acceptance.
+- V4 acceptance: source `f0a2d59858810dd30a186a47db0e1bc520672b0b`; pipeline `ed6d522f-4e09-4f7b-970e-354db652b48f` succeeded through DEV and Human-approved exact PROD plan apply, with final zero drift. Earlier V4 preparation entries below are historical.
+- V5 local preparation: monitoring Terraform and Batch/CDC drill toolkit prepared; DEV bootstrap/foundation validate passed. AI regression 44 passed; Manager focused infrastructure/security/CD checks 21 passed and data reliability/drill checks 16 passed.
+- V5 runtime status: monitoring and alert routing are deployed; Batch failure, quarantine, corrected recovery and duplicate replay passed. CDC retained-history replay exposed and fixed a Silver type-normalization defect, then succeeded with 10/10 DQ rules. Final Batch is 121/121 unique with zero negative rows; CDC is 3/3 unique with update/delete semantics preserved.
+- V5 controls: all four alarms are OK; Batch and CDC controlled failures both reached ALARM and successfully invoked the existing SNS topic. Security ALLOW/DENY regression passed, integrated tests are 115/115, and bootstrap plus non-root foundation plans both report `No changes`.
 - V1 baseline: accepted tag `v1.0-happy-path` remains at `9d4f625`.
 - Active structured ingestion: Batch/File and PostgreSQL full-load+CDC feed one shared Bronze/Silver/Gold Iceberg Lakehouse.
 - Streaming: RETIRED by Human decision. Code, Terraform, tests, AWS orchestration, docs, and active task state are removed; no replacement is allowed.
@@ -21,6 +25,6 @@
 - V4B design: protected `main` -> CodeConnections -> CodePipeline -> three isolated CodeBuild/proof-role boundaries. DEV auto plan/apply/validate; PROD read-only plan -> Human Approval -> exact binary plan apply.
 - V4B local evidence: seven Terraform roots validate; focused V4B static suite and full repository suite pass (`97 passed`); repository consistency and high-confidence credential scanning pass.
 - V4B AWS status: the bootstrap-managed narrow state/IAM handoff and all 31 isolated control-plane resources are applied with no deletion/replacement. `insurance-dev-v4b-cd` and its three CodeBuild projects exist; connection `06d021e7-aa2e-4dac-8307-cf2451a277bc` is `PENDING` one-time GitHub App authorization. DEV/PROD proof resources remain unapplied.
-- Next: authorize the pending GitHub connection, complete protected PR/CI/merge, run the real main-triggered pipeline through DEV and PROD plan, then stop at PROD Manual Approval.
+- Next: complete protected PR CI bookkeeping and STOP at the V5 Human acceptance checkpoint. Do not tag or begin another version before acceptance.
 
-Last updated: 2026-09-14.
+Last updated: 2026-09-16.

@@ -196,6 +196,12 @@ resource "aws_iam_role_policy" "terraform_execution" {
         Resource = sort([for arn in var.project_bucket_arns : "${arn}/*"])
       },
       {
+        Sid      = "ProjectGlueArtifactDeployment"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = sort([for arn in var.project_bucket_arns : "${arn}/artifacts/glue/*"])
+      },
+      {
         Sid      = "TerraformSecretRefresh"
         Effect   = "Allow"
         Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:ListSecretVersionIds"]
@@ -217,6 +223,75 @@ resource "aws_iam_role_policy" "terraform_execution" {
           "states:DescribeStateMachine", "states:ListStateMachineVersions", "states:ListTagsForResource", "sts:GetCallerIdentity"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "V5OperationalMonitoringRead"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:DescribeAlarms",
+          "dms:DescribeEventSubscriptions",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "V5ManageExactOperationalAlarms"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:DeleteAlarms",
+          "cloudwatch:ListTagsForResource",
+          "cloudwatch:PutMetricAlarm",
+          "cloudwatch:TagResource",
+          "cloudwatch:UntagResource",
+        ]
+        Resource = "arn:aws:cloudwatch:ap-southeast-2:${var.account_id}:alarm:insurance-${var.environment}-*"
+      },
+      {
+        Sid    = "V5ManageExactGlueFailureRule"
+        Effect = "Allow"
+        Action = [
+          "events:DeleteRule",
+          "events:PutRule",
+          "events:PutTargets",
+          "events:RemoveTargets",
+          "events:TagResource",
+          "events:UntagResource",
+        ]
+        Resource = "arn:aws:events:ap-southeast-2:${var.account_id}:rule/insurance-${var.environment}-glue-job-failures"
+      },
+      {
+        Sid      = "V5ManageExactAlertTopicPolicy"
+        Effect   = "Allow"
+        Action   = "sns:SetTopicAttributes"
+        Resource = "arn:aws:sns:ap-southeast-2:${var.account_id}:insurance-${var.environment}-critical-alerts"
+      },
+      {
+        Sid      = "V5CreateTaggedDmsFailureSubscription"
+        Effect   = "Allow"
+        Action   = "dms:CreateEventSubscription"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion"    = "ap-southeast-2"
+            "aws:RequestTag/Project" = "aws-insurance-data-ai"
+          }
+        }
+      },
+      {
+        Sid    = "V5ManageExactDmsFailureSubscription"
+        Effect = "Allow"
+        Action = [
+          "dms:AddTagsToResource",
+          "dms:DeleteEventSubscription",
+          "dms:ModifyEventSubscription",
+          "dms:RemoveTagsFromResource",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion"     = "ap-southeast-2"
+            "aws:ResourceTag/Project" = "aws-insurance-data-ai"
+          }
+        }
       },
     ]
   })

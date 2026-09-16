@@ -40,6 +40,32 @@ variable "account_id" {
   }
 }
 
+variable "platform_kms_key_arn" {
+  description = "Explicit existing DEV platform-data KMS key ARN. Required so the separately managed bootstrap layer does not read application KMS aliases."
+  type        = string
+
+  validation {
+    condition = can(regex(
+      "^arn:aws:kms:${var.aws_region}:${var.account_id}:key/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      var.platform_kms_key_arn,
+    ))
+    error_message = "platform_kms_key_arn must be an explicit same-account DEV KMS key ARN, not an alias."
+  }
+}
+
+variable "audit_kms_key_arn" {
+  description = "Explicit existing DEV audit KMS key ARN. Required so the separately managed bootstrap layer does not read application KMS aliases."
+  type        = string
+
+  validation {
+    condition = can(regex(
+      "^arn:aws:kms:${var.aws_region}:${var.account_id}:key/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+      var.audit_kms_key_arn,
+    ))
+    error_message = "audit_kms_key_arn must be an explicit same-account DEV KMS key ARN, not an alias."
+  }
+}
+
 variable "terraform_role_arns" {
   description = "V3 state-user roles. Empty preserves the temporary root bootstrap until a non-root operator path is approved."
   type        = list(string)

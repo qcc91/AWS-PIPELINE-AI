@@ -1326,7 +1326,20 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V4B — MINIMAL-COST CD PROOF (AUTHORIZED / IN PROGRESS)
+V5 — PRODUCTION READINESS / OPERATIONAL HARDENING (IMPLEMENTATION COMPLETE / AWAITING HUMAN ACCEPTANCE)
+
+DEV monitoring, controlled failure/recovery, Batch duplicate replay, CDC
+retained-history replay, reconciliation, security regression, runbooks and
+final zero-drift validation completed on 2026-09-16. Integrated tests pass
+115/115. Do not create `v5.0-production-ready` or begin another version until
+the Human accepts the consolidated V5 checkpoint.
+
+Human accepted V4 at source `f0a2d59858810dd30a186a47db0e1bc520672b0b`.
+V5 is authorized for focused monitoring, SNS alerting, controlled DEV failure
+injection, recovery/replay, reconciliation, retention review, security/cost
+regression and runbooks. Preserve the minimal PROD scope and protected CI/CD.
+Do not create `v5.0-production-ready` before Human acceptance. Historical phase
+and deployment entries below describe previous work, not V5 completion.
 
 The Human Owner requires this project to remain on the AWS `FREE` account plan.
 Never call `aws freetier upgrade-account-plan`, subscribe to QuickSight or a

@@ -1,4 +1,8 @@
-"""Stage-dispatched V2 DMS CDC reliability pipeline for AWS Glue 5."""
+"""Stage-dispatched DMS CDC pipeline with contract-typed Silver DQ gates.
+
+DMS CSV values remain source-oriented strings in Bronze and are normalized at
+the Silver boundary before the managed data-quality rules execute.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +17,24 @@ from pyspark.sql.types import DecimalType
 
 TABLES = {"customers": "customer_id", "products": "product_id", "policies": "policy_id", "claims": "claim_id", "payments": "payment_id"}
 VALID_OPERATIONS = ["I", "U", "D"]
+
+DECIMAL_COLUMNS = {
+    "policies": ("premium_amount",),
+    "claims": ("claim_amount", "approved_amount"),
+    "payments": ("payment_amount",),
+}
+DATE_COLUMNS = {
+    "products": ("effective_from", "effective_to"),
+    "policies": ("start_date", "end_date"),
+    "claims": ("incident_date",),
+}
+TIMESTAMP_COLUMNS = {
+    "customers": ("created_at", "updated_at"),
+    "products": ("created_at", "updated_at"),
+    "policies": ("created_at", "updated_at"),
+    "claims": ("submitted_at", "updated_at"),
+    "payments": ("payment_timestamp", "created_at", "updated_at"),
+}
 
 
 class DQGateFailure(RuntimeError):
@@ -144,6 +166,21 @@ def _business_validity(table: str):
     return base & ((F.col("_operation") == "D") | business)
 
 
+def _normalize_current(frame, table: str):
+    """Apply the approved Silver contract before Glue DQ evaluates types."""
+    normalized = frame
+    for name in DECIMAL_COLUMNS.get(table, ()):
+        if name in normalized.columns:
+            normalized = normalized.withColumn(name, F.col(name).cast(DecimalType(18, 2)))
+    for name in DATE_COLUMNS.get(table, ()):
+        if name in normalized.columns:
+            normalized = normalized.withColumn(name, F.to_date(F.col(name)))
+    for name in TIMESTAMP_COLUMNS.get(table, ()):
+        if name in normalized.columns:
+            normalized = normalized.withColumn(name, F.to_timestamp(F.col(name)))
+    return normalized
+
+
 def _bronze(spark, args: dict[str, str], warehouse: str) -> dict[str, int]:
     root = f"s3://{args['LANDING_BUCKET']}/{args['CDC_PREFIX'].strip('/')}/public"
     counts = {"input": 0, "output": 0, "rejected": 0, "duplicate": 0}
@@ -186,7 +223,7 @@ def _silver(spark, args: dict[str, str], warehouse: str) -> dict[str, int]:
             raise
         input_count = changes.count()
         current_with_deletes = changes.withColumn("_rank", F.row_number().over(Window.partitionBy(primary_key).orderBy(F.col("_source_order").desc(), F.col("_source_change_id").desc()))).filter(F.col("_rank") == 1).drop("_rank")
-        current = current_with_deletes.filter(F.col("_operation") != "D")
+        current = _normalize_current(current_with_deletes.filter(F.col("_operation") != "D"), table)
         dq_result = _run_glue_dq(current, args, table) if table in DQDL_RULES else None
         output_count = current.count()
         candidates.append((table, current, input_count, output_count, input_count - current_with_deletes.count(), dq_result))

@@ -132,3 +132,72 @@ variable "tags" {
     error_message = "tags must contain the complete non-empty project contract and approved environment/classification values."
   }
 }
+
+variable "enable_operational_alerting" {
+  description = "Enable the focused V5 operational alert set. Kept false for the intentionally minimal PROD design."
+  type        = bool
+  default     = false
+}
+
+variable "workflow_state_machine_arns" {
+  description = "Approved Step Functions state machines keyed by concise pipeline name."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for name, arn in var.workflow_state_machine_arns :
+      contains(["batch", "cdc"], name) && can(regex("^arn:aws:states:ap-southeast-2:${var.account_id}:stateMachine:insurance-${var.environment}-[A-Za-z0-9_-]+$", arn))
+    ])
+    error_message = "workflow_state_machine_arns may contain only approved batch/cdc state machine ARNs in ap-southeast-2."
+  }
+}
+
+variable "glue_job_names" {
+  description = "Exact existing Glue job names whose terminal failures route to SNS."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for name in var.glue_job_names : can(regex("^insurance-${var.environment}-[A-Za-z0-9_-]+$", name))])
+    error_message = "glue_job_names must contain only environment-scoped insurance Glue job names."
+  }
+}
+
+variable "dms_replication_task_id" {
+  description = "Exact existing DMS replication task identifier used for failure events."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.dms_replication_task_id == null || var.dms_replication_task_id == "insurance${var.environment}cdc" || can(regex("^insurance-${var.environment}-[A-Za-z0-9-]+$", var.dms_replication_task_id))
+    error_message = "dms_replication_task_id must be null or the environment-scoped insurance task ID."
+  }
+}
+
+variable "codepipeline_name" {
+  description = "Existing V4 CodePipeline name; null disables the CI/CD pipeline alarm."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.codepipeline_name == null || var.codepipeline_name == "insurance-dev-v4b-cd"
+    error_message = "codepipeline_name may reference only the accepted V4B pipeline."
+  }
+}
+
+variable "codebuild_project_names" {
+  description = "Existing V4B CodeBuild projects keyed by CloudWatch-safe metric query IDs."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for id, name in var.codebuild_project_names :
+      can(regex("^[a-z][a-z0-9_]*$", id)) && can(regex("^insurance-dev-v4b-[A-Za-z0-9-]+$", name))
+    ])
+    error_message = "codebuild_project_names keys must be valid metric IDs and values must be accepted V4B project names."
+  }
+}

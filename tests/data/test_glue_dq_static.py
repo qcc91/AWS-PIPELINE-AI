@@ -30,6 +30,15 @@ def test_cdc_dqdl_covers_only_present_transaction_entities():
     assert CDC.index('# No trusted-layer writes occur until every applicable dataset gate passes.') < CDC.index('write_iceberg(current, args["SILVER_DATABASE"], table')
 
 
+def test_cdc_normalizes_contract_types_before_dq():
+    assert '"policies": ("premium_amount",)' in CDC
+    assert '"claims": ("claim_amount", "approved_amount")' in CDC
+    assert '"payments": ("payment_amount",)' in CDC
+    assert 'cast(DecimalType(18, 2))' in CDC
+    assert '_normalize_current(current_with_deletes.filter' in CDC
+    assert CDC.index('_normalize_current(current_with_deletes.filter') < CDC.index('dq_result = _run_glue_dq(current, args, table)')
+
+
 def test_iam_can_publish_and_read_glue_dq_results_without_scheduling_jobs():
     for module in (ROOT / "terraform/modules/batch-ingestion/main.tf", ROOT / "terraform/modules/cdc/main.tf"):
         text = module.read_text(encoding="utf-8")
