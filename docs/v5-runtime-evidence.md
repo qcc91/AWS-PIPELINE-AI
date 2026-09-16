@@ -1,5 +1,7 @@
 # V5 DEV runtime evidence
 
+> 以下为实施时保留的运行证据。Human 后续已验收，最终标签 v5.0-production-ready 指向 5e0b479fa47130930dd9d4c0b0ad1005244ff335；发布与合并后 CD 结果见[V5 完成报告](v5-completion-review.md)。文内待验收/草稿 PR 状态属于历史快照。
+
 ## Deployment
 
 On 2026-09-15 the separately managed bootstrap layer applied one existing

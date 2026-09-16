@@ -1,5 +1,7 @@
 # AWS 服务决策
 
+> 历史服务选择与目标：V1–V5 已发布。QuickSight 延后、SageMaker Processing/完整 Registry 流程不是本次已验证能力；当前实际范围见[最终架构](../docs/architecture/final-architecture.md)。
+
 ## 1. 决策状态
 
 本文是 Human Owner 于 2026-09-08 批准的 Gate 1 服务边界。所有服务均来自 AGENTS.md 已批准清单；默认区域为 `ap-southeast-2`。具体版本、规格和容量必须在后续 Terraform plan 前验证。

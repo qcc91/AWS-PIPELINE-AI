@@ -1,5 +1,7 @@
 # V4 GitHub Actions CI
 
+> V4A 与 V4B 均已验收，分别负责全仓库离线 CI 与最小 proof CD。当前工作流验证七个 Terraform roots；下文 V4B deferred 和配置步骤保留最初实施背景。最终边界见[CI/CD 与安全图](architecture/cicd-security.md)。
+
 The repository's pull-request gate is `.github/workflows/pull-request-ci.yml`.
 It is intentionally AWS-independent: it has read-only repository permissions,
 does not configure AWS credentials, and cannot run Terraform `plan` or `apply`.

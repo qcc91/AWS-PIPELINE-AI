@@ -1,5 +1,20 @@
 # Manager Current Phase
 
+## Authoritative release status
+
+V1–V5 are accepted and released. V5 annotated tag `v5.0-production-ready`
+points to `5e0b479fa47130930dd9d4c0b0ad1005244ff335`. Post-merge pipeline
+`bbd0ff68-3348-4010-ae2c-afdd008a1740` succeeded after Human approved the
+exact PROD binary plan; only minimal proof metadata changed (0/1/0, no replacement).
+No additional release bookkeeping commit was made at tagging time.
+
+Current package: repository portfolio documentation on `codex/portfolio-cleanup`;
+private retrospective is delivered only to Human, not stored in this repository.
+No AWS changes, implementation changes, tag movement, or next version.
+Stop at PORTFOLIO CLEANUP HUMAN REVIEW CHECKPOINT before PR merge.
+
+## Historical implementation checkpoints
+
 - Phase: V5 — Production readiness / operational hardening; IMPLEMENTATION COMPLETE, awaiting Human acceptance.
 - Authorization: V5 monitoring, controlled DEV failure/recovery/replay, reconciliation, security regression and runbooks are approved. Full PROD platform expansion remains out of scope; V5 release tagging requires Human acceptance.
 - V4 acceptance: source `f0a2d59858810dd30a186a47db0e1bc520672b0b`; pipeline `ed6d522f-4e09-4f7b-970e-354db652b48f` succeeded through DEV and Human-approved exact PROD plan apply, with final zero drift. Earlier V4 preparation entries below are historical.

@@ -1,5 +1,7 @@
 # V3 Security and Governance — Infrastructure Status
 
+> V3 历史库存与实施记录。下述 root/V2 库存描述仅适用于所标日期；真实完成结果见[V3 验收](v3-completion-review.md)，当前交付角色边界见[CI/CD 与安全](architecture/cicd-security.md)。
+
 ## Current V2 security inventory (2026-09-12)
 
 Read-only discovery in `ap-southeast-2` confirmed account `199476069493` is

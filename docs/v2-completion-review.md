@@ -1,5 +1,7 @@
 # V2 Consolidated Completion Review
 
+> 最终 V2 发布含 Glue Data Quality amendment，标签 v2.0-reliable 指向 40855ff589314231c257a0b4441929178eea3b0b。本文较早提交/待打标记叙述属于历史阶段，保留以便追溯。
+
 Date: 2026-09-12
 
 Region: `ap-southeast-2`

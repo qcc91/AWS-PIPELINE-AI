@@ -1,53 +1,15 @@
-# Iterative delivery roadmap
+# V1–V5 已验收路线图
 
-The final V5 architecture and requirements remain unchanged. Delivery uses one
-cumulative codebase and implements only the currently authorized version.
+工程实施已完成，最终发布为 `v5.0-production-ready`。各版本在同一代码库累计演进，详细视觉导航见[演进图](architecture/evolution.md)。
 
-## V1 — End-to-end happy path (accepted and tagged)
+| 版本 | 实际交付 | 发布标签 |
+|---|---|---|
+| V1 | DEV Batch/CDC、三层 Iceberg、Athena、XGBoost batch ML、文档 RAG；QuickSight 延后，Streaming 受账户限制 | v1.0-happy-path |
+| V2 | 分阶段重试、幂等、隔离、对账、重放、自定义 DQ + Glue DQDL；Streaming 退役 | v2.0-reliable |
+| V3 | MFA 与角色链、persona/Lake Formation/PII 控制、KMS/S3/Secrets、CloudTrail、ALLOW/DENY | v3.0-governed |
+| V4 | 全仓库 PR CI、protected main、CodePipeline/CodeBuild、DEV/PROD 最小 proof、精确计划人工审批 | v4.0-cicd |
+| V5 | 四个告警、SNS 发布、受控失败/恢复、Batch/CDC 重放、类型/DQ 修复、安全回归、运行手册 | v5.0-production-ready |
 
-Prove the complete DEV path at small scale: Terraform infrastructure; S3, KMS,
-minimal networking, basic IAM and Glue Catalog; CSV batch through EventBridge,
-Step Functions and Glue; RDS PostgreSQL full load/CDC through DMS; Python events
-with the Kinesis/Firehose branch documented as account-limited; Bronze, Silver and Gold Iceberg; Athena and
-QuickSight; SageMaker XGBoost batch inference; and Bedrock Knowledge Bases with
-S3 Vectors. The demo must use real sample data and cover customer, product,
-policy, claim, payment and event data plus the approved Gold datasets.
+[各版本完成证据](README.md)保留实施历史。V5 的 production-ready 标签表示小规模作品集范围的运维验收，不代表完整 PROD 平台、业务 SLA 或模型业务上线。
 
-V1 proves functionality. It does not require full production hardening.
-
-## V2 — Reliability and data quality (accepted and tagged)
-
-Retire Streaming by Human decision without replacement. Add Bronze/Silver/Gold
-operational boundaries, bounded retries, idempotency, duplicate handling,
-replay safety, DQ gates, quarantine, the standard audit/run envelope,
-reconciliation, failure paths and recovery proof for Batch, CDC, ML, and RAG.
-
-## V3 — Security and governance (authorized)
-
-Complete least-privilege IAM, Lake Formation role and PII controls, approved
-RAG document-only access, KMS refinement, Secrets Manager, S3 and CloudTrail
-controls, and negative access tests.
-
-## V4 — CI/CD and environment automation
-
-Complete separate DEV/PROD remote state and environments, GitHub integration,
-CodePipeline/CodeBuild, PR validation, DEV automation and broader unit, data,
-integration, E2E and security tests. PROD remains Human-approved only.
-
-## V5 — Production readiness
-
-Complete observability and alerting, service and DQ metrics, intentional
-failure/recovery/replay tests, retention/cost/security reviews, runbooks,
-production-readiness documentation and final E2E validation.
-
-## Delivery rule
-
-Implement only the currently authorized version. V3 must not introduce V4
-CI/CD or V5 production-readiness scope. A real non-root human entry identity is
-required before V3 role/Lake Formation changes can be applied and tested; do not
-invent a trust ARN or use root as an AssumeRole source.
-
-Temporary root execution is a Human-approved V1 shortcut for DEV Terraform
-planning and deployment only. No root credential may be stored or printed, and
-no access key may be created. Proper least-privilege IAM separation remains a
-required V3 outcome.
+后续作品集整理仅改进文档展示；不构成新版本授权。任何新的生产部署仍需 Human 对具体计划批准。
