@@ -1326,7 +1326,16 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V5 — PRODUCTION READINESS / OPERATIONAL HARDENING (IMPLEMENTATION COMPLETE / AWAITING HUMAN ACCEPTANCE)
+COMPLETE — V5 ACCEPTED / RELEASED; PORTFOLIO PRESENTATION CLEANUP ONLY
+
+Human accepted V5 and the final post-merge CD validation. Annotated tag
+`v5.0-production-ready` points to
+`5e0b479fa47130930dd9d4c0b0ad1005244ff335`.
+The current authorized package only improves repository presentation and
+produces a private retrospective outside Git. Do not change AWS resources,
+implementation behavior or V1–V5 tags. Stop before merging the portfolio PR.
+The phase/authorization statements below are retained historical context;
+they do not undo acceptance or authorize new deployment work.
 
 DEV monitoring, controlled failure/recovery, Batch duplicate replay, CDC
 retained-history replay, reconciliation, security regression, runbooks and

@@ -1,5 +1,7 @@
 # V4B 最小成本 CD 证明
 
+> V4B 已验收，最终证据保存在 v4.0-cicd annotated tag。后续 V5 合并后执行也成功，见[V5 发布证据](v5-completion-review.md)。下文连接 PENDING 说明是初次配置步骤，不是当前连接状态。
+
 V4B 的 CI 与 CD 范围有意不同：GitHub Actions 继续验证完整仓库，AWS CD 仅部署独立的最小 proof stack，不接管或迁移既有 V1–V3 DEV 数据平台。
 
 ## 数据流与边界

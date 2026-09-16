@@ -1,5 +1,7 @@
 # 总体架构
 
+> 历史设计与约束文档：正文保留早期目标，不是全部已部署清单。V1–V5 均已验收；当前实际架构、最小 PROD 和已知限制以[最终 V5 架构](../docs/architecture/final-architecture.md)及[验收导航](../docs/README.md)为准。
+
 ## 1. 状态与范围
 
 - 状态：V1 已验收并标记 `v1.0-happy-path`；V2 可靠性与数据质量已授权

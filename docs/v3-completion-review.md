@@ -1,5 +1,7 @@
 # V3 Security + Governance Completion Review
 
+> V3 已验收并发布。文末“未创建标签/未开始后续版本”是实施结束时的历史边界，不是当前状态；最终发布列表见[文档导航](README.md)。
+
 Status: ACCEPTED by Human on 2026-09-13. Annotated release tag:
 `v3.0-governed` at `7993a73300c7d1330664bf812f5e2806c148c13e`.
 

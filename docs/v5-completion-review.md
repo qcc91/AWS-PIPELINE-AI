@@ -2,6 +2,33 @@
 
 ## Outcome
 
+**ACCEPTED / RELEASED — v5.0-production-ready.** Human accepted implementation
+`99220f2fc9be9db2223231410f78ec0d8a005cda`, PR #5 CI `35048112093` passed.
+The final accepted main and annotated release tag resolve to
+`5e0b479fa47130930dd9d4c0b0ad1005244ff335`. Sections below retain the
+implementation checkpoint evidence; their pending-acceptance wording is historical.
+
+## Final post-merge release evidence
+
+- PR #5 merged normally. The first CD install failed with exit 141 from
+  `terraform version | grep -q` under pipefail. PR #6 replaced that check with
+  exact JSON-version comparison and added scoped read-only CD diagnostics.
+  Full required PR CI passed before normal merge; protections were not bypassed.
+- GitHub Webhook automatically triggered pipeline
+  `bbd0ff68-3348-4010-ae2c-afdd008a1740` for the final source above.
+- DEV proof plan/apply/validation passed. Human approved PROD plan SHA256
+  `8a56dce2101d04651ecf9b93a4d1cebed157f3285438083067576b50efebea86`.
+- The existing binary plan was applied: 0 created, 1 updated, 0 deleted,
+  0 replaced. Only the minimal PROD proof log group's source/execution metadata
+  changed. Full DEV platform resources were not deployed to PROD.
+- PROD resource verification and final drift check passed (`No changes`);
+  the full pipeline reached `Succeeded`. Four operational alarms were `OK`.
+- Local main matched origin/main; worktree was clean; V1–V4 tags were unchanged.
+  The V5 annotated tag was pushed with acceptance evidence; temporary root
+  login cache was cleared after the separately authorized approval action.
+
+## Implementation checkpoint (historical)
+
 V5 implementation is complete in DEV and ready for Human acceptance. The work
 adds bounded operational monitoring, failure detection, quarantine/recovery,
 Batch and CDC replay, reconciliation, security regression and operator

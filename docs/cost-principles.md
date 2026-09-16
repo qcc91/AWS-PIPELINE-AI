@@ -1,5 +1,7 @@
 # 成本原则与控制框架
 
+> 设计原则，不是全部已实现的自动控制。已批准的最小 CD proof 复用状态桶与 KMS key，但分离 DEV/PROD state keys；这不等于完整多账户环境隔离。QuickSight 未订阅，完整 PROD 未部署，实际历史估算见[V5 验收](v5-completion-review.md)。
+
 ## 1. 目标
 
 用最小架构展示生产质量，而不是为假设规模预付费。所有估算默认采用 `ap-southeast-2`；DEV 变更必须在已批准工作包内，PROD 仍需单独审批。

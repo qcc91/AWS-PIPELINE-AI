@@ -1,5 +1,7 @@
 # Data Engineering Worker Status
 
+> 历史 Worker 状态快照，不作为当前项目状态。后续数据工作见[Data Engineering V5 记录](../data-engineering/status.md)，项目最终发布见[Manager 状态](../manager/current-phase.md)。
+
 ## V3 completion (2026-09-13)
 
 - Lakehouse/control locations and persona grants are deployed.

@@ -1,5 +1,7 @@
 # 数据流与处理语义
 
+> 历史设计语义：正文包括拟议 MERGE、Processing/Registry 和监控目标。当前实际 Batch/CDC 重建、内联 DQDL、独立文档 RAG 见[最终数据流](../docs/architecture/data-flow.md)。QuickSight 与完整 PROD 未部署；Streaming 已退役。
+
 ## 1. 共用运行信封
 
 每次文件、CDC 微批或文档同步都必须携带或关联：
