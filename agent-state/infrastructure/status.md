@@ -16,6 +16,18 @@
 - Apply is pending Manager review of the bootstrap and foundation plans. Both
   must remain zero-destroy and zero-replacement.
 
+## V5 deployment and verification (2026-09-16)
+
+- Monitoring apply completed with 8 additions, one in-place KMS policy update,
+  zero destroys and zero replacements. Four alarms, Glue EventBridge routing
+  and the exact DMS failure subscription are verified.
+- Batch and CDC failure alarms both entered ALARM, successfully invoked the
+  existing encrypted SNS topic and returned to OK.
+- TerraformExecution gained only project `artifacts/glue/*` PutObject and
+  PutObjectTagging for normal application artifact deployment; Human IAM,
+  bootstrap state/KMS and delete boundaries remain excluded.
+- Final bootstrap and non-root foundation plans both report `No changes`.
+
 ## V4B minimal-cost CD proof (2026-09-14)
 
 - Implemented separate `cicd-control`, `cicd-proof/dev`, and

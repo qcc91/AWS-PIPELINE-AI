@@ -196,6 +196,12 @@ resource "aws_iam_role_policy" "terraform_execution" {
         Resource = sort([for arn in var.project_bucket_arns : "${arn}/*"])
       },
       {
+        Sid      = "ProjectGlueArtifactDeployment"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = sort([for arn in var.project_bucket_arns : "${arn}/artifacts/glue/*"])
+      },
+      {
         Sid      = "TerraformSecretRefresh"
         Effect   = "Allow"
         Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:ListSecretVersionIds"]

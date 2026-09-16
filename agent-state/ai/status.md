@@ -15,6 +15,15 @@
 - Architecture is unchanged and no persistent compute or recurring cost was
   introduced.
 
+## V5 final regression (2026-09-16)
+
+- No SageMaker training/transform endpoint or Bedrock ingestion/generation job
+  was started for V5.
+- Real RAGApplication approved retrieval remained ALLOW and direct Lakehouse
+  remained DENY. MLEngineer approved Gold feature query succeeded while general
+  Silver and Secrets access remained DENY.
+- ML/RAG tests are included in the final integrated 115/115 passing suite.
+
 ## V3 completion (2026-09-13)
 
 - MLEngineer is restricted to approved Gold feature/prediction tables; real
@@ -36,4 +45,4 @@
 - Existing managed-service roles remain separate from proposed caller personas: MLEngineer orchestrates only the approved batch workflow; RAGApplication uses only service-mediated Knowledge Base retrieval.
 - No AWS resources or Terraform were changed and no billable workload was run. Live IAM/KMS/S3/Bedrock readback matched the current Terraform state, found no managed-policy attachments or unexpected AI KMS grants, and confirmed root is still the current CLI caller.
 
-Last updated: 2026-09-15.
+Last updated: 2026-09-16.

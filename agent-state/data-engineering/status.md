@@ -2,8 +2,8 @@
 
 ## V5 data operations package
 
-Status: local implementation complete; real AWS drill pending Manager
-integration with the V5 monitoring/SNS package.
+Status: implementation and real AWS drill complete; awaiting Human V5
+acceptance with the consolidated Manager review.
 
 - Added a non-destructive operational drill CLI for controlled Batch failure,
   bad-data isolation, corrected replay, duplicate replay and CDC retained-history
@@ -24,4 +24,15 @@ integration with the V5 monitoring/SNS package.
 - No Terraform, AWS resource, RDS row, DMS task or accepted data was modified by
   this Worker.
 
-Last updated: 2026-09-15.
+## V5 real DEV result (2026-09-16)
+
+- Missing input failure, negative-row quarantine, corrected 121-row recovery
+  and byte-identical duplicate replay all passed with auditable reconciliation.
+- CDC retained-history replay exposed string amounts at the Silver DQ boundary;
+  contract typing was added before DQ. The corrected replay succeeded with
+  10/10 applicable rules and preserved three unique Gold claims plus delete
+  semantics.
+- Final Athena validation passed. No RDS mutation, DMS restart, data deletion or
+  Iceberg snapshot removal was performed.
+
+Last updated: 2026-09-16.
