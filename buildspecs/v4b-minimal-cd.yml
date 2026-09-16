@@ -23,7 +23,7 @@ phases:
         cd /tmp
         grep " ${ZIP}$" terraform_SHA256SUMS | sha256sum --check --status
         unzip -q -o "$ZIP" -d /usr/local/bin
-        terraform version | grep -Eq '^Terraform v1\.16\.1$'
+        test "$(terraform version -json | jq -r .terraform_version)" = "$TERRAFORM_VERSION"
       - aws --version
       - jq --version
   pre_build:

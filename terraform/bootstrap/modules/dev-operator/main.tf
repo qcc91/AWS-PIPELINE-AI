@@ -368,7 +368,7 @@ resource "aws_iam_policy" "terraform_execution_v4b_services" {
       {
         Sid    = "V4BCodeBuildProject"
         Effect = "Allow"
-        Action = ["codebuild:BatchGetProjects", "codebuild:CreateProject", "codebuild:DeleteProject", "codebuild:ListTagsForResource", "codebuild:TagResource", "codebuild:UntagResource", "codebuild:UpdateProject"]
+        Action = ["codebuild:BatchGetBuilds", "codebuild:BatchGetProjects", "codebuild:CreateProject", "codebuild:DeleteProject", "codebuild:ListTagsForResource", "codebuild:TagResource", "codebuild:UntagResource", "codebuild:UpdateProject"]
         Resource = [
           "arn:aws:codebuild:ap-southeast-2:${var.account_id}:project/insurance-${var.environment}-v4b-deploy-dev",
           "arn:aws:codebuild:ap-southeast-2:${var.account_id}:project/insurance-${var.environment}-v4b-plan-prod",
@@ -378,7 +378,7 @@ resource "aws_iam_policy" "terraform_execution_v4b_services" {
       {
         Sid    = "V4BCodePipeline"
         Effect = "Allow"
-        Action = ["codepipeline:CreatePipeline", "codepipeline:DeletePipeline", "codepipeline:GetPipeline", "codepipeline:GetPipelineState", "codepipeline:ListPipelineExecutions", "codepipeline:ListTagsForResource", "codepipeline:TagResource", "codepipeline:UntagResource", "codepipeline:UpdatePipeline"]
+        Action = ["codepipeline:CreatePipeline", "codepipeline:DeletePipeline", "codepipeline:GetPipeline", "codepipeline:GetPipelineExecution", "codepipeline:GetPipelineState", "codepipeline:ListActionExecutions", "codepipeline:ListPipelineExecutions", "codepipeline:ListTagsForResource", "codepipeline:TagResource", "codepipeline:UntagResource", "codepipeline:UpdatePipeline"]
         Resource = [
           "arn:aws:codepipeline:ap-southeast-2:${var.account_id}:insurance-${var.environment}-v4b-cd",
           "arn:aws:codepipeline:ap-southeast-2:${var.account_id}:insurance-${var.environment}-v4b-cd/*",
@@ -393,7 +393,7 @@ resource "aws_iam_policy" "terraform_execution_v4b_services" {
       {
         Sid    = "V4BCodeBuildLogGroups"
         Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:ListTagsForResource", "logs:PutRetentionPolicy", "logs:TagResource", "logs:UntagResource"]
+        Action = ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:DescribeLogStreams", "logs:FilterLogEvents", "logs:GetLogEvents", "logs:ListTagsForResource", "logs:PutRetentionPolicy", "logs:TagResource", "logs:UntagResource"]
         Resource = [
           "arn:aws:logs:ap-southeast-2:${var.account_id}:log-group:/aws/codebuild/insurance-${var.environment}-v4b-deploy-dev*",
           "arn:aws:logs:ap-southeast-2:${var.account_id}:log-group:/aws/codebuild/insurance-${var.environment}-v4b-plan-prod*",
