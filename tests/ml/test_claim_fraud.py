@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from jobs.ml_claim_fraud_pipeline import JobExecutionError, bounded_call, build_training_request, build_transform_request, evaluate_auc, evaluate_predictions, run_pipeline, submit_batch_transform, wait_for_training, wait_for_transform
-from src.ml.claim_fraud import claim_features, deterministic_dataset, format_claim_risk, to_xgboost_csv
+from workloads.ml.ml_claim_fraud_pipeline import JobExecutionError, bounded_call, build_training_request, build_transform_request, evaluate_auc, evaluate_predictions, run_pipeline, submit_batch_transform, wait_for_training, wait_for_transform
+from workloads.ml.claim_fraud import claim_features, deterministic_dataset, format_claim_risk, to_xgboost_csv
 
 
 def _row():
@@ -83,7 +83,7 @@ def test_bounded_retry_retries_only_transient_aws_errors(monkeypatch):
             raise Transient()
         return "ok"
 
-    monkeypatch.setattr("jobs.ml_claim_fraud_pipeline.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("workloads.ml.ml_claim_fraud_pipeline.time.sleep", lambda _seconds: None)
     assert bounded_call(operation, max_attempts=3) == "ok"
     assert len(calls) == 3
 
@@ -103,7 +103,7 @@ def test_pipeline_records_training_failure_with_dataset_and_model_run(tmp_path, 
         kms_key_id="key", poll_seconds=0, dataset_version="claim-risk-v2-abc",
         retain_model=False, audit_output=tmp_path / "audit.json",
     )
-    monkeypatch.setattr("jobs.ml_claim_fraud_pipeline.resolve_xgboost_image_uri", lambda **_kwargs: "image")
+    monkeypatch.setattr("workloads.ml.ml_claim_fraud_pipeline.resolve_xgboost_image_uri", lambda **_kwargs: "image")
     with pytest.raises(JobExecutionError):
         run_pipeline(client=Client(), glue_client=None, s3_client=None, args=args)
     events = json.loads(args.audit_output.read_text(encoding="utf-8"))

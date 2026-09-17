@@ -2,20 +2,20 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MONITORING = (ROOT / "terraform/modules/monitoring/main.tf").read_text(encoding="utf-8")
-MONITORING_VARS = (ROOT / "terraform/modules/monitoring/variables.tf").read_text(
+MONITORING = (ROOT / "infrastructure/terraform/modules/monitoring/main.tf").read_text(encoding="utf-8")
+MONITORING_VARS = (ROOT / "infrastructure/terraform/modules/monitoring/variables.tf").read_text(
     encoding="utf-8"
 )
-DEV = (ROOT / "terraform/environments/dev/main.tf").read_text(encoding="utf-8")
-PROD = (ROOT / "terraform/environments/prod/main.tf").read_text(encoding="utf-8")
-BOOTSTRAP = (ROOT / "terraform/bootstrap/modules/dev-operator/main.tf").read_text(
+DEV = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(encoding="utf-8")
+PROD = (ROOT / "infrastructure/terraform/environments/prod/main.tf").read_text(encoding="utf-8")
+BOOTSTRAP = (ROOT / "infrastructure/terraform/bootstrap/modules/dev-operator/main.tf").read_text(
     encoding="utf-8"
 )
-BOOTSTRAP_DEV = (ROOT / "terraform/bootstrap/environments/dev/main.tf").read_text(
+BOOTSTRAP_DEV = (ROOT / "infrastructure/terraform/bootstrap/environments/dev/main.tf").read_text(
     encoding="utf-8"
 )
 BOOTSTRAP_DEV_VARS = (
-    ROOT / "terraform/bootstrap/environments/dev/variables.tf"
+    ROOT / "infrastructure/terraform/bootstrap/environments/dev/variables.tf"
 ).read_text(encoding="utf-8")
 
 
@@ -97,8 +97,8 @@ def test_v5_terraform_permissions_do_not_grant_data_or_identity_access():
 
 
 def test_existing_retention_contract_is_preserved():
-    s3_module = (ROOT / "terraform/modules/s3/main.tf").read_text(encoding="utf-8")
-    control = (ROOT / "terraform/cicd-control/main.tf").read_text(encoding="utf-8")
+    s3_module = (ROOT / "infrastructure/terraform/modules/s3/main.tf").read_text(encoding="utf-8")
+    control = (ROOT / "infrastructure/terraform/cicd-control/main.tf").read_text(encoding="utf-8")
     assert 'current_retention_days    = each.key == "quarantine" ? 90 : null' in DEV
     assert "days = var.audit_retention_days" in MONITORING
     assert "days = 90" in control

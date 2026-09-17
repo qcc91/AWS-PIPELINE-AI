@@ -2,11 +2,11 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SECURITY = (ROOT / "terraform/modules/security-governance/main.tf").read_text(encoding="utf-8")
-DEV = (ROOT / "terraform/environments/dev/main.tf").read_text(encoding="utf-8")
-LF = (ROOT / "terraform/modules/lakeformation/main.tf").read_text(encoding="utf-8")
-BOOTSTRAP = (ROOT / "terraform/bootstrap/modules/dev-operator/main.tf").read_text(encoding="utf-8")
-STATE_BACKEND = (ROOT / "terraform/bootstrap/modules/state-backend/main.tf").read_text(encoding="utf-8")
+SECURITY = (ROOT / "infrastructure/terraform/modules/security-governance/main.tf").read_text(encoding="utf-8")
+DEV = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(encoding="utf-8")
+LF = (ROOT / "infrastructure/terraform/modules/lakeformation/main.tf").read_text(encoding="utf-8")
+BOOTSTRAP = (ROOT / "infrastructure/terraform/bootstrap/modules/dev-operator/main.tf").read_text(encoding="utf-8")
+STATE_BACKEND = (ROOT / "infrastructure/terraform/bootstrap/modules/state-backend/main.tf").read_text(encoding="utf-8")
 
 
 def test_operator_and_terraform_roles_are_bootstrap_owned():

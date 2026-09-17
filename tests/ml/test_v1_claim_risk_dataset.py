@@ -15,7 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from scripts.generate_file_sources import generate
+from pipelines.ingestion.batch.generate_file_sources import generate
 
 
 def _read(path: Path) -> list[dict[str, str]]:
@@ -106,7 +106,7 @@ def test_reference_snapshots_are_available_before_every_prediction(tmp_path):
 
 
 def test_future_outcomes_are_label_only_not_candidate_features():
-    glue_job = (ROOT / "jobs" / "glue_claim_pipeline.py").read_text(encoding="utf-8")
+    glue_job = (ROOT / "pipelines/ingestion/batch/glue_claim_pipeline.py").read_text(encoding="utf-8")
     feature_block = glue_job.split("features = enriched.select(", 1)[1].split(
         ")\n    _write_iceberg(features", 1
     )[0]

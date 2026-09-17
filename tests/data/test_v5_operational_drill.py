@@ -7,7 +7,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("v5_operational_drill", ROOT / "scripts/v5/operational_drill.py")
+SPEC = importlib.util.spec_from_file_location("v5_operational_drill", ROOT / "pipelines/quality/operational_drill.py")
 drill = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
 SPEC.loader.exec_module(drill)
@@ -106,7 +106,7 @@ def test_batch_audit_reconciliation_contract():
 
 
 def test_cdc_replay_regression_uses_change_log_current_state_semantics():
-    from src.cdc.transform import process_cdc_changes
+    from pipelines.ingestion.cdc.transform import process_cdc_changes
 
     instant = datetime(2026, 9, 15, tzinfo=timezone.utc)
     change = {"claim_id": "v5-cdc-1", "_operation": "I", "_source_order": instant}

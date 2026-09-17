@@ -44,23 +44,23 @@ jobs:
           terraform_wrapper: false
 
       - name: Check repository consistency and credentials
-        run: python scripts/ci/check_repository_consistency.py
+        run: python infrastructure/cicd/check_repository_consistency.py
 
       - name: Check Terraform formatting
-        run: terraform fmt -check -recursive terraform
+        run: terraform fmt -check -recursive infrastructure/terraform
 
       - name: Initialize Terraform providers without a backend
         shell: bash
         run: |
           set -euo pipefail
           for root in \
-            terraform/bootstrap/environments/dev \
-            terraform/bootstrap/environments/prod \
-            terraform/environments/dev \
-            terraform/environments/prod \
-            terraform/cicd-control \
-            terraform/cicd-proof/dev \
-            terraform/cicd-proof/prod; do
+            infrastructure/terraform/bootstrap/environments/dev \
+            infrastructure/terraform/bootstrap/environments/prod \
+            infrastructure/terraform/environments/dev \
+            infrastructure/terraform/environments/prod \
+            infrastructure/terraform/cicd-control \
+            infrastructure/terraform/cicd-proof/dev \
+            infrastructure/terraform/cicd-proof/prod; do
             terraform -chdir="$root" init -backend=false -input=false -no-color
           done
 
@@ -69,13 +69,13 @@ jobs:
         run: |
           set -euo pipefail
           for root in \
-            terraform/bootstrap/environments/dev \
-            terraform/bootstrap/environments/prod \
-            terraform/environments/dev \
-            terraform/environments/prod \
-            terraform/cicd-control \
-            terraform/cicd-proof/dev \
-            terraform/cicd-proof/prod; do
+            infrastructure/terraform/bootstrap/environments/dev \
+            infrastructure/terraform/bootstrap/environments/prod \
+            infrastructure/terraform/environments/dev \
+            infrastructure/terraform/environments/prod \
+            infrastructure/terraform/cicd-control \
+            infrastructure/terraform/cicd-proof/dev \
+            infrastructure/terraform/cicd-proof/prod; do
             terraform -chdir="$root" validate -no-color
           done
 

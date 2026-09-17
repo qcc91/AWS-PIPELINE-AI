@@ -15,7 +15,7 @@ assert_ere() {
 }
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-terraform_root="$repo/terraform"
+terraform_root="$repo/infrastructure/terraform"
 bootstrap_root="$terraform_root/bootstrap"
 roots=(
   "foundation/dev:$terraform_root/environments/dev"
@@ -577,7 +577,7 @@ for plan_rule in 'only create is allowed' 'PROD must have zero resource changes'
 done
 
 secret_pattern='aws_access_key_id|aws_secret_access_key|password[[:space:]]*=[[:space:]]*"|secret[[:space:]]*=[[:space:]]*"|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
-mapfile -d '' -t scan_files < <(find "$terraform_root" "$repo/buildspecs" "$repo/tests/infrastructure" -type f \( -name '*.tf*' -o -name '*.hcl*' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.ps1' -o -name '*.sh' \) ! -name 'validate.ps1' ! -name 'validate.sh' -not -path '*/.terraform/*' -print0)
+mapfile -d '' -t scan_files < <(find "$terraform_root" "$repo/buildspecs" "$repo/infrastructure/cicd/buildspecs" "$repo/tests/infrastructure" -type f \( -name '*.tf*' -o -name '*.hcl*' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.ps1' -o -name '*.sh' \) ! -name 'validate.ps1' ! -name 'validate.sh' -not -path '*/.terraform/*' -print0)
 if ((${#scan_files[@]} > 0)) && grep -Eiq "$secret_pattern" "${scan_files[@]}"; then
   fail "possible credential material detected"
 fi

@@ -3,11 +3,11 @@ import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE = (ROOT / "terraform/modules/cdc/main.tf").read_text(encoding="utf-8")
-JOB = (ROOT / "jobs/glue_cdc_pipeline.py").read_text(encoding="utf-8")
-SEED = (ROOT / "jobs/glue_cdc_sql_bootstrap.py").read_text(encoding="utf-8")
-SCHEMA = (ROOT / "sql/cdc/001_schema.sql").read_text(encoding="utf-8")
-MUTATIONS = (ROOT / "sql/cdc/003_mutations.sql").read_text(encoding="utf-8")
+MODULE = (ROOT / "infrastructure/terraform/modules/cdc/main.tf").read_text(encoding="utf-8")
+JOB = (ROOT / "pipelines/ingestion/cdc/glue_cdc_pipeline.py").read_text(encoding="utf-8")
+SEED = (ROOT / "pipelines/ingestion/cdc/glue_cdc_sql_bootstrap.py").read_text(encoding="utf-8")
+SCHEMA = (ROOT / "pipelines/ingestion/cdc/sql/001_schema.sql").read_text(encoding="utf-8")
+MUTATIONS = (ROOT / "pipelines/ingestion/cdc/sql/003_mutations.sql").read_text(encoding="utf-8")
 
 
 def test_dms_postgres_full_load_cdc_and_s3_mapping():

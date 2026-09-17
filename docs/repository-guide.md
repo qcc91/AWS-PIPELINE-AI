@@ -1,38 +1,61 @@
-# 仓库审计与阅读指南
+# 仓库结构与阅读指南
 
-本次作品集整理以已验收提交 `5e0b479fa47130930dd9d4c0b0ad1005244ff335` 为基线，先审计 Git 跟踪目录、版本历史与 V1–V5 标签，再编辑展示文档。审计基线共 259 个跟踪文件；不以本机缓存作为发布内容。
+本次结构重构以已验收的 V5 平台为基础，只改变文件组织和路径引用，不改变业务
+逻辑、Terraform 资源、AWS 架构、安全模型或 CI/CD 行为。V1–V5 annotated tags
+继续指向原有提交，历史运行 ID、查询 ID、执行 ID 和验收证据全部保留。
 
-## 分类与处理
+## 当前职责目录
 
-| 分类 | 位置 / 发现 | 处理 |
+| 责任 | 当前目录 | 内容 |
 |---|---|---|
-| A 核心实现 | terraform、jobs、src、sql、scripts、buildspecs、.github | 保持路径和执行行为 |
-| B 架构/文档 | architecture、docs、README、模块 README | 补充当前图、导航、历史提示 |
-| C 测试 | tests、data/sample、data/file_sources | 保留全部测试和合成 fixture |
-| D Agent/状态 | AGENTS、agent-state | 当前 Manager 状态更新，历史记录保留 |
-| E 临时/调试 | 未发现被跟踪的 state、plan、缓存或调试产物 | 无需删除；现有 ignore 保留 |
-| F 过时说明 | “V2 已授权”“V5 待验收”等阶段表述 | 历史文档加提示，当前入口标明 V5 已发布 |
-| G 重复材料 | 独立 Terraform roots 的版本与 lock 文件 | 环境隔离所需，不去重 |
-| H 易混淆命名 | claim_fraud、两个 data Worker 状态目录 | 用说明区分，不批量重命名 |
-| I 历史证据 | ADR、验收报告、运行/查询 ID、V1–V5 标签 | 全部保留，不改发布标签 |
+| 数据平台 | `pipelines/` | Batch/CDC ingestion、阶段转换与质量/重放工具 |
+| 业务与 AI | `workloads/` | BI SQL、ML、RAG 与批准的知识源文档 |
+| 平台工程 | `infrastructure/` | Terraform、CodeBuild buildspec 与一致性检查 |
+| 测试 | `tests/` | 单元、静态、数据质量与集成契约测试 |
+| 文档 | `docs/` | 当前架构、运维、安全、发布证据与历史设计 |
+| Agent 工程 | `agents/` | Canonical `AGENTS.md` 与持久状态 |
 
-没有删除或移动文件，没有实现代码、测试、Terraform、CI/CD 配置变更。
+GitHub 的运行约束要求 active workflow 继续位于 `.github/workflows/`；它在逻辑上
+仍属于 Infrastructure/CI-CD。根目录 `AGENTS.md` 只是兼容入口，唯一 canonical
+规则位于 `agents/AGENTS.md`。
 
-## 阅读顺序
+## 旧路径到新路径
 
-1. [README](../README.md)与[四张当前图](README.md)了解范围。
-2. [数据可靠性](v2-data-reliability.md)了解阶段、幂等、隔离和 CDC 语义。
-3. [V3 验收](v3-completion-review.md)了解真实授权结果。
-4. [CI](v4-github-ci.md)与[CD](v4b-minimal-cd.md)了解不同部署边界。
-5. [运行手册](runbooks/)与[V5 验收](v5-completion-review.md)了解恢复、告警与限制。
+| 旧位置 | 新位置 |
+|---|---|
+| `src/batch/`、Batch Glue/job/script | `pipelines/ingestion/batch/` |
+| `src/cdc/`、CDC Glue/SQL | `pipelines/ingestion/cdc/` |
+| `src/reliability/`、V5 drill | `pipelines/quality/` |
+| BI SQL/设计 | `workloads/bi/` |
+| `src/ml/` 与 ML job/script | `workloads/ml/` |
+| `src/rag/`、`documents/rag/approved/` | `workloads/rag/` |
+| `terraform/` | `infrastructure/terraform/` |
+| `buildspecs/`、CI consistency script | `infrastructure/cicd/` |
+| `architecture/`、散落的 `docs/` | `docs/architecture/` 及其他职责子目录 |
+| `agent-state/` | `agents/state/` |
+| 根 `AGENTS.md` | `agents/AGENTS.md`（根保留兼容入口） |
+
+## 推荐阅读顺序
+
+1. [README](../README.md)与[四张当前图](architecture/)了解范围。
+2. [数据可靠性](releases/v2/v2-data-reliability.md)了解阶段、幂等、隔离与 CDC 语义。
+3. [V3 验收](releases/v3/v3-completion-review.md)了解真实授权结果。
+4. [CI](releases/v4/v4-github-ci.md)与[CD](releases/v4/v4b-minimal-cd.md)了解部署边界。
+5. [运行手册](operations/runbooks/)与[V5 验收](releases/v5/v5-completion-review.md)了解恢复、告警与限制。
 
 ## 容易误读的历史材料
 
-- `src/ml/claim_fraud.py` 和四行 fraud fixtures 是早期 smoke 契约，包含预测后字段，不是正式模型的特征定义。最终风险模型使用 `src/ml/claim_risk.py`，训练入口的历史文件名仍含 fraud；不要据文件名推断用例。
+- `workloads/ml/claim_fraud.py` 和四行 fraud fixtures 是早期 smoke 契约，包含预测后字段，不是正式模型的特征定义。最终风险模型使用 `workloads/ml/claim_risk.py`；不要据历史文件名推断最终用例。
 - Model package group 的 Terraform 定义不代表已验证完整模型版本注册/审批流程；实际证据为模型 artifact、评估、批量输出和 lineage。
-- `architecture/data-model.md` 的完整逻辑实体覆盖面大于实际 PostgreSQL 五张表与已实施文件参考集。
-- `agent-state/data/status.md` 保留较早工作包快照，`agent-state/data-engineering/status.md` 记录后续 V5 工作；二者不是两套数据平台。
-- `data/sample/` 与 `data/file_sources/` 是不同版本和用途的受控合成数据，不是可随意删除的生成垃圾。
-- `terraform/environments/prod/` 是完整平台设计；已部署的最小 PROD 位于 `terraform/cicd-proof/prod/`。
-- CDC 从保留 DMS 历史重建当前态，不能描述为已完成规模化增量 watermark 系统或跨表原子事务。
-- 安全、成本与初始架构文档可能包含尚未实施的目标；当前声明以最终图与真实验收结果为准。
+- `docs/architecture/data-model.md` 的逻辑实体覆盖面大于实际 PostgreSQL 五张表与已实施文件参考集。
+- `agents/state/data/status.md` 是早期工作包快照，`agents/state/data-engineering/status.md` 记录后续 V5 工作；二者不是两套数据平台。
+- `data/sample/` 与 `data/file_sources/` 是不同版本和用途的受控合成 fixture，不是可删除的生成垃圾。
+- `infrastructure/terraform/environments/prod/` 是完整平台设计；已部署的最小 PROD proof 位于 `infrastructure/terraform/cicd-proof/prod/`。
+- CDC 从保留 DMS 历史重建当前态，不能描述为规模化增量 watermark 系统或跨表原子事务。
+- 安全、成本与初始架构文档可能包含未实施目标；当前声明以最终图和真实验收结果为准。
+
+## 历史证据策略
+
+`docs/releases/` 保存各版本验收与真实运行证据，`docs/historical/` 保存早期设计和
+计划。结构重构不会重写其中的运行结果、时间线或标识符；仅修正仍需点击或执行的
+仓库路径。历史正文中明确属于当时目录契约的路径可以保留，并按历史上下文阅读。

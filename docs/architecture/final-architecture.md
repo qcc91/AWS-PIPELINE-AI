@@ -74,4 +74,4 @@ Delivery 子图仅表示独立 proof stack 的发布顺序；它不连接或部�
 
 成本边界：AWS FREE 计划保持不变；QuickSight 未订阅；无持久 SageMaker endpoint、OpenSearch 或替代流式系统。Streaming 自 V2 起退役，不是等待启用的活动组件。既有 DMS 任务失败状态与保留历史重放证明需分开理解；SNS 已验证服务投递，但未配置人工订阅。
 
-交付控制面见 [CI/CD 与安全边界](cicd-security.md)，处理语义见 [数据流](data-flow.md)。实现及验证依据：[V5 完成评审](../v5-completion-review.md)、[运行证据](../v5-runtime-evidence.md)、[ML 结果](../v1-ml-result.md)、[RAG](../v1-rag.md)。历史评审中“等待验收”的文字记录其当时状态，最终版本以验收标签为准。
+交付控制面见 [CI/CD 与安全边界](cicd-security.md)，处理语义见 [数据流](data-flow.md)。实现及验证依据：[V5 完成评审](../releases/v5/v5-completion-review.md)、[运行证据](../releases/v5/v5-runtime-evidence.md)、[ML 结果](../releases/v1/v1-ml-result.md)、[RAG](../releases/v1/v1-rag.md)。历史评审中“等待验收”的文字记录其当时状态，最终版本以验收标签为准。

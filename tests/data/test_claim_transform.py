@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from src.batch.claim_transform import (
+from pipelines.ingestion.batch.claim_transform import (
     REQUIRED_COLUMNS,
     build_claim_daily_summary,
     deduplicate_claims,

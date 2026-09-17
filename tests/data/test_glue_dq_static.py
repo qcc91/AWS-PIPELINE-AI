@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-BATCH = (ROOT / "jobs" / "glue_claim_pipeline.py").read_text(encoding="utf-8")
-CDC = (ROOT / "jobs" / "glue_cdc_pipeline.py").read_text(encoding="utf-8")
+BATCH = (ROOT / "pipelines/ingestion/batch/glue_claim_pipeline.py").read_text(encoding="utf-8")
+CDC = (ROOT / "pipelines/ingestion/cdc/glue_cdc_pipeline.py").read_text(encoding="utf-8")
 
 
 def test_batch_claim_dqdl_is_small_and_runs_before_silver_write():
@@ -40,7 +40,10 @@ def test_cdc_normalizes_contract_types_before_dq():
 
 
 def test_iam_can_publish_and_read_glue_dq_results_without_scheduling_jobs():
-    for module in (ROOT / "terraform/modules/batch-ingestion/main.tf", ROOT / "terraform/modules/cdc/main.tf"):
+    for module in (
+        ROOT / "infrastructure/terraform/modules/batch-ingestion/main.tf",
+        ROOT / "infrastructure/terraform/modules/cdc/main.tf",
+    ):
         text = module.read_text(encoding="utf-8")
         assert 'glue:PublishDataQuality' in text
         assert 'glue:GetDataQualityResult' in text

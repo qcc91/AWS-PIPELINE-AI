@@ -3,14 +3,14 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEV = (ROOT / "terraform/environments/dev/main.tf").read_text(encoding="utf-8")
-BATCH = (ROOT / "terraform/modules/batch-ingestion/main.tf").read_text(encoding="utf-8")
-CDC = (ROOT / "terraform/modules/cdc/main.tf").read_text(encoding="utf-8")
+DEV = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(encoding="utf-8")
+BATCH = (ROOT / "infrastructure/terraform/modules/batch-ingestion/main.tf").read_text(encoding="utf-8")
+CDC = (ROOT / "infrastructure/terraform/modules/cdc/main.tf").read_text(encoding="utf-8")
 
 
 def test_streaming_is_retired_from_active_terraform():
     assert 'module "streaming"' not in DEV
-    assert not list((ROOT / "terraform/modules/streaming").glob("*.tf"))
+    assert not list((ROOT / "infrastructure/terraform/modules/streaming").glob("*.tf"))
     for token in ("aws_kinesis_stream", "aws_kinesis_firehose_delivery_stream"):
         assert token not in DEV
 
