@@ -2,9 +2,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEV = (ROOT / "terraform/environments/dev/main.tf").read_text(encoding="utf-8")
-KMS = (ROOT / "terraform/modules/kms/main.tf").read_text(encoding="utf-8")
-CDC = (ROOT / "terraform/modules/cdc/main.tf").read_text(encoding="utf-8")
+DEV = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(encoding="utf-8")
+KMS = (ROOT / "infrastructure/terraform/modules/kms/main.tf").read_text(encoding="utf-8")
+CDC = (ROOT / "infrastructure/terraform/modules/cdc/main.tf").read_text(encoding="utf-8")
 
 
 def test_s3_vectors_kms_policy_is_scoped_to_the_real_bucket():

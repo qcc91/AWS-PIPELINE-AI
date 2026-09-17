@@ -44,13 +44,13 @@ main 合并经 CodeConnections 自动触发 CodePipeline/CodeBuild。CD 仅操�
 
 | 领域 | 已实现与验证 | 代码 / 证据 |
 |---|---|---|
-| Batch / CDC | 三层 Iceberg、I/U/D、重复处理、阶段审计 | [Glue jobs](jobs/)、[转换逻辑](src/)、[数据可靠性](docs/v2-data-reliability.md) |
-| 数据质量 | 行级隔离 + 内联 Glue DQDL，真实 FAIL/PASS | [DQ 测试](tests/data/test_glue_dq_static.py)、[V2 验收](docs/v2-completion-review.md) |
-| 治理 | Analyst/ML/RAG 边界，真实 ALLOW/DENY | [治理模块](terraform/modules/security-governance/)、[V3 验收](docs/v3-completion-review.md) |
-| BI | Athena 查询与 Gold 指标；QuickSight 延后 | [BI SQL](sql/bi/)、[BI 说明](docs/v1-bi.md) |
-| ML | 120 条、54 维时点特征，Training → Batch Transform → Gold | [当前特征代码](src/ml/claim_risk.py)、[真实指标与限制](docs/v1-ml-result.md) |
-| RAG | 两份文档、Titan V2、Nova Micro 回答及 S3 引用 | [RAG 实现](src/rag/)、[真实运行](docs/v1-rag.md) |
-| 运维 | 四个告警、Glue/EventBridge/SNS、DMS 失败订阅、恢复重放 | [运行手册](docs/runbooks/)、[V5 证据](docs/v5-runtime-evidence.md) |
+| Batch / CDC | 三层 Iceberg、I/U/D、重复处理、阶段审计 | [Batch](pipelines/ingestion/batch/) / [CDC](pipelines/ingestion/cdc/)、[数据可靠性](docs/releases/v2/v2-data-reliability.md) |
+| 数据质量 | 行级隔离 + 内联 Glue DQDL，真实 FAIL/PASS | [质量控制](pipelines/quality/)、[V2 验收](docs/releases/v2/v2-completion-review.md) |
+| 治理 | Analyst/ML/RAG 边界，真实 ALLOW/DENY | [治理模块](infrastructure/terraform/modules/security-governance/)、[V3 验收](docs/releases/v3/v3-completion-review.md) |
+| BI | Athena 查询与 Gold 指标；QuickSight 延后 | [BI workload](workloads/bi/)、[BI 说明](docs/releases/v1/v1-bi.md) |
+| ML | 120 条、54 维时点特征，Training → Batch Transform → Gold | [当前特征代码](workloads/ml/claim_risk.py)、[真实指标与限制](docs/releases/v1/v1-ml-result.md) |
+| RAG | 两份文档、Titan V2、Nova Micro 回答及 S3 引用 | [RAG workload](workloads/rag/)、[真实运行](docs/releases/v1/v1-rag.md) |
+| 运维 | 四个告警、Glue/EventBridge/SNS、DMS 失败订阅、恢复重放 | [运行手册](docs/operations/runbooks/)、[V5 证据](docs/releases/v5/v5-runtime-evidence.md) |
 
 V5 验收包含 **115/115 自动化测试**、Batch 重放后 **121/121 唯一理赔**、CDC **10/10 DQ 规则**及 **3/3 唯一 Gold 理赔**。这些是已记录的验收结果，不是实时健康度或生产规模性能承诺。
 
@@ -58,22 +58,22 @@ V5 验收包含 **115/115 自动化测试**、Batch 重放后 **121/121 唯一�
 
 Human 定义业务范围、架构、成本与安全约束；Manager AI Agent 拆分工作包、冻结接口并整合审查；Infrastructure、Data Engineering、AI Engineering Workers 完成实现、测试和常规调试。稳定的契约允许下游工作并行推进。
 
-重大架构、安全、成本、破坏性操作与 PROD 变更由 Human 决策。关键功能有真实 AWS 运行证据后才验收。AI 参与实现和排错，Human 保留范围控制与最终接受权。[工程规则](AGENTS.md) · [验收导航](docs/README.md)
+重大架构、安全、成本、破坏性操作与 PROD 变更由 Human 决策。关键功能有真实 AWS 运行证据后才验收。AI 参与实现和排错，Human 保留范围控制与最终接受权。[工程规则](agents/AGENTS.md) · [验收导航](docs/README.md)
 
 ## Repository Structure
 
 | 目录 | 用途 |
 |---|---|
-| [terraform/](terraform/) | bootstrap、完整 DEV、服务模块；cicd-control 与 cicd-proof 是独立 CD 范围 |
-| [jobs/](jobs/) / [src/](src/) | Glue/SageMaker 入口及可测试的转换、ML、RAG 逻辑 |
-| [sql/](sql/) / [data/](data/) | PostgreSQL schema/变更、Athena SQL、合成源与样本 |
+| [pipelines/](pipelines/) | Batch/CDC ingestion、Bronze/Silver/Gold 职责导航、DQ、隔离、审计和重放 |
+| [workloads/](workloads/) | Athena/BI、SageMaker ML、Bedrock/S3 Vectors RAG |
+| [infrastructure/](infrastructure/) | Terraform 与 CI/CD 工程；完整平台和 proof roots 保持隔离 |
+| [data/](data/) | 可复现的合成源、参考数据和小型验收样本 |
 | [tests/](tests/) | 数据、基础设施、安全、ML、RAG 测试 |
-| [docs/architecture/](docs/architecture/) | 当前 V5 展示图；[architecture/](architecture/) 保留详细设计、契约与 ADR |
-| [docs/](docs/) | 导航、运行手册、版本验收 |
-| [.github/workflows/](.github/workflows/) / [buildspecs/](buildspecs/) | 全仓库 CI 与最小 CD |
-| [agent-state/](agent-state/) | 历史协作记录；理解平台无需先读它 |
+| [docs/](docs/) | 当前架构、运维、安全、版本证据和历史设计导航 |
+| [agents/](agents/) | AI 工程规范和历史协作状态 |
+| [.github/workflows/](.github/workflows/) | GitHub 要求的活动 PR workflow 位置，逻辑上属于 Infrastructure / CI-CD |
 
-历史 claim_fraud 命名与 smoke fixtures 保留兼容性；正式用例是 high_risk_claim，以 [claim_risk.py](src/ml/claim_risk.py) 和 [ML 完成报告](docs/v1-ml-result.md) 为准。[仓库审计与历史边界](docs/repository-guide.md)
+历史 claim_fraud 命名与 smoke fixtures 保留兼容性；正式用例是 high_risk_claim，以 [claim_risk.py](workloads/ml/claim_risk.py) 和 [ML 完成报告](docs/releases/v1/v1-ml-result.md) 为准。[仓库审计与历史边界](docs/repository-guide.md)
 
 ## Local Checks
 
@@ -81,26 +81,26 @@ Human 定义业务范围、架构、成本与安全约束；Manager AI Agent 拆
 
 ```text
 python -m pip install -r requirements-ci.txt
-python scripts/ci/check_repository_consistency.py
-terraform fmt -check -recursive terraform
+python infrastructure/cicd/check_repository_consistency.py
+terraform fmt -check -recursive infrastructure/terraform
 python -m pytest -q tests/data tests/infrastructure tests/ml tests/rag
 ```
 
-完整 backend-free 初始化/验证见 [PR CI](.github/workflows/pull-request-ci.yml)。真实操作参照 [数据手册](docs/runbooks/data-pipeline-operations.md)、[ML/RAG 手册](docs/runbooks/ml-rag-operations.md) 和 [交付手册](docs/runbooks/monitoring-cicd-operations.md)。
+完整 backend-free 初始化/验证见 [PR CI](.github/workflows/pull-request-ci.yml)。真实操作参照 [数据手册](docs/operations/runbooks/data-pipeline-operations.md)、[ML/RAG 手册](docs/operations/runbooks/ml-rag-operations.md) 和 [交付手册](docs/operations/runbooks/monitoring-cicd-operations.md)。
 
 ## Releases
 
 | 发布 | 目标 | 验收证据 |
 |---|---|---|
-| [v1.0-happy-path](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v1.0-happy-path) | Make it work | [V1](docs/v1-completion-review.md) |
-| [v2.0-reliable](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v2.0-reliable) | Make it reliable | [V2 + DQ amendment](docs/v2-completion-review.md) |
-| [v3.0-governed](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v3.0-governed) | Make it secure | [V3](docs/v3-completion-review.md) |
-| [v4.0-cicd](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v4.0-cicd) | Automate delivery | [V4A](docs/v4-github-ci.md) / [V4B](docs/v4b-minimal-cd.md) |
-| [v5.0-production-ready](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v5.0-production-ready) | Make it operable | [V5 与最终发布](docs/v5-completion-review.md) |
+| [v1.0-happy-path](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v1.0-happy-path) | Make it work | [V1](docs/releases/v1/v1-completion-review.md) |
+| [v2.0-reliable](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v2.0-reliable) | Make it reliable | [V2 + DQ amendment](docs/releases/v2/v2-completion-review.md) |
+| [v3.0-governed](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v3.0-governed) | Make it secure | [V3](docs/releases/v3/v3-completion-review.md) |
+| [v4.0-cicd](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v4.0-cicd) | Automate delivery | [V4A](docs/releases/v4/v4-github-ci.md) / [V4B](docs/releases/v4/v4b-minimal-cd.md) |
+| [v5.0-production-ready](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v5.0-production-ready) | Make it operable | [V5 与最终发布](docs/releases/v5/v5-completion-review.md) |
 
 ## Cost-Aware Design
 
-账号保持 AWS FREE plan；**FREE 不等于资源零成本**。历史 V1 估算约 USD 76.89/月（不含用量），主要来自 RDS、DMS 与私有端点，已单独批准；不是当前账单。V5 新增告警历史估算不超过约 USD 0.60/月，演练 Glue 估算约 USD 0.30，见 [成本证据](docs/v5-completion-review.md)。
+账号保持 AWS FREE plan；**FREE 不等于资源零成本**。历史 V1 估算约 USD 76.89/月（不含用量），主要来自 RDS、DMS 与私有端点，已单独批准；不是当前账单。V5 新增告警历史估算不超过约 USD 0.60/月，演练 Glue 估算约 USD 0.30，见 [成本证据](docs/releases/v5/v5-completion-review.md)。
 
 采用短时作业、无持久推理端点、无 NAT Gateway、无完整 PROD 副本。QuickSight 未订阅；Streaming 因账户限制经 Human 决策退役。最小 PROD 证明审批与部署机制，不承担业务数据平台负载。
 
@@ -111,8 +111,8 @@ python -m pytest -q tests/data tests/infrastructure tests/ml tests/rag
 - SNS 发布已验证，尚无 Human 邮件/SMS 订阅；QuickSight 仪表板未部署。
 - ML 测试 AUC 0.62222，0.50 阈值下 F1 为 0，全部预测落入 MEDIUM；不能用于真实业务决策。参考特征使用预先日期的单一快照，尚无多版本 as-of join。
 - RAG 仅两份文档、三条代表性引用验证，未证明大规模检索质量。
-- 全 CI 覆盖仓库；CD 仅覆盖 proof stack。文档合并也可能触发 CD，本次清理停在 PR 人工审查。
+- 全 CI 覆盖仓库；CD 仅覆盖 proof stack。文档或结构变更合并也会触发同一 proof CD，因此仍须停在 PROD 人工审批门。
 
 ## Project Status
 
-**COMPLETE — v5.0-production-ready**，最终验收提交 `5e0b479fa47130930dd9d4c0b0ad1005244ff335`。作品集整理仅改善展示与导航，发布标签保持不变。
+**COMPLETE — v5.0-production-ready**，发布标签仍指向最终验收提交 `5e0b479fa47130930dd9d4c0b0ad1005244ff335`。后续作品集与目录整理只改善展示和导航，不改变 V1–V5 实现或标签。

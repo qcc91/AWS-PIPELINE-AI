@@ -1,7 +1,7 @@
 import pytest
 
-from src.rag.citations import build_cited_answer, validate_citations
-from src.rag.run_rag import active_ingestion_job, citation_uris, retrieve_chunks
+from workloads.rag.citations import build_cited_answer, validate_citations
+from workloads.rag.run_rag import active_ingestion_job, citation_uris, retrieve_chunks
 
 
 def test_build_cited_answer_is_grounded_and_attributable():

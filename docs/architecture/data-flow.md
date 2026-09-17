@@ -71,4 +71,4 @@ DQ gate 失败会阻断 Silver 写入和后续 Gold 发布，保留先前可信�
 
 ML 正式特征排除赔付金额、最终状态、调查结果等事后字段；标签可来自未来合成结果。验收数据使用日期早于理赔提交的单一参考快照，并检查未使用未来参考记录；这不代表实现了多版本参考数据的 as-of join。图中的虚线回放路径由操作员按运行手册触发，不是审计记录自动启动恢复。RAG 文档流见 [最终架构](final-architecture.md)，与本图的结构化事实流分开。
 
-依据：[Batch 实现](../../jobs/glue_claim_pipeline.py)、[CDC 实现](../../jobs/glue_cdc_pipeline.py)、[V2 数据可靠性](../v2-data-reliability.md)、[V5 重放证据](../v5-runtime-evidence.md)、[数据运维手册](../runbooks/data-pipeline-operations.md)。
+依据：[Batch 实现](../../pipelines/ingestion/batch/glue_claim_pipeline.py)、[CDC 实现](../../pipelines/ingestion/cdc/glue_cdc_pipeline.py)、[V2 数据可靠性](../releases/v2/v2-data-reliability.md)、[V5 重放证据](../releases/v5/v5-runtime-evidence.md)、[数据运维手册](../operations/runbooks/data-pipeline-operations.md)。

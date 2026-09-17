@@ -2,14 +2,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTROL = (ROOT / "terraform/cicd-control/main.tf").read_text()
+CONTROL = (ROOT / "infrastructure/terraform/cicd-control/main.tf").read_text()
 BUILDSPEC = (ROOT / "buildspecs/v4b-minimal-cd.yml").read_text()
-BOOTSTRAP = (ROOT / "terraform/bootstrap/modules/dev-operator/main.tf").read_text()
+CANONICAL_BUILDSPEC = (ROOT / "infrastructure/cicd/buildspecs/v4b-minimal-cd.yml").read_text()
+BOOTSTRAP = (ROOT / "infrastructure/terraform/bootstrap/modules/dev-operator/main.tf").read_text()
 
 
 def test_cd_is_minimal_and_isolated_from_full_foundation():
-    assert "terraform/cicd-proof/$TARGET_ENV" in BUILDSPEC
-    assert "terraform/environments" not in BUILDSPEC
+    assert "infrastructure/terraform/cicd-proof/$TARGET_ENV" in BUILDSPEC
+    assert "infrastructure/terraform/cicd-proof/$TARGET_ENV" in CANONICAL_BUILDSPEC
+    assert "infrastructure/terraform/environments" not in BUILDSPEC
+    assert 'buildspec = "buildspecs/v4b-minimal-cd.yml"' in CONTROL
     for expensive in ("aws_db_instance", "aws_dms_", "aws_sagemaker_", "aws_bedrock", "aws_vpc", "aws_glue_job"):
         assert expensive not in CONTROL
 
@@ -25,10 +28,10 @@ def test_pipeline_has_exact_plan_promotion_and_manual_prod_gate():
 
 
 def test_state_is_separate_encrypted_versioned_and_uses_lockfile():
-    assert 'default     = "aip-insurance-dev-tfstate-dev01"' in (ROOT / "terraform/cicd-control/variables.tf").read_text()
-    assert 'key          = "cicd-proof/dev/terraform.tfstate"' in (ROOT / "terraform/cicd-proof/dev/backend.hcl.example").read_text()
-    assert 'key          = "cicd-proof/prod/terraform.tfstate"' in (ROOT / "terraform/cicd-proof/prod/backend.hcl.example").read_text()
-    assert 'kms_key_id   = "alias/insurance/dev/terraform-state"' in (ROOT / "terraform/cicd-proof/dev/backend.hcl.example").read_text()
+    assert 'default     = "aip-insurance-dev-tfstate-dev01"' in (ROOT / "infrastructure/terraform/cicd-control/variables.tf").read_text()
+    assert 'key          = "cicd-proof/dev/terraform.tfstate"' in (ROOT / "infrastructure/terraform/cicd-proof/dev/backend.hcl.example").read_text()
+    assert 'key          = "cicd-proof/prod/terraform.tfstate"' in (ROOT / "infrastructure/terraform/cicd-proof/prod/backend.hcl.example").read_text()
+    assert 'kms_key_id   = "alias/insurance/dev/terraform-state"' in (ROOT / "infrastructure/terraform/cicd-proof/dev/backend.hcl.example").read_text()
     assert 'use_lockfile = true' in BUILDSPEC
     assert "aws_dynamodb" not in CONTROL
     assert "workspace" not in BUILDSPEC.lower()

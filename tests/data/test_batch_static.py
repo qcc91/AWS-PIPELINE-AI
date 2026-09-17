@@ -3,9 +3,9 @@ import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE = (ROOT / "terraform/modules/batch-ingestion/main.tf").read_text(encoding="utf-8")
-DEV_MAIN = (ROOT / "terraform/environments/dev/main.tf").read_text(encoding="utf-8")
-JOB = (ROOT / "jobs/glue_claim_pipeline.py").read_text(encoding="utf-8")
+MODULE = (ROOT / "infrastructure/terraform/modules/batch-ingestion/main.tf").read_text(encoding="utf-8")
+DEV_MAIN = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(encoding="utf-8")
+JOB = (ROOT / "pipelines/ingestion/batch/glue_claim_pipeline.py").read_text(encoding="utf-8")
 
 
 def test_all_layers_are_iceberg_and_paths_are_stable():

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-MODULE = (Path(__file__).parents[2] / "terraform" / "modules" / "ml" / "main.tf").read_text(
+MODULE = (Path(__file__).parents[2] / "infrastructure" / "terraform" / "modules" / "ml" / "main.tf").read_text(
     encoding="utf-8"
 )
 

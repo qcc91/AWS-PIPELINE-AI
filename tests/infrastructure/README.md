@@ -4,7 +4,7 @@
 for TASK-INF-001 through TASK-INF-004. They intentionally avoid provider
 installation and every AWS operation.
 
-Both scripts check all `terraform/**/*.tf` resource declarations against an
+Both scripts check all `infrastructure/terraform/**/*.tf` resource declarations against an
 explicit path/type allowlists. Bootstrap, networking, reusable KMS/S3, IAM,
 Glue, Lake Formation, and monitoring each have their own allowlist; resources
 in other paths fail. Both gates also check:

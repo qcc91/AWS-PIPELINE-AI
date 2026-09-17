@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.ml.claim_risk import CATEGORICAL_LEVELS, NUMERIC_FEATURES, DatasetValidationError, chronological_split, dataset_version, evaluate_binary, feature_names, prepare_dataset, validate_feature_dataset, vectorize
+from workloads.ml.claim_risk import CATEGORICAL_LEVELS, NUMERIC_FEATURES, DatasetValidationError, chronological_split, dataset_version, evaluate_binary, feature_names, prepare_dataset, validate_feature_dataset, vectorize
 
 
 def _rows(count=20):

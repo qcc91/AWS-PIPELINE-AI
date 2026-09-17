@@ -7,7 +7,7 @@ replay and failure-detection contracts used by the low-cost runbook.
 from datetime import datetime, timezone
 from pathlib import Path
 
-from src.ml.claim_fraud import format_claim_risk
+from workloads.ml.claim_fraud import format_claim_risk
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,7 +32,7 @@ def test_claim_risk_contract_is_deterministic_for_the_same_run():
 
 
 def test_glue_postprocess_replay_is_guarded_and_snapshot_based():
-    job = (ROOT / "jobs" / "glue_claim_risk_postprocess.py").read_text(
+    job = (ROOT / "workloads" / "ml" / "glue_claim_risk_postprocess.py").read_text(
         encoding="utf-8"
     )
 

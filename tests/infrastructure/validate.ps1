@@ -18,7 +18,7 @@ function Get-TerraformText([string]$Path) {
 }
 
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
-$terraformRoot = Join-Path $repo "terraform"
+$terraformRoot = Join-Path $repo "infrastructure/terraform"
 $bootstrapRoot = (Resolve-Path (Join-Path $terraformRoot "bootstrap")).Path
 $terraformFiles = @(Get-ChildItem -LiteralPath $terraformRoot -Recurse -Filter "*.tf" -File |
     Where-Object { $_.FullName -notmatch '\\.terraform([\\/]|$)' })

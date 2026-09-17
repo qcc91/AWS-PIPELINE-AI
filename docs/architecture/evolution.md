@@ -34,4 +34,4 @@ V5 实测将负数理赔隔离，修正后的完整快照发布 121 条有效理
 
 保留的限制是：未配置人工 SNS 订阅、既有 DMS 任务处于失败状态、QuickSight 未启用、无完整 PROD 平台。项目保持 AWS FREE 计划与小数据量成本边界；版本验收并不取消这些限制，也不授权新版本或新资源。
 
-证据入口：[V1 评审](../v1-completion-review.md)、[V2 评审](../v2-completion-review.md)、[V3 评审](../v3-completion-review.md)、[V4B](../v4b-minimal-cd.md)、[V5 评审](../v5-completion-review.md)、[V5 运行证据](../v5-runtime-evidence.md)。这些文件是阶段性记录，其中早于最终验收的待批准措辞应按时间理解。
+证据入口：[V1 评审](../releases/v1/v1-completion-review.md)、[V2 评审](../releases/v2/v2-completion-review.md)、[V3 评审](../releases/v3/v3-completion-review.md)、[V4B](../releases/v4/v4b-minimal-cd.md)、[V5 评审](../releases/v5/v5-completion-review.md)、[V5 运行证据](../releases/v5/v5-runtime-evidence.md)。这些文件是阶段性记录，其中早于最终验收的待批准措辞应按时间理解。

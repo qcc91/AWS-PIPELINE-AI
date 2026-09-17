@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from src.cdc.transform import apply_changes
+from pipelines.ingestion.cdc.transform import apply_changes
 
 
 def ts(day: int):

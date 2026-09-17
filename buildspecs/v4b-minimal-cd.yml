@@ -9,7 +9,9 @@ env:
     - PLAN_DELETE_COUNT
     - PLAN_REPLACE_COUNT
 
-# V4B only deploys terraform/cicd-proof. Each CodeBuild project receives
+# Runtime compatibility copy for the currently deployed CodeBuild configuration.
+# The canonical source is infrastructure/cicd/buildspecs/v4b-minimal-cd.yml.
+# V4B only deploys infrastructure/terraform/cicd-proof. Each CodeBuild project receives
 # short-lived service credentials and can assume exactly one narrow proof role.
 phases:
   install:
@@ -41,7 +43,7 @@ phases:
         [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source revision" >&2; exit 1; }
 
         export SOURCE_DIR="${CODEBUILD_SRC_DIR_SourceOutput:-$CODEBUILD_SRC_DIR}"
-        export TF_ROOT="$SOURCE_DIR/terraform/cicd-proof/$TARGET_ENV"
+        export TF_ROOT="$SOURCE_DIR/infrastructure/terraform/cicd-proof/$TARGET_ENV"
         test -d "$TF_ROOT"
         export PLAN_DIR="$SOURCE_DIR/promotion"
         mkdir -p "$PLAN_DIR"

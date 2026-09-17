@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-import src.rag.run_rag as run_rag
-from src.rag.documents import build_document_manifest, write_manifest
-from src.rag.run_rag import sync_documents
+import workloads.rag.run_rag as run_rag
+from workloads.rag.documents import build_document_manifest, write_manifest
+from workloads.rag.run_rag import sync_documents
 
 
 def test_unchanged_manifest_skips_ingestion_and_preserves_trace(tmp_path, monkeypatch):

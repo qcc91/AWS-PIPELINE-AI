@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.batch.claim_transform import process_claim_file
-from src.cdc.transform import apply_changes, process_cdc_changes, source_change_id
-from src.reliability.control import PipelineAudit, file_identity, reconcile_batch
+from pipelines.ingestion.batch.claim_transform import process_claim_file
+from pipelines.ingestion.cdc.transform import apply_changes, process_cdc_changes, source_change_id
+from pipelines.quality.control import PipelineAudit, file_identity, reconcile_batch
 
 
 def _claim(**overrides):
@@ -114,6 +114,6 @@ def test_glue_scripts_expose_stage_audit_quarantine_contract():
 
     root = Path(__file__).resolve().parents[2]
     for name in ("glue_claim_pipeline.py", "glue_cdc_pipeline.py"):
-        text = (root / "jobs" / name).read_text(encoding="utf-8")
+        text = (root / "pipelines" / "ingestion" / ("batch" if "claim" in name else "cdc") / name).read_text(encoding="utf-8")
         for token in ("PROCESSING_STAGE", "CONTROL_BUCKET", "QUARANTINE_BUCKET", "pipeline_runs", "bronze", "silver", "gold"):
             assert token in text

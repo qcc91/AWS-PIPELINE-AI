@@ -1,0 +1,250 @@
+locals {
+  environment = "dev"
+  bucket_names = {
+    for purpose in [
+      "landing",
+      "lakehouse",
+      "control",
+      "quarantine",
+      "documents",
+    ] : purpose => "${var.org_short}-insurance-${local.environment}-${purpose}-${var.account_short}"
+  }
+}
+
+module "common" {
+  source = "../../modules/common"
+
+  environment         = local.environment
+  owner               = var.owner
+  cost_center         = var.cost_center
+  data_classification = var.data_classification
+}
+
+module "networking" {
+  source = "../../modules/networking"
+
+  name                   = "insurance-${local.environment}"
+  vpc_cidr               = var.vpc_cidr
+  private_subnet_newbits = var.private_subnet_newbits
+  private_subnet_netnums = var.private_subnet_netnums
+  availability_zones     = var.availability_zones
+  tags                   = module.common.tags
+}
+
+module "platform_kms" {
+  source = "../../modules/kms"
+
+  environment       = local.environment
+  purpose           = "platform-data"
+  account_id        = var.account_id
+  admin_role_arns   = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
+  allow_root_for_v1 = var.v3_terraform_execution_role_arn == null
+  user_role_arns = var.v3_terraform_execution_role_arn != null ? [
+    module.security_governance[0].role_arns["TerraformExecution"],
+    module.security_governance[0].role_arns["DataEngineer"], module.security_governance[0].role_arns["Analyst"],
+    module.security_governance[0].role_arns["MLEngineer"], module.security_governance[0].role_arns["RAGApplication"],
+    module.security_governance[0].role_arns["LakeFormationRegistration"], module.batch_ingestion.glue_role_arn,
+    module.cdc.glue_role_arn, module.cdc.dms_s3_role_arn, module.cdc.dms_secrets_role_arn,
+    module.ml.sagemaker_role_arn, module.ml.postprocess_role_arn, module.rag.bedrock_role_arn,
+  ] : []
+  s3vectors_bucket_arns = [
+    "arn:aws:s3vectors:${var.aws_region}:${var.account_id}:bucket/${var.org_short}-insurance-${local.environment}-vectors-${var.account_short}",
+  ]
+  tags = module.common.tags
+}
+
+module "storage" {
+  source   = "../../modules/s3"
+  for_each = local.bucket_names
+
+  bucket_name               = each.value
+  kms_key_arn               = module.platform_kms.key_arn
+  purpose                   = each.key
+  noncurrent_retention_days = var.data_noncurrent_retention_days
+  current_retention_days    = each.key == "quarantine" ? 90 : null
+  tags                      = module.common.tags
+}
+
+module "glue" {
+  source = "../../modules/glue"
+
+  environment            = local.environment
+  lakehouse_location_uri = "s3://${module.storage["lakehouse"].bucket_id}/lakehouse"
+  control_location_uri   = "s3://${module.storage["control"].bucket_id}/control"
+  tags                   = module.common.tags
+}
+
+module "batch_ingestion" {
+  source = "../../modules/batch-ingestion"
+
+  environment            = local.environment
+  aws_region             = var.aws_region
+  account_id             = var.account_id
+  landing_bucket_name    = module.storage["landing"].bucket_id
+  lakehouse_bucket_name  = module.storage["lakehouse"].bucket_id
+  control_bucket_name    = module.storage["control"].bucket_id
+  quarantine_bucket_name = module.storage["quarantine"].bucket_id
+  kms_key_arn            = module.platform_kms.key_arn
+  glue_database_names    = module.glue.database_names
+  glue_script_path       = abspath("${path.root}/../../../../pipelines/ingestion/batch/glue_claim_pipeline.py")
+  # One prefix intentionally covers the original broker claims file and the
+  # V1 file-based master/reference datasets under batch/reference/.
+  batch_key_prefix = "batch/"
+  tags             = module.common.tags
+}
+
+module "cdc" {
+  source = "../../modules/cdc"
+
+  environment            = local.environment
+  aws_region             = var.aws_region
+  account_id             = var.account_id
+  vpc_id                 = module.networking.vpc_id
+  private_subnet_ids     = module.networking.private_subnet_ids
+  landing_bucket_name    = module.storage["landing"].bucket_id
+  lakehouse_bucket_name  = module.storage["lakehouse"].bucket_id
+  control_bucket_name    = module.storage["control"].bucket_id
+  quarantine_bucket_name = module.storage["quarantine"].bucket_id
+  kms_key_arn            = module.platform_kms.key_arn
+  glue_database_names    = module.glue.database_names
+  cdc_script_path        = abspath("${path.root}/../../../../pipelines/ingestion/cdc/glue_cdc_pipeline.py")
+  seed_script_path       = abspath("${path.root}/../../../../pipelines/ingestion/cdc/glue_cdc_sql_bootstrap.py")
+  schema_sql_path        = abspath("${path.root}/../../../../pipelines/ingestion/cdc/sql/001_schema.sql")
+  seed_sql_path          = abspath("${path.root}/../../../../pipelines/ingestion/cdc/sql/002_seed.sql")
+  mutation_sql_path      = abspath("${path.root}/../../../../pipelines/ingestion/cdc/sql/003_mutations.sql")
+  tags                   = module.common.tags
+}
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  environment                     = local.environment
+  account_id                      = var.account_id
+  bucket_name                     = "${var.org_short}-insurance-${local.environment}-audit-logs-${var.account_short}"
+  kms_admin_role_arns             = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
+  allow_root_for_v1               = var.v3_terraform_execution_role_arn == null
+  log_retention_days              = var.log_retention_days
+  audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
+  audit_retention_days            = var.audit_retention_days
+  enable_operational_alerting     = true
+  workflow_state_machine_arns = {
+    batch = module.batch_ingestion.state_machine_arn
+    cdc   = module.cdc.cdc_state_machine_arn
+  }
+  glue_job_names = setunion(
+    toset(values(module.batch_ingestion.glue_job_names)),
+    toset(values(module.cdc.cdc_job_names)),
+    toset([module.cdc.seed_job_name]),
+  )
+  dms_replication_task_id = module.cdc.dms_task_id
+  codepipeline_name       = "insurance-dev-v4b-cd"
+  codebuild_project_names = {
+    dev        = "insurance-dev-v4b-deploy-dev"
+    prod_plan  = "insurance-dev-v4b-plan-prod"
+    prod_apply = "insurance-dev-v4b-apply-prod"
+  }
+  tags = module.common.tags
+}
+
+module "bi" {
+  source = "../../modules/bi"
+
+  environment         = local.environment
+  aws_region          = var.aws_region
+  account_id          = var.account_id
+  gold_database_name  = module.glue.database_names["gold"]
+  control_bucket_name = module.storage["control"].bucket_id
+  kms_key_arn         = module.platform_kms.key_arn
+  tags                = module.common.tags
+  # QuickSight is account/subscription scoped. Enable only after the explicit
+  # account ID, edition, and approved principal ARN are supplied.
+  enable_quicksight     = var.enable_quicksight
+  quicksight_account_id = var.quicksight_account_id
+  quicksight_user_arn   = var.quicksight_user_arn
+  quicksight_namespace  = var.quicksight_namespace
+  quicksight_edition    = var.quicksight_edition
+}
+
+module "ml" {
+  source = "../../modules/ml"
+
+  environment             = local.environment
+  aws_region              = var.aws_region
+  account_id              = var.account_id
+  lakehouse_bucket_name   = module.storage["lakehouse"].bucket_id
+  control_bucket_name     = module.storage["control"].bucket_id
+  kms_key_arn             = module.platform_kms.key_arn
+  gold_database_name      = module.glue.database_names["gold"]
+  pipeline_script_path    = abspath("${path.root}/../../../../workloads/ml/ml_claim_fraud_pipeline.py")
+  training_data_path      = abspath("${path.root}/../../../../data/sample/ml_claim_training.csv")
+  postprocess_script_path = abspath("${path.root}/../../../../workloads/ml/glue_claim_risk_postprocess.py")
+  tags                    = module.common.tags
+}
+
+module "rag" {
+  source = "../../modules/rag"
+
+  environment          = local.environment
+  aws_region           = var.aws_region
+  documents_bucket_arn = module.storage["documents"].bucket_arn
+  kms_key_arn          = module.platform_kms.key_arn
+
+  # Manager-discovered in ap-southeast-2 on 2026-09-09.
+  embedding_model_arn  = "arn:aws:bedrock:ap-southeast-2::foundation-model/amazon.titan-embed-text-v2:0"
+  embedding_dimensions = 1024
+  vector_bucket_name   = "${var.org_short}-insurance-${local.environment}-vectors-${var.account_short}"
+  vector_index_name    = "insurance-rag-index"
+  knowledge_base_name  = "insurance-${local.environment}-rag"
+  tags                 = module.common.tags
+}
+
+module "security_governance" {
+  source = "../../modules/security-governance"
+  count  = var.v3_operator_role_arn != null && var.v3_terraform_execution_role_arn != null ? 1 : 0
+
+  environment                  = local.environment
+  account_id                   = var.account_id
+  aws_region                   = var.aws_region
+  operator_role_arn            = var.v3_operator_role_arn
+  terraform_execution_role_arn = var.v3_terraform_execution_role_arn
+  bucket_arns                  = { for purpose, bucket in module.storage : purpose => bucket.bucket_arn }
+  platform_kms_key_arn         = module.platform_kms.key_arn
+  rds_secret_arn               = module.cdc.rds_secret_arn
+  glue_database_names          = module.glue.database_names
+  batch_glue_job_names         = module.batch_ingestion.glue_job_names
+  cdc_glue_job_names           = module.cdc.cdc_job_names
+  batch_state_machine_arn      = module.batch_ingestion.state_machine_arn
+  cdc_state_machine_arn        = module.cdc.cdc_state_machine_arn
+  athena_workgroup_name        = module.bi.athena_workgroup_name
+  sagemaker_execution_role_arn = module.ml.sagemaker_role_arn
+  rag_knowledge_base_id        = module.rag.knowledge_base_id
+  rag_generation_model_arns = [
+    "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-micro-v1:0",
+  ]
+  tags = module.common.tags
+}
+
+module "lakeformation" {
+  source = "../../modules/lakeformation"
+  count  = var.v3_operator_role_arn != null && var.v3_terraform_execution_role_arn != null ? 1 : 0
+
+  environment              = local.environment
+  account_id               = var.account_id
+  lakehouse_location_arn   = "${module.storage["lakehouse"].bucket_arn}/lakehouse"
+  control_location_arn     = "${module.storage["control"].bucket_arn}/control"
+  data_access_role_arn     = module.security_governance[0].role_arns["LakeFormationRegistration"]
+  admin_role_arns          = [module.security_governance[0].role_arns["TerraformExecution"]]
+  data_engineer_role_arn   = module.security_governance[0].role_arns["DataEngineer"]
+  analyst_role_arn         = module.security_governance[0].role_arns["Analyst"]
+  ml_engineer_role_arn     = module.security_governance[0].role_arns["MLEngineer"]
+  rag_application_role_arn = module.security_governance[0].role_arns["RAGApplication"]
+  database_names           = module.glue.database_names
+  analyst_gold_tables      = toset(["broker_performance", "claim_daily_summary", "claim_daily_summary_cdc", "dim_branch", "dim_broker", "dim_claim_type", "dim_coverage", "dim_product_master", "dim_region_risk", "dim_vehicle"])
+  ml_gold_tables           = toset(["claim_risk_features", "claim_risk"])
+  pipeline_role_arns = {
+    batch_glue     = module.batch_ingestion.glue_role_arn
+    cdc_glue       = module.cdc.glue_role_arn
+    ml_postprocess = module.ml.postprocess_role_arn
+  }
+  tags = module.common.tags
+}

@@ -5,7 +5,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from scripts.generate_file_sources import COUNTS, generate
+from pipelines.ingestion.batch.generate_file_sources import COUNTS, generate
 
 
 def _read(path: Path):
@@ -78,7 +78,7 @@ def test_required_bi_and_ml_fields_are_present(tmp_path):
 
 
 def test_glue_job_routes_all_files_and_keeps_labels_out_of_feature_inputs():
-    job = (Path(__file__).resolve().parents[2] / "jobs/glue_claim_pipeline.py").read_text(encoding="utf-8")
+    job = (ROOT / "pipelines/ingestion/batch/glue_claim_pipeline.py").read_text(encoding="utf-8")
     compile(job, "glue_claim_pipeline.py", "exec")
     for name in COUNTS:
         assert name in job

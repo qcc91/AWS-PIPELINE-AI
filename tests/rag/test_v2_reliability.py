@@ -2,13 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from src.rag.documents import (
+from workloads.rag.documents import (
     FIXED_RETRIEVAL_QUESTIONS,
     build_document_manifest,
     ingestion_reconciliation,
     manifest_changes,
 )
-from src.rag.run_rag import bounded_aws_call, sync_documents
+from workloads.rag.run_rag import bounded_aws_call, sync_documents
 
 
 def test_document_identity_hash_and_unchanged_version_are_stable(tmp_path: Path):
@@ -79,7 +79,7 @@ def test_bedrock_429_retry_is_bounded(monkeypatch):
         calls.append(1)
         raise Throttled()
 
-    monkeypatch.setattr("src.rag.run_rag.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("workloads.rag.run_rag.time.sleep", lambda _seconds: None)
     with pytest.raises(Throttled):
         bounded_aws_call(operation, max_attempts=3)
     assert len(calls) == 3
@@ -91,7 +91,7 @@ def test_fixed_basic_retrieval_set_remains_small_and_stable():
 
 
 def test_approved_v1_corpus_is_valid_and_versioned():
-    root = Path(__file__).parents[2] / "documents" / "rag" / "approved"
+    root = Path(__file__).parents[2] / "workloads" / "rag" / "documents" / "approved"
     result = build_document_manifest(root.glob("*.md"), root=root, identity_prefix="s3://docs/rag/approved/")
     assert result["documents_discovered"] == result["documents_valid"] == 2
     assert result["documents_rejected"] == 0

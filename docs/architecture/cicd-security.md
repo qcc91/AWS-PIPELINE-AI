@@ -57,4 +57,4 @@ DEV/PROD proof 是不同 Terraform root 与 state key，共用既有加密状态
 
 数据访问另由 Lake Formation persona、IAM、KMS 和 Secrets Manager 控制，CloudTrail 保留审计。图中的治理虚线表示权限边界，不表示 TerraformExecution 自动取得业务数据访问。
 
-依据：[PR 工作流](../../.github/workflows/pull-request-ci.yml)、[CD buildspec](../../buildspecs/v4b-minimal-cd.yml)、[V4B 范围](../v4b-minimal-cd.md)、[治理](../v3-data-governance.md)、[CI/CD 运维手册](../runbooks/monitoring-cicd-operations.md)。
+依据：[PR 工作流](../../.github/workflows/pull-request-ci.yml)、[CD buildspec](../../infrastructure/cicd/buildspecs/v4b-minimal-cd.yml)、[V4B 范围](../releases/v4/v4b-minimal-cd.md)、[治理](../security/data-governance.md)、[CI/CD 运维手册](../operations/runbooks/monitoring-cicd-operations.md)。
