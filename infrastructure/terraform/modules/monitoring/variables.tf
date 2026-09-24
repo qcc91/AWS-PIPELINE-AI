@@ -57,6 +57,12 @@ variable "allow_root_for_v1" {
   default     = false
 }
 
+variable "allow_account_root_read_only" {
+  description = "Allow the same-account root principal to inspect audit-key metadata and policy without cryptographic use or administration."
+  type        = bool
+  default     = false
+}
+
 variable "log_retention_days" {
   description = "Explicit CloudWatch Logs retention selected from AWS-supported values."
   type        = number

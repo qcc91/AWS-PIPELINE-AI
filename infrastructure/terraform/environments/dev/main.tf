@@ -39,6 +39,9 @@ module "platform_kms" {
   account_id        = var.account_id
   admin_role_arns   = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
   allow_root_for_v1 = var.v3_terraform_execution_role_arn == null
+  # Root remains outside the routine V3 role chain. This statement permits
+  # break-glass inspection only; it grants no cryptographic or admin action.
+  allow_account_root_read_only = true
   user_role_arns = var.v3_terraform_execution_role_arn != null ? [
     module.security_governance[0].role_arns["TerraformExecution"],
     module.security_governance[0].role_arns["DataEngineer"], module.security_governance[0].role_arns["Analyst"],
@@ -123,6 +126,7 @@ module "monitoring" {
   bucket_name                     = "${var.org_short}-insurance-${local.environment}-audit-logs-${var.account_short}"
   kms_admin_role_arns             = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
   allow_root_for_v1               = var.v3_terraform_execution_role_arn == null
+  allow_account_root_read_only    = true
   log_retention_days              = var.log_retention_days
   audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
   audit_retention_days            = var.audit_retention_days

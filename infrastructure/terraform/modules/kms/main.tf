@@ -8,6 +8,20 @@ resource "aws_kms_key" "this" {
     Statement = concat(
       var.allow_root_for_v1 ? [{ Sid = "EnableV1RootScopedAccess", Effect = "Allow", Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }, Action = ["kms:CancelKeyDeletion", "kms:CreateAlias", "kms:DeleteAlias", "kms:DescribeKey", "kms:DisableKey", "kms:DisableKeyRotation", "kms:EnableKey", "kms:EnableKeyRotation", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListGrants", "kms:ListKeyPolicies", "kms:ListResourceTags", "kms:PutKeyPolicy", "kms:ScheduleKeyDeletion", "kms:TagResource", "kms:UntagResource", "kms:UpdateAlias", "kms:UpdateKeyDescription", "kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey", "kms:ReEncryptFrom", "kms:ReEncryptTo"], Resource = "*" }] : [],
       var.allow_root_for_v1 ? [{ Sid = "EnableV1AWSResourceGrants", Effect = "Allow", Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }, Action = ["kms:CreateGrant"], Resource = "*", Condition = { Bool = { "kms:GrantIsForAWSResource" = "true" } } }] : [],
+      var.allow_account_root_read_only ? [{
+        Sid       = "AllowAccountRootReadOnlyMetadata"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }
+        Action = [
+          "kms:DescribeKey",
+          "kms:GetKeyPolicy",
+          "kms:GetKeyRotationStatus",
+          "kms:ListGrants",
+          "kms:ListKeyPolicies",
+          "kms:ListResourceTags",
+        ]
+        Resource = "*"
+      }] : [],
       [
         for role_index, role_arn in var.admin_role_arns : {
           Sid    = "AllowKeyAdministrator${role_index}"

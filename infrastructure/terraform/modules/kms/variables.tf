@@ -52,6 +52,12 @@ variable "allow_root_for_v1" {
   default     = false
 }
 
+variable "allow_account_root_read_only" {
+  description = "Allow the same-account root principal to inspect key metadata and policy for break-glass diagnostics without cryptographic use or administration."
+  type        = bool
+  default     = false
+}
+
 variable "user_role_arns" {
   description = "Explicit same-account KMS data-plane user role ARNs; an empty list is allowed."
   type        = list(string)
