@@ -42,6 +42,11 @@ module "platform_kms" {
   # Root remains outside the routine V3 role chain. This statement permits
   # break-glass inspection only; it grants no cryptographic or admin action.
   allow_account_root_read_only = true
+  # S3 Bucket Keys use the bucket ARN as encryption context, so this is the
+  # narrowest reliable grant that lets root inspect Glue/ML script objects.
+  account_root_s3_decrypt_bucket_arns = [
+    "arn:aws:s3:::${local.bucket_names["control"]}",
+  ]
   user_role_arns = var.v3_terraform_execution_role_arn != null ? [
     module.security_governance[0].role_arns["TerraformExecution"],
     module.security_governance[0].role_arns["DataEngineer"], module.security_governance[0].role_arns["Analyst"],

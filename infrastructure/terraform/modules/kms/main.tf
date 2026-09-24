@@ -22,6 +22,24 @@ resource "aws_kms_key" "this" {
         ]
         Resource = "*"
       }] : [],
+      length(var.account_root_s3_decrypt_bucket_arns) > 0 ? [{
+        Sid       = "AllowAccountRootDecryptControlObjectsViaS3"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${var.account_id}:root" }
+        Action    = ["kms:Decrypt", "kms:DescribeKey"]
+        Resource  = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "s3.${var.aws_region}.amazonaws.com"
+          }
+          ArnLike = {
+            "kms:EncryptionContext:aws:s3:arn" = concat(
+              var.account_root_s3_decrypt_bucket_arns,
+              [for bucket_arn in var.account_root_s3_decrypt_bucket_arns : "${bucket_arn}/*"],
+            )
+          }
+        }
+      }] : [],
       [
         for role_index, role_arn in var.admin_role_arns : {
           Sid    = "AllowKeyAdministrator${role_index}"

@@ -158,3 +158,24 @@ def test_dev_root_kms_visibility_is_read_only_and_explicit():
             "kms:DisableKey",
         ]:
             assert forbidden not in root_read
+
+
+def test_root_script_decrypt_is_s3_and_control_bucket_scoped():
+    assert 'account_root_s3_decrypt_bucket_arns = [' in DEV
+    assert '"arn:aws:s3:::${local.bucket_names["control"]}"' in DEV
+    assert 'variable "account_root_s3_decrypt_bucket_arns"' in PLATFORM_KMS_VARIABLES
+    root_decrypt = PLATFORM_KMS.split(
+        'Sid       = "AllowAccountRootDecryptControlObjectsViaS3"', 1
+    )[1].split('] : [],', 1)[0]
+    assert 'Action    = ["kms:Decrypt", "kms:DescribeKey"]' in root_decrypt
+    assert '"kms:ViaService" = "s3.${var.aws_region}.amazonaws.com"' in root_decrypt
+    assert '"kms:EncryptionContext:aws:s3:arn"' in root_decrypt
+    assert 'var.account_root_s3_decrypt_bucket_arns' in root_decrypt
+    for forbidden in [
+        '"kms:Encrypt",',
+        '"kms:GenerateDataKey",',
+        '"kms:PutKeyPolicy",',
+        '"kms:ScheduleKeyDeletion",',
+        '"kms:DisableKey",',
+    ]:
+        assert forbidden not in root_decrypt
