@@ -61,6 +61,13 @@ $resourceScopes = @(
     AllowedTypes = @(
       "aws_kms_alias"
       "aws_kms_key"
+      "aws_iam_policy"
+      "aws_iam_role"
+      "aws_iam_role_policy"
+      "aws_iam_role_policy_attachment"
+      "aws_iam_user"
+      "aws_iam_user_policy"
+      "aws_iam_user_policy_attachment"
       "aws_s3_bucket"
       "aws_s3_bucket_lifecycle_configuration"
       "aws_s3_bucket_ownership_controls"
@@ -112,6 +119,7 @@ $resourceScopes = @(
     Prefix = (Join-Path $terraformRoot "modules/lakeformation") + [System.IO.Path]::DirectorySeparatorChar
     AllowedTypes = @(
       "aws_lakeformation_data_lake_settings"
+      "aws_lakeformation_opt_in"
       "aws_lakeformation_permissions"
       "aws_lakeformation_resource"
     )
@@ -179,7 +187,7 @@ $resourceScopes = @(
   [pscustomobject]@{
     Name = "ml"
     Prefix = (Join-Path $terraformRoot "modules/ml") + [System.IO.Path]::DirectorySeparatorChar
-    AllowedTypes = @("aws_cloudwatch_log_group", "aws_glue_job", "aws_iam_role", "aws_iam_role_policy", "aws_s3_object", "aws_sagemaker_model_package_group")
+    AllowedTypes = @("aws_cloudwatch_log_group", "aws_glue_job", "aws_iam_role", "aws_iam_role_policy", "aws_s3_object", "aws_sagemaker_model_package_group", "aws_sagemaker_pipeline")
   }
   [pscustomobject]@{
     Name = "rag"

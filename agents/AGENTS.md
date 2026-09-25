@@ -1334,16 +1334,17 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-COMPLETE — V5 ACCEPTED / RELEASED; REPOSITORY STRUCTURE REFACTOR REVIEW PENDING
+V5 ACCEPTED / RELEASED; SAGEMAKER MANAGED PIPELINE PLAN REVIEW PENDING
 
-The Human accepted and merged the portfolio cleanup. The current authorized
-package is a structural-only, domain-oriented repository refactor on
-`codex/repository-structure-refactor`. It may move files and update the path
-references required to preserve behavior, but it must not change business
-logic, AWS architecture, Terraform resource definitions, security policy,
-pipeline semantics or CI/CD behavior. Do not call AWS, move V1–V5 tags, merge
-the refactor PR automatically or begin V6. Stop at the REPOSITORY STRUCTURE
-REFACTOR HUMAN REVIEW CHECKPOINT.
+The Human accepted the V1-V5 platform and the repository structure refactor.
+The current authorized enhancement replaces workstation orchestration of the
+existing claim-risk Training and Batch Transform jobs with one Terraform-managed,
+UI-visible SageMaker Pipeline. It may add Processing, Training, evaluation,
+quality-gate, Model Registry, Batch Transform and Gold publication steps while
+reusing the existing feature contract, Glue job, Athena workgroup, S3, KMS and
+Lake Formation boundaries. It must not add an endpoint, notebook instance,
+always-running compute, new AWS service, PROD change or V6 scope. Stop at the
+Terraform Plan Approval gate before changing AWS resources.
 
 The statements below are retained historical context. They do not override
 the current structural-only authorization.

@@ -177,17 +177,22 @@ module "bi" {
 module "ml" {
   source = "../../modules/ml"
 
-  environment             = local.environment
-  aws_region              = var.aws_region
-  account_id              = var.account_id
-  lakehouse_bucket_name   = module.storage["lakehouse"].bucket_id
-  control_bucket_name     = module.storage["control"].bucket_id
-  kms_key_arn             = module.platform_kms.key_arn
-  gold_database_name      = module.glue.database_names["gold"]
-  pipeline_script_path    = abspath("${path.root}/../../../../workloads/ml/ml_claim_fraud_pipeline.py")
-  training_data_path      = abspath("${path.root}/../../../../data/sample/ml_claim_training.csv")
-  postprocess_script_path = abspath("${path.root}/../../../../workloads/ml/glue_claim_risk_postprocess.py")
-  tags                    = module.common.tags
+  environment                   = local.environment
+  aws_region                    = var.aws_region
+  account_id                    = var.account_id
+  lakehouse_bucket_name         = module.storage["lakehouse"].bucket_id
+  control_bucket_name           = module.storage["control"].bucket_id
+  kms_key_arn                   = module.platform_kms.key_arn
+  gold_database_name            = module.glue.database_names["gold"]
+  pipeline_script_path          = abspath("${path.root}/../../../../workloads/ml/ml_claim_fraud_pipeline.py")
+  training_data_path            = abspath("${path.root}/../../../../data/sample/ml_claim_training.csv")
+  postprocess_script_path       = abspath("${path.root}/../../../../workloads/ml/glue_claim_risk_postprocess.py")
+  pipeline_prepare_script_path  = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_prepare.py")
+  pipeline_evaluate_script_path = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_evaluate.py")
+  pipeline_publish_script_path  = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_publish.py")
+  claim_risk_library_path       = abspath("${path.root}/../../../../workloads/ml/claim_risk.py")
+  athena_workgroup_name         = module.bi.athena_workgroup_name
+  tags                          = module.common.tags
 }
 
 module "rag" {
@@ -226,6 +231,7 @@ module "security_governance" {
   cdc_state_machine_arn        = module.cdc.cdc_state_machine_arn
   athena_workgroup_name        = module.bi.athena_workgroup_name
   sagemaker_execution_role_arn = module.ml.sagemaker_role_arn
+  sagemaker_pipeline_arn       = module.ml.pipeline_arn
   rag_knowledge_base_id        = module.rag.knowledge_base_id
   rag_generation_model_arns = [
     "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-micro-v1:0",
@@ -254,6 +260,7 @@ module "lakeformation" {
     batch_glue     = module.batch_ingestion.glue_role_arn
     cdc_glue       = module.cdc.glue_role_arn
     ml_postprocess = module.ml.postprocess_role_arn
+    ml_sagemaker   = module.ml.sagemaker_role_arn
   }
   tags = module.common.tags
 }
