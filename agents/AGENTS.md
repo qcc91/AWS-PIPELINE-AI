@@ -1334,7 +1334,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V5 ACCEPTED / RELEASED; SAGEMAKER MANAGED PIPELINE PLAN REVIEW PENDING
+V5 ACCEPTED / RELEASED; SAGEMAKER MANAGED PIPELINE MIGRATION PROOF COMPLETE
 
 The Human accepted the V1-V5 platform and the repository structure refactor.
 The current authorized enhancement replaces workstation orchestration of the
@@ -1344,7 +1344,19 @@ quality-gate, Model Registry, Batch Transform and Gold publication steps while
 reusing the existing feature contract, Glue job, Athena workgroup, S3, KMS and
 Lake Formation boundaries. It must not add an endpoint, notebook instance,
 always-running compute, new AWS service, PROD change or V6 scope. Stop at the
-Terraform Plan Approval gate before changing AWS resources.
+Terraform Plan Approval gate before changing AWS resources outside the already
+approved ML Pipeline package. Human approved ML Pipeline apply and routine
+non-destructive fixes. On 2026-09-26 Human narrowed this enhancement to migrating
+the existing successful flow into a UI-visible managed Pipeline; reuse the
+accepted prepared input snapshot for runtime proof and defer current Gold data
+quality issues. Do not modify source business data merely to pass this proof.
+
+On 2026-09-27 managed execution `g46dxu0f1ydw` succeeded end to end using the
+accepted V1 prepared snapshot. All eight executed DAG steps succeeded; Gold
+validation returned 120 rows/120 unique IDs/0 invalid probabilities. Test AUC
+was 0.622222, matching V1. A runtime manifest copy adds legacy lineage metadata
+without modifying source inputs. Current Gold data remediation remains deferred.
+No additional version, PROD deployment, merge or release tag is authorized.
 
 The statements below are retained historical context. They do not override
 the current structural-only authorization.

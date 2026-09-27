@@ -2,11 +2,41 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import hashlib
+import io
 import json
 import time
 from pathlib import Path
 
 import boto3
+
+
+def compatible_manifest(s3, manifest_uri: str) -> str:
+    """Add lineage to a runtime copy of a pre-V2 manifest, never its source."""
+    bucket, key = manifest_uri[5:].split("/", 1)
+    if not key.endswith(".csv"):
+        key = key.rstrip("/") + "/claim_ids.csv"
+    raw = s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+    reader = csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+    fields = list(reader.fieldnames or [])
+    if "dataset_version" in fields:
+        return manifest_uri
+    # This identifies the legacy manifest, not a regenerated feature dataset.
+    version = "legacy-manifest-sha256:" + hashlib.sha256(raw).hexdigest()
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fields + ["dataset_version"])
+    writer.writeheader()
+    for row in reader:
+        writer.writerow({**row, "dataset_version": version})
+    target = key.rsplit("/", 1)[0] + "-with-lineage/claim_ids.csv"
+    source = s3.head_object(Bucket=bucket, Key=key)
+    s3.put_object(
+        Bucket=bucket, Key=target, Body=output.getvalue().encode("utf-8"),
+        ServerSideEncryption="aws:kms", SSEKMSKeyId=source["SSEKMSKeyId"],
+        ContentType="text/csv",
+    )
+    return f"s3://{bucket}/{target}"
 
 
 def wait_glue(client, job_name: str, run_id: str, poll_seconds: int) -> dict:
@@ -53,12 +83,16 @@ def main() -> None:
     parser.add_argument("--poll-seconds", type=int, default=15)
     args = parser.parse_args()
 
+    manifest_uri = compatible_manifest(
+        boto3.client("s3", region_name=args.region), args.claim_ids_uri
+    )
+
     glue = boto3.client("glue", region_name=args.region)
     run = glue.start_job_run(
         JobName=args.glue_job_name,
         Arguments={
             "--TRANSFORM_OUTPUT_URI": args.transform_output_uri,
-            "--CLAIM_IDS_URI": args.claim_ids_uri,
+            "--CLAIM_IDS_URI": manifest_uri,
             "--GOLD_DATABASE": args.gold_database,
             "--GOLD_TABLE": "claim_risk",
             "--MODEL_VERSION": args.model_version,

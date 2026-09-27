@@ -1,6 +1,42 @@
 # SageMaker Managed Claim-Risk Pipeline
 
-Status: implementation and Terraform plan preparation; not yet applied.
+Status: deployed with Human approval; end-to-end migration proof SUCCEEDED.
+
+## Migration proof record (2026-09-27)
+
+- Execution: `g46dxu0f1ydw`, display name `migration-accepted-snapshot`.
+- PrepareData, TrainXGBoost, EvaluateModel, ModelQualityGate, RegisterModel,
+  CreateBatchModel, BatchTransform and PublishAndValidateGold all succeeded.
+- Final Pipeline status: `Succeeded`. Gold has 120 rows, 120 unique claim IDs,
+  zero invalid probabilities. Athena validation:
+  `938f0be5-bf34-4a36-8bbf-25748d872746`.
+- Successful Glue publication:
+  `jr_896f057455ef07a18471071f7e69cdc383742c14ca5fa8c37684656d1f5bbf48`.
+- The two resumed steps reused successful upstream results; no retraining or
+  repeated Batch Transform was required. No endpoint/notebook or persistent
+  compute was introduced. Temporary job compute terminates with the jobs;
+  model metadata, registry version and encrypted artifacts remain. Actual
+  charges for failed/successful transient jobs have not been reconciled to billing.
+- Test split: 24 rows; AUC 0.622222, accuracy 0.625, log loss 0.656316,
+  precision/recall/F1 0 at the existing threshold, matching the accepted V1 run.
+- Model package: `insurance-dev-claim-fraud/1`, pending manual model approval.
+- Registration initially failed because SageMaker requests CreateModelPackageGroup
+  even with the existing group. Added Create/Describe for that exact group only;
+  RetryPipelineExecution is scoped to this pipeline's executions. Retried the
+  same execution without rerunning successful Training/Processing jobs.
+- The pre-V2 ID manifest has no `dataset_version`. Publication initially failed
+  before writing Gold. A compatibility adapter adds a deterministic
+  `legacy-manifest-sha256:` identifier to a separately encrypted runtime copy;
+  source files, row order, IDs, dates, feature values and model inputs remain
+  unchanged. This is lineage compatibility, not business-data remediation.
+- Focused ML/security regression: 50 passed; Terraform validate and fmt passed.
+- ML-scoped plan has one pre-existing legacy local-runner S3 asset path/hash
+  update, not applied: `module.ml.aws_s3_object.pipeline_script`. The new managed
+  pipeline and its runtime fixes have no further planned changes. This is not a
+  claim that the whole DEV/bootstrap stack is drift-free.
+- View in SageMaker Studio: Pipelines -> `insurance-dev-claim-risk` -> Executions
+  -> `migration-accepted-snapshot`, then open the execution graph.
+  [AWS viewing instructions](https://docs.aws.amazon.com/sagemaker/latest/dg/pipelines-studio-view-execution.html).
 
 ## Why this exists
 
@@ -29,6 +65,15 @@ PrepareData (Processing + Athena Gold export)
 existing encrypted Athena workgroup. It then applies the existing leakage-safe
 feature contract and chronological 60/20/20 split. The legacy four-row
 `fraud_label` fixture is not a Pipeline input.
+
+For the Human-requested migration-only proof (2026-09-26), set the execution
+parameter `PreparedInputUri` to
+`s3://aip-insurance-dev-control-dev01/ml/runs/insurance-dev-claim-risk-v1-20260910-061552/input/`.
+This reuses the six existing accepted prepared files unchanged instead of
+re-exporting current Gold. It verifies managed orchestration, not current data
+quality. Leave the parameter empty to use the Athena path. Current HOME rows
+have non-applicable vehicle fields rejected by the existing strict preprocessing;
+that data/validation issue is explicitly deferred, not silently fixed.
 
 The evaluation step calculates metrics on the untouched test split. Only a run
 meeting `MinimumAuc` may register a model, score the complete input and publish

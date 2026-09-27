@@ -7,6 +7,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import boto3
 
@@ -51,6 +52,19 @@ def _export_gold_features(
     return destination
 
 
+def _download_prepared_snapshot(*, s3_uri: str, destinations: dict[str, Path], region: str) -> None:
+    """Copy an existing prepared ML snapshot without reprocessing its rows."""
+    parsed = urlparse(s3_uri)
+    prefix = parsed.path.lstrip("/").rstrip("/")
+    if parsed.scheme != "s3" or not parsed.netloc or not prefix:
+        raise ValueError("prepared-input-uri must be an s3://bucket/prefix URI")
+
+    s3 = boto3.client("s3", region_name=region)
+    for name, destination in destinations.items():
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        s3.download_file(parsed.netloc, f"{prefix}/{name}", str(destination))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--region", required=True)
@@ -58,7 +72,29 @@ def main() -> None:
     parser.add_argument("--gold-database", required=True)
     parser.add_argument("--athena-output-uri", required=True)
     parser.add_argument("--poll-seconds", type=int, default=10)
+    parser.add_argument("--prepared-input-uri", default="")
     args = parser.parse_args()
+
+    destinations = {
+        "train.csv": Path("/opt/ml/processing/train/train.csv"),
+        "validation.csv": Path("/opt/ml/processing/validation/validation.csv"),
+        "test.csv": Path("/opt/ml/processing/test/test.csv"),
+        "inference.csv": Path("/opt/ml/processing/inference/inference.csv"),
+        "claim_ids.csv": Path("/opt/ml/processing/manifest/claim_ids.csv"),
+        "metadata.json": Path("/opt/ml/processing/metadata/metadata.json"),
+    }
+    if args.prepared_input_uri:
+        _download_prepared_snapshot(
+            s3_uri=args.prepared_input_uri,
+            destinations=destinations,
+            region=args.region,
+        )
+        print(json.dumps({
+            "input_source": "prepared_snapshot",
+            "prepared_input_uri": args.prepared_input_uri,
+            "message": "Reused existing prepared snapshot; data was not queried from current Gold or revalidated.",
+        }, sort_keys=True))
+        return
 
     source = _export_gold_features(
         region=args.region,
@@ -72,14 +108,6 @@ def main() -> None:
 
     work = Path("/opt/ml/processing/work")
     metadata = prepare_dataset(rows, work)
-    destinations = {
-        "train.csv": Path("/opt/ml/processing/train/train.csv"),
-        "validation.csv": Path("/opt/ml/processing/validation/validation.csv"),
-        "test.csv": Path("/opt/ml/processing/test/test.csv"),
-        "inference.csv": Path("/opt/ml/processing/inference/inference.csv"),
-        "claim_ids.csv": Path("/opt/ml/processing/manifest/claim_ids.csv"),
-        "metadata.json": Path("/opt/ml/processing/metadata/metadata.json"),
-    }
     for name, destination in destinations.items():
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes((work / name).read_bytes())

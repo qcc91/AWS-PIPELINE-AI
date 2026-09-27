@@ -103,6 +103,22 @@ variable "user_role_arns" {
   }
 }
 
+variable "aws_resource_grant_role_arns" {
+  description = "Explicit same-account roles allowed to create grants only for AWS-managed resources such as encrypted SageMaker processing volumes."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.aws_resource_grant_role_arns : can(regex(
+        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+        arn,
+      ))
+    ])
+    error_message = "aws_resource_grant_role_arns must contain only explicit same-account IAM role ARNs without wildcards."
+  }
+}
+
 variable "s3vectors_bucket_arns" {
   description = "Explicit same-account S3 Vectors bucket ARNs allowed to use this key for background indexing."
   type        = list(string)

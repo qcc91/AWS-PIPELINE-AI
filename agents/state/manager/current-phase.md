@@ -1,5 +1,28 @@
 # Manager Current Phase
 
+## Current authorized enhancement — 2026-09-26
+
+SageMaker managed ML Pipeline apply is Human-approved. Scope is now migration
+of the existing successful ML flow into an AWS/UI-visible DAG; current Gold
+data-quality remediation is deferred by Human. No PROD or V6 work is authorized.
+Pipeline `insurance-dev-claim-risk` is deployed. Execution `g46dxu0f1ydw` uses
+the unchanged six prepared V1 input files from
+`ml/runs/insurance-dev-claim-risk-v1-20260910-061552/input/` and succeeded on
+2026-09-27. All eight executed steps succeeded. Gold validation: 120 rows,
+120 unique claims, zero invalid probabilities; test AUC 0.622222.
+The final retries fixed exact-group model registration permissions and added
+legacy dataset lineage only to an encrypted runtime manifest copy. Upstream
+training and prediction were reused. Focused ML/security tests: 50 passed.
+Athena validation: `938f0be5-bf34-4a36-8bbf-25748d872746`.
+The latest scoped apply was 0 add / 2 update / 0 destroy (prepare script and
+Pipeline parameter). This proof is not validation of the current Gold snapshot.
+The earlier three failed runs exposed runtime KMS grant permission, enforced
+Athena output-prefix permission, and non-AUTO vehicle-null validation issues.
+The first two were fixed within the approved role/resource scope; the third
+is deferred rather than changing business data. No ML feature library change.
+
+The older package descriptions below are historical, not the current scope.
+
 ## Authoritative release status
 
 V1–V5 are accepted and released. V5 annotated tag `v5.0-production-ready`

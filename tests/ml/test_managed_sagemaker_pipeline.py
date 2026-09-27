@@ -4,6 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = (ROOT / "infrastructure/terraform/modules/ml/pipeline.tf").read_text(encoding="utf-8")
 ML_MAIN = (ROOT / "infrastructure/terraform/modules/ml/main.tf").read_text(encoding="utf-8")
+DEV_MAIN = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(encoding="utf-8")
+KMS_MAIN = (ROOT / "infrastructure/terraform/modules/kms/main.tf").read_text(encoding="utf-8")
 BOOTSTRAP = (ROOT / "infrastructure/terraform/bootstrap/modules/dev-operator/main.tf").read_text(encoding="utf-8")
 SECURITY = (ROOT / "infrastructure/terraform/modules/security-governance/main.tf").read_text(encoding="utf-8")
 PREPARE = (ROOT / "workloads/ml/sagemaker_pipeline_prepare.py").read_text(encoding="utf-8")
@@ -23,6 +25,8 @@ def test_real_sagemaker_pipeline_contains_complete_managed_dag() -> None:
     ):
         assert step in PIPELINE
     assert 'Type = "Condition"' in PIPELINE
+    assert 'Type      = "Model"' in PIPELINE
+    assert 'Type      = "CreateModel"' not in PIPELINE
     assert 'Type = "Fail"' in PIPELINE
     assert "aws_sagemaker_endpoint" not in PIPELINE
 
@@ -40,6 +44,18 @@ def test_pipeline_uses_registry_kms_and_project_visible_tags() -> None:
     assert 'ProjectUserTagManagedBy' in PIPELINE
     assert 'Action = "kms:CreateGrant"' in ML_MAIN
     assert '"kms:GrantIsForAWSResource" = "true"' in ML_MAIN
+    assert "aws_resource_grant_role_arns" in DEV_MAIN
+    assert "module.ml.sagemaker_role_arn" in DEV_MAIN
+    assert 'Action    = "kms:CreateGrant"' in KMS_MAIN
+    assert '"kms:GrantIsForAWSResource" = "true"' in KMS_MAIN
+    assert '"${local.control_arn}/athena-results/*"' in ML_MAIN
+
+
+def test_property_files_use_the_service_json_schema_keys() -> None:
+    assert 'PropertyFileName = "EvaluationReport"' in PIPELINE
+    assert 'PropertyFileName = "GoldValidation"' in PIPELINE
+    assert 'PropertyFile = { Get = "Steps.EvaluateModel.PropertyFiles.EvaluationReport" }' in PIPELINE
+    assert "PropertyFiles = [{\n          Name" not in PIPELINE
 
 
 def test_bootstrap_permission_is_scoped_to_exact_pipeline() -> None:
@@ -55,6 +71,8 @@ def test_ml_engineer_can_list_and_run_the_managed_pipeline() -> None:
     assert '"sagemaker:StartPipelineExecution"' in SECURITY
     assert '"sagemaker:StopPipelineExecution"' in SECURITY
     assert 'var.sagemaker_pipeline_arn' in SECURITY
+    assert '"sagemaker:DescribeProcessingJob"' in SECURITY
+    assert 'Sid = "ReadSageMakerJobLogs"' in SECURITY
 
 
 def test_model_archive_extraction_rejects_paths_and_links() -> None:

@@ -1,5 +1,20 @@
 # AI Engineering Worker Status
 
+## Managed SageMaker Pipeline migration — COMPLETE (2026-09-27)
+
+- Pipeline `insurance-dev-claim-risk`, execution `g46dxu0f1ydw`: Succeeded.
+- Reused accepted V1 prepared snapshot by Human direction; no source business
+  data or feature-library changes. Current Gold null handling is deferred.
+- Prepare -> Training -> Evaluation -> Gate -> Registry -> Model -> Transform
+  -> Glue/Athena publication all succeeded. AUC 0.622222; Gold 120 rows/120
+  unique IDs/0 invalid probabilities. Registry version 1 remains pending approval.
+- Runtime permissions and legacy manifest lineage compatibility were fixed;
+  failed steps resumed without repeating successful training or inference.
+- Focused tests: 50 passed. No endpoint, notebook, PROD or V6 work.
+- See `docs/architecture/sagemaker-managed-pipeline.md` for runtime evidence
+  and the Studio viewing path; project-specific Unified Studio visibility
+  still depends on the user's project profile/permissions.
+
 ## V5 operational regression (2026-09-15)
 
 - Added focused, local ML replay-contract and RAG unchanged-sync regression

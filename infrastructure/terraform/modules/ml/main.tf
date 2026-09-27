@@ -108,6 +108,7 @@ resource "aws_iam_role_policy" "sagemaker" {
     Statement = [
       { Effect = "Allow", Action = ["s3:GetBucketLocation", "s3:ListBucket"], Resource = [local.lakehouse_arn, local.control_arn] },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = ["${local.lakehouse_arn}/lakehouse/gold/*", "${local.control_arn}/ml/*"] },
+      { Effect = "Allow", Action = ["s3:AbortMultipartUpload", "s3:GetObject", "s3:PutObject"], Resource = "${local.control_arn}/athena-results/*" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion"], Resource = ["${local.control_arn}/artifacts/ml/pipeline/*"] },
       { Effect = "Allow", Action = ["kms:Decrypt", "kms:DescribeKey", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*"], Resource = var.kms_key_arn },
       { Effect = "Allow", Action = "kms:CreateGrant", Resource = var.kms_key_arn, Condition = { Bool = { "kms:GrantIsForAWSResource" = "true" } } },
@@ -117,6 +118,7 @@ resource "aws_iam_role_policy" "sagemaker" {
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:DescribeLogStreams", "logs:PutLogEvents"], Resource = "arn:aws:logs:${var.aws_region}:${var.account_id}:log-group:/aws/sagemaker/*" },
       { Effect = "Allow", Action = ["sagemaker:CreateProcessingJob", "sagemaker:DescribeProcessingJob", "sagemaker:StopProcessingJob", "sagemaker:CreateTrainingJob", "sagemaker:DescribeTrainingJob", "sagemaker:StopTrainingJob", "sagemaker:CreateModel", "sagemaker:DescribeModel", "sagemaker:DeleteModel", "sagemaker:CreateTransformJob", "sagemaker:DescribeTransformJob", "sagemaker:StopTransformJob", "sagemaker:AddTags", "sagemaker:ListTags"], Resource = ["arn:aws:sagemaker:${var.aws_region}:${var.account_id}:processing-job/pipelines-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:training-job/pipelines-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:model/pipelines-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:transform-job/pipelines-*"] },
       { Effect = "Allow", Action = ["sagemaker:CreateModelPackage", "sagemaker:DescribeModelPackage", "sagemaker:ListTags", "sagemaker:AddTags"], Resource = [aws_sagemaker_model_package_group.claim_fraud.arn, "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:model-package/${aws_sagemaker_model_package_group.claim_fraud.model_package_group_name}/*"] },
+      { Effect = "Allow", Action = ["sagemaker:CreateModelPackageGroup", "sagemaker:DescribeModelPackageGroup"], Resource = aws_sagemaker_model_package_group.claim_fraud.arn },
       { Effect = "Allow", Action = "iam:PassRole", Resource = aws_iam_role.sagemaker.arn, Condition = { StringEquals = { "iam:PassedToService" = "sagemaker.amazonaws.com" } } },
       { Effect = "Allow", Action = ["glue:StartJobRun", "glue:GetJobRun"], Resource = aws_glue_job.postprocess.arn },
       { Effect = "Allow", Action = ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults"], Resource = "arn:aws:athena:${var.aws_region}:${var.account_id}:workgroup/${var.athena_workgroup_name}" },

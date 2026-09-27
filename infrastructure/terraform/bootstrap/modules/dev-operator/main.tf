@@ -210,7 +210,7 @@ resource "aws_iam_role_policy" "terraform_execution" {
       {
         Sid      = "ManageClaimRiskSageMakerPipeline"
         Effect   = "Allow"
-        Action   = ["sagemaker:AddTags", "sagemaker:CreatePipeline", "sagemaker:DeletePipeline", "sagemaker:DescribePipeline", "sagemaker:ListTags", "sagemaker:UpdatePipeline"]
+        Action   = ["sagemaker:AddTags", "sagemaker:CreatePipeline", "sagemaker:DeletePipeline", "sagemaker:DescribePipeline", "sagemaker:GetPipelineDefinition", "sagemaker:ListTags", "sagemaker:UpdatePipeline"]
         Resource = "arn:aws:sagemaker:ap-southeast-2:${var.account_id}:pipeline/insurance-${var.environment}-claim-risk"
       },
       {

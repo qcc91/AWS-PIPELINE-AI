@@ -31,6 +31,11 @@ locals {
     }
     Parameters = [
       {
+        Name         = "PreparedInputUri"
+        Type         = "String"
+        DefaultValue = ""
+      },
+      {
         Name         = "OutputPrefix"
         Type         = "String"
         DefaultValue = local.pipeline_base_uri
@@ -56,6 +61,7 @@ locals {
             ContainerArguments = [
               "/opt/ml/processing/code/sagemaker_pipeline_prepare.py",
               "--region", var.aws_region,
+              "--prepared-input-uri", { Get = "Parameters.PreparedInputUri" },
               "--athena-workgroup", var.athena_workgroup_name,
               "--gold-database", var.gold_database_name,
               "--athena-output-uri", { "Std:Join" = { On = "/", Values = [{ Get = "Parameters.OutputPrefix" }, "executions", { Get = "Execution.PipelineExecutionId" }, "athena-prepare"] } },
@@ -147,9 +153,9 @@ locals {
         Type      = "Processing"
         DependsOn = ["TrainXGBoost"]
         PropertyFiles = [{
-          Name       = "EvaluationReport"
-          OutputName = "evaluation"
-          FilePath   = "evaluation.json"
+          PropertyFileName = "EvaluationReport"
+          OutputName       = "evaluation"
+          FilePath         = "evaluation.json"
         }]
         Arguments = {
           AppSpecification = {
@@ -208,7 +214,7 @@ locals {
           Conditions = [{
             Type = "GreaterThanOrEqualTo"
             LeftValue = { "Std:JsonGet" = {
-              PropertyFile = { Get = "Steps.EvaluateModel.PropertyFiles['EvaluationReport']" }
+              PropertyFile = { Get = "Steps.EvaluateModel.PropertyFiles.EvaluationReport" }
               Path         = "binary_classification_metrics.auc.value"
             } }
             RightValue = { Get = "Parameters.MinimumAuc" }
@@ -243,7 +249,7 @@ locals {
             },
             {
               Name      = "CreateBatchModel"
-              Type      = "CreateModel"
+              Type      = "Model"
               DependsOn = ["RegisterModel"]
               Arguments = {
                 ExecutionRoleArn = aws_iam_role.sagemaker.arn
@@ -286,9 +292,9 @@ locals {
               Type      = "Processing"
               DependsOn = ["BatchTransform"]
               PropertyFiles = [{
-                Name       = "GoldValidation"
-                OutputName = "validation"
-                FilePath   = "validation.json"
+                PropertyFileName = "GoldValidation"
+                OutputName       = "validation"
+                FilePath         = "validation.json"
               }]
               Arguments = {
                 AppSpecification = {

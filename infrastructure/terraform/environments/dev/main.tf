@@ -55,6 +55,9 @@ module "platform_kms" {
     module.cdc.glue_role_arn, module.cdc.dms_s3_role_arn, module.cdc.dms_secrets_role_arn,
     module.ml.sagemaker_role_arn, module.ml.postprocess_role_arn, module.rag.bedrock_role_arn,
   ] : []
+  aws_resource_grant_role_arns = var.v3_terraform_execution_role_arn != null ? [
+    module.ml.sagemaker_role_arn,
+  ] : []
   s3vectors_bucket_arns = [
     "arn:aws:s3vectors:${var.aws_region}:${var.account_id}:bucket/${var.org_short}-insurance-${local.environment}-vectors-${var.account_short}",
   ]

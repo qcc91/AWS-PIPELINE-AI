@@ -89,6 +89,16 @@ resource "aws_kms_key" "this" {
         }
       ],
       [
+        for role_index, role_arn in var.aws_resource_grant_role_arns : {
+          Sid       = "AllowAWSResourceGrant${role_index}"
+          Effect    = "Allow"
+          Principal = { AWS = role_arn }
+          Action    = "kms:CreateGrant"
+          Resource  = "*"
+          Condition = { Bool = { "kms:GrantIsForAWSResource" = "true" } }
+        }
+      ],
+      [
         for bucket_index, bucket_arn in var.s3vectors_bucket_arns : {
           Sid       = "AllowS3VectorsIndexing${bucket_index}"
           Effect    = "Allow"
