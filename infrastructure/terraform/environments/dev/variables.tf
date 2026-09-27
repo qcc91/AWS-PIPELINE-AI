@@ -31,6 +31,17 @@ variable "account_id" {
   }
 }
 
+variable "sagemaker_unified_studio_project_id" {
+  description = "Existing DEV SageMaker Unified Studio project that owns/discovers the managed ML Pipeline."
+  type        = string
+  default     = "d1zzpm6mte659e"
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9]{4,35}$", var.sagemaker_unified_studio_project_id))
+    error_message = "sagemaker_unified_studio_project_id must be a valid DataZone project identifier."
+  }
+}
+
 variable "account_short" {
   description = "Non-sensitive lowercase account discriminator used in globally unique bucket names."
   type        = string

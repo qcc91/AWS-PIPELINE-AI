@@ -1,6 +1,6 @@
 # AI Engineering Worker Status
 
-## Managed SageMaker Pipeline migration — COMPLETE (2026-09-27)
+## V6 SageMaker managed Pipeline — IMPLEMENTED / PR VALIDATION PENDING (2026-09-27)
 
 - Pipeline `insurance-dev-claim-risk`, execution `g46dxu0f1ydw`: Succeeded.
 - Reused accepted V1 prepared snapshot by Human direction; no source business
@@ -10,10 +10,17 @@
   unique IDs/0 invalid probabilities. Registry version 1 remains pending approval.
 - Runtime permissions and legacy manifest lineage compatibility were fixed;
   failed steps resumed without repeating successful training or inference.
-- Focused tests: 50 passed. No endpoint, notebook, PROD or V6 work.
-- See `docs/architecture/sagemaker-managed-pipeline.md` for runtime evidence
-  and the Studio viewing path; project-specific Unified Studio visibility
-  still depends on the user's project profile/permissions.
+- Python now owns the managed DAG semantics; Terraform owns the durable AWS
+  Pipeline control plane and injects environment-specific resource values.
+- DEV control-plane update succeeded in place: 0 add / 1 change / 0 destroy.
+  No new ML compute run was started. The Pipeline is Active and tagged to
+  Unified Studio project `d1zzpm6mte659e`.
+- The existing IAM-based Unified Studio portal does not provide a native
+  Pipelines navigation item. The Human inspection path is the standard
+  SageMaker AI Pipelines console documented in
+  `docs/architecture/sagemaker-managed-pipeline.md`.
+- Focused tests: 52 passed before final repository CI. No endpoint, notebook,
+  PROD change or additional AWS service.
 
 ## V5 operational regression (2026-09-15)
 
@@ -60,4 +67,4 @@
 - Existing managed-service roles remain separate from proposed caller personas: MLEngineer orchestrates only the approved batch workflow; RAGApplication uses only service-mediated Knowledge Base retrieval.
 - No AWS resources or Terraform were changed and no billable workload was run. Live IAM/KMS/S3/Bedrock readback matched the current Terraform state, found no managed-policy attachments or unexpected AI KMS grants, and confirmed root is still the current CLI caller.
 
-Last updated: 2026-09-16.
+Last updated: 2026-09-27.

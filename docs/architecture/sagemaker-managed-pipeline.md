@@ -34,8 +34,10 @@ Status: deployed with Human approval; end-to-end migration proof SUCCEEDED.
   update, not applied: `module.ml.aws_s3_object.pipeline_script`. The new managed
   pipeline and its runtime fixes have no further planned changes. This is not a
   claim that the whole DEV/bootstrap stack is drift-free.
-- View in SageMaker Studio: Pipelines -> `insurance-dev-claim-risk` -> Executions
-  -> `migration-accepted-snapshot`, then open the execution graph.
+- View in the standard SageMaker AI console: open
+  [insurance-dev-claim-risk execution g46dxu0f1ydw](https://console.aws.amazon.com/sagemaker/home?region=ap-southeast-2#/pipelines/insurance-dev-claim-risk/executions/g46dxu0f1ydw),
+  or navigate to SageMaker AI -> Pipelines -> `insurance-dev-claim-risk` ->
+  Executions -> `migration-accepted-snapshot`, then open the execution graph.
   [AWS viewing instructions](https://docs.aws.amazon.com/sagemaker/latest/dg/pipelines-studio-view-execution.html).
 
 ## Why this exists
@@ -88,11 +90,35 @@ Pipeline execution remains an ephemeral runtime operation and must not be
 recorded as a Terraform resource. It can be started from the SageMaker console
 or the `StartPipelineExecution` API after deployment approval.
 
-The Pipeline is designed to appear in the SageMaker Pipelines console as
+The Pipeline appears in the standard SageMaker AI Pipelines console as
 `insurance-dev-claim-risk`. Its steps, executions, parameters and graph are
-therefore visible as one managed ML workflow. `ProjectUserTag*` tags are
-included for Unified Studio compatibility, but display inside a particular
-Unified Studio project still depends on that project's profile and permissions.
+visible as one managed ML workflow. Terraform also applies
+`AmazonDataZoneProject=d1zzpm6mte659e` and the project user tags so the resource
+is associated with the existing Unified Studio project.
+
+The existing project is an IAM-based Unified Studio domain. That portal exposes
+models, MLflow, training jobs and endpoints, but its current left navigation
+does not expose native SageMaker Pipelines. Opening the MLflow page therefore
+does not display this Pipeline and is not a deployment failure. V6 deliberately
+uses the standard SageMaker AI Pipelines UI above instead of creating a second
+Identity Center domain or replacing the workflow with another service.
+
+## V6 control-plane update (2026-09-27)
+
+- Python now owns the complete DAG semantics in
+  `workloads/ml/pipeline/pipeline_definition.py`; Terraform passes
+  environment-specific names, ARNs, images and S3 locations and registers the
+  returned native SageMaker service definition.
+- DEV apply result: `0 added / 1 changed / 0 destroyed`. The existing Pipeline
+  was updated in place; no Training, Processing or Batch Transform job was
+  started by the control-plane update.
+- The Pipeline is `Active` and has the project association tag
+  `AmazonDataZoneProject=d1zzpm6mte659e`.
+- Accepted execution `g46dxu0f1ydw` remains `Succeeded`; all eight managed
+  steps remain visible and succeeded.
+- The first targeted apply also attempted to tag the Model Package Group and
+  was denied because TerraformExecution is intentionally scoped to the exact
+  Pipeline ARN. That unrelated tag was removed; no IAM expansion was needed.
 
 This is the only material "individual AWS jobs exist but the end-to-end
 workflow is not an AWS-managed, UI-visible pipeline" gap found in the V5
@@ -140,6 +166,6 @@ The targeted plan intentionally excludes unrelated post-refactor path drift in
 the wider DEV root. A full untargeted plan must be reconciled separately; it is
 not part of this ML enhancement.
 
-The bootstrap role policy update and the DEV foundation change require their
-normal reviewed Terraform apply sequence. No apply or Pipeline execution is
-authorized merely by this document.
+The earlier plans and applies are historical evidence. The V6 control-plane
+update above is the current deployed state; no Pipeline execution or PROD
+change is authorized merely by this document.

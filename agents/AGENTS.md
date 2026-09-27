@@ -1334,7 +1334,7 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V5 ACCEPTED / RELEASED; SAGEMAKER MANAGED PIPELINE MIGRATION PROOF COMPLETE
+V6 SAGEMAKER MANAGED ML PIPELINE — AUTHORIZED / IN PROGRESS
 
 The Human accepted the V1-V5 platform and the repository structure refactor.
 The current authorized enhancement replaces workstation orchestration of the
@@ -1357,6 +1357,14 @@ validation returned 120 rows/120 unique IDs/0 invalid probabilities. Test AUC
 was 0.622222, matching V1. A runtime manifest copy adds legacy lineage metadata
 without modifying source inputs. Current Gold data remediation remains deferred.
 No additional version, PROD deployment, merge or release tag is authorized.
+
+Human formally authorized V6 on 2026-09-27. V6 is a narrow DEV enhancement:
+retain the successful managed DAG and reuse the existing Gold/XGBoost/S3/KMS/
+Model Registry implementation, move workflow semantics into Python rather than
+Terraform, associate the Pipeline with the existing Unified Studio project,
+prove Human-visible UI discovery, run protected PR CI, and stop before merge or
+tagging. Routine DEV fixes are authorized. Destructive changes, broad IAM,
+cost above USD 5, PROD, protected-main merge, and V6 tag require Human approval.
 
 The statements below are retained historical context. They do not override
 the current structural-only authorization.

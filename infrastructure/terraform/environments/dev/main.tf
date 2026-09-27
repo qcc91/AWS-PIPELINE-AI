@@ -195,6 +195,7 @@ module "ml" {
   pipeline_publish_script_path  = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_publish.py")
   claim_risk_library_path       = abspath("${path.root}/../../../../workloads/ml/claim_risk.py")
   athena_workgroup_name         = module.bi.athena_workgroup_name
+  unified_studio_project_id     = var.sagemaker_unified_studio_project_id
   tags                          = module.common.tags
 }
 

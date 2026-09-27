@@ -48,7 +48,7 @@ main 合并经 CodeConnections 自动触发 CodePipeline/CodeBuild。CD 仅操�
 | 数据质量 | 行级隔离 + 内联 Glue DQDL，真实 FAIL/PASS | [质量控制](pipelines/quality/)、[V2 验收](docs/releases/v2/v2-completion-review.md) |
 | 治理 | Analyst/ML/RAG 边界，真实 ALLOW/DENY | [治理模块](infrastructure/terraform/modules/security-governance/)、[V3 验收](docs/releases/v3/v3-completion-review.md) |
 | BI | Athena 查询与 Gold 指标；QuickSight 延后 | [BI workload](workloads/bi/)、[BI 说明](docs/releases/v1/v1-bi.md) |
-| ML | 120 条、54 维时点特征，Training → Batch Transform → Gold；托管 Pipeline 改造待 Apply | [当前特征代码](workloads/ml/claim_risk.py)、[Pipeline 设计](docs/architecture/sagemaker-managed-pipeline.md)、[真实指标与限制](docs/releases/v1/v1-ml-result.md) |
+| ML | 120 条、54 维时点特征；原生 SageMaker Pipeline 已在 DEV 部署并成功运行，覆盖 Processing → Training → Evaluation → Registry → Batch Transform → Gold | [当前特征代码](workloads/ml/claim_risk.py)、[Pipeline 设计与 UI 入口](docs/architecture/sagemaker-managed-pipeline.md)、[真实指标与限制](docs/releases/v1/v1-ml-result.md) |
 | RAG | 两份文档、Titan V2、Nova Micro 回答及 S3 引用 | [RAG workload](workloads/rag/)、[真实运行](docs/releases/v1/v1-rag.md) |
 | 运维 | 四个告警、Glue/EventBridge/SNS、DMS 失败订阅、恢复重放 | [运行手册](docs/operations/runbooks/)、[V5 证据](docs/releases/v5/v5-runtime-evidence.md) |
 

@@ -131,5 +131,7 @@ resource "aws_iam_role_policy" "sagemaker" {
 resource "aws_sagemaker_model_package_group" "claim_fraud" {
   model_package_group_name        = "insurance-${var.environment}-claim-fraud"
   model_package_group_description = "Versioned XGBoost claim fraud models; registration is performed after evaluation."
-  tags                            = merge(var.tags, { Purpose = "claim-fraud-model-registry" })
+  tags = merge(var.tags, {
+    Purpose = "claim-fraud-model-registry"
+  })
 }

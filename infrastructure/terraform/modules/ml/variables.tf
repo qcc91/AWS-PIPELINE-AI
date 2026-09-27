@@ -63,6 +63,16 @@ variable "athena_workgroup_name" {
   type        = string
 }
 
+variable "unified_studio_project_id" {
+  description = "Existing SageMaker Unified Studio/DataZone project ID used for native project resource discovery."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z][a-z0-9]{4,35}$", var.unified_studio_project_id))
+    error_message = "unified_studio_project_id must be a valid DataZone project identifier."
+  }
+}
+
 variable "processing_image_uri" {
   description = "AWS-published scikit-learn processing image used by prepare and publication steps."
   type        = string

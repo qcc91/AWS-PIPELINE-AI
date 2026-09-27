@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from workloads.ml.pipeline.pipeline_definition import build_pipeline_definition
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PIPELINE = (ROOT / "infrastructure/terraform/modules/ml/pipeline.tf").read_text(encoding="utf-8")
@@ -12,23 +14,70 @@ PREPARE = (ROOT / "workloads/ml/sagemaker_pipeline_prepare.py").read_text(encodi
 EVALUATE = (ROOT / "workloads/ml/sagemaker_pipeline_evaluate.py").read_text(encoding="utf-8")
 
 
+PIPELINE_CONFIG = {
+    "aws_region": "ap-southeast-2",
+    "athena_workgroup_name": "insurance-dev-bi",
+    "code_uri": "s3://control/artifacts/ml/pipeline",
+    "gold_database_name": "insurance_dev_gold",
+    "glue_job_name": "insurance-dev-claim-risk-postprocess",
+    "kms_key_arn": "arn:aws:kms:ap-southeast-2:111122223333:key/example",
+    "model_package_group_name": "insurance-dev-claim-fraud",
+    "output_prefix": "s3://control/ml/pipeline",
+    "processing_image_uri": "processing-image",
+    "role_arn": "arn:aws:iam::111122223333:role/sagemaker-role",
+    "xgboost_image_uri": "xgboost-image",
+}
+
+
+def _definition() -> dict:
+    return build_pipeline_definition(PIPELINE_CONFIG)
+
+
 def test_real_sagemaker_pipeline_contains_complete_managed_dag() -> None:
     assert 'resource "aws_sagemaker_pipeline" "claim_risk"' in PIPELINE
-    for step in (
-        'Name = "PrepareData"',
-        'Name      = "TrainXGBoost"',
-        'Name      = "EvaluateModel"',
-        'Name = "ModelQualityGate"',
-        'Name = "RegisterModel"',
-        'Name      = "BatchTransform"',
-        'Name      = "PublishAndValidateGold"',
-    ):
-        assert step in PIPELINE
-    assert 'Type = "Condition"' in PIPELINE
-    assert 'Type      = "Model"' in PIPELINE
-    assert 'Type      = "CreateModel"' not in PIPELINE
-    assert 'Type = "Fail"' in PIPELINE
+    definition = _definition()
+    top_level = {step["Name"]: step for step in definition["Steps"]}
+    assert list(top_level) == [
+        "PrepareData",
+        "TrainXGBoost",
+        "EvaluateModel",
+        "ModelQualityGate",
+    ]
+    assert top_level["TrainXGBoost"]["DependsOn"] == ["PrepareData"]
+    assert top_level["EvaluateModel"]["DependsOn"] == ["TrainXGBoost"]
+
+    gate = top_level["ModelQualityGate"]
+    assert gate["Type"] == "Condition"
+    pass_steps = {step["Name"]: step for step in gate["Arguments"]["IfSteps"]}
+    assert list(pass_steps) == [
+        "RegisterModel",
+        "CreateBatchModel",
+        "BatchTransform",
+        "PublishAndValidateGold",
+    ]
+    assert pass_steps["CreateBatchModel"]["Type"] == "Model"
+    assert pass_steps["BatchTransform"]["Type"] == "Transform"
+    assert gate["Arguments"]["ElseSteps"][0]["Type"] == "Fail"
     assert "aws_sagemaker_endpoint" not in PIPELINE
+
+
+def test_terraform_registers_python_owned_pipeline_definition() -> None:
+    assert 'data "external" "claim_risk_pipeline_definition"' in PIPELINE
+    assert 'program = ["python", local.pipeline_definition_script]' in PIPELINE
+    assert "pipeline_definition   = data.external.claim_risk_pipeline_definition.result.pipeline_definition" in PIPELINE
+    assert "local.pipeline_definition =" not in PIPELINE
+    for value in (
+        "aws_region",
+        "athena_workgroup_name",
+        "gold_database_name",
+        "glue_job_name",
+        "kms_key_arn",
+        "model_package_group_name",
+        "processing_image_uri",
+        "role_arn",
+        "xgboost_image_uri",
+    ):
+        assert value in PIPELINE
 
 
 def test_prepare_reads_real_gold_features_through_athena() -> None:
@@ -39,9 +88,14 @@ def test_prepare_reads_real_gold_features_through_athena() -> None:
 
 
 def test_pipeline_uses_registry_kms_and_project_visible_tags() -> None:
-    assert "aws_sagemaker_model_package_group.claim_fraud" in PIPELINE
-    assert 'ModelApprovalStatus   = "PendingManualApproval"' in PIPELINE
+    definition = _definition()
+    gate = definition["Steps"][3]
+    register = gate["Arguments"]["IfSteps"][0]
+    assert register["Arguments"]["ModelPackageGroupName"] == "insurance-dev-claim-fraud"
+    assert register["Arguments"]["ModelApprovalStatus"] == "PendingManualApproval"
     assert 'ProjectUserTagManagedBy' in PIPELINE
+    assert 'AmazonDataZoneProject' in PIPELINE
+    assert 'var.unified_studio_project_id' in PIPELINE
     assert 'Action = "kms:CreateGrant"' in ML_MAIN
     assert '"kms:GrantIsForAWSResource" = "true"' in ML_MAIN
     assert "aws_resource_grant_role_arns" in DEV_MAIN
@@ -52,10 +106,49 @@ def test_pipeline_uses_registry_kms_and_project_visible_tags() -> None:
 
 
 def test_property_files_use_the_service_json_schema_keys() -> None:
-    assert 'PropertyFileName = "EvaluationReport"' in PIPELINE
-    assert 'PropertyFileName = "GoldValidation"' in PIPELINE
-    assert 'PropertyFile = { Get = "Steps.EvaluateModel.PropertyFiles.EvaluationReport" }' in PIPELINE
-    assert "PropertyFiles = [{\n          Name" not in PIPELINE
+    definition = _definition()
+    evaluate = definition["Steps"][2]
+    gate = definition["Steps"][3]
+    publish = gate["Arguments"]["IfSteps"][3]
+    assert evaluate["PropertyFiles"] == [
+        {
+            "PropertyFileName": "EvaluationReport",
+            "OutputName": "evaluation",
+            "FilePath": "evaluation.json",
+        }
+    ]
+    assert publish["PropertyFiles"][0]["PropertyFileName"] == "GoldValidation"
+    assert gate["Arguments"]["Conditions"][0]["LeftValue"] == {
+        "Std:JsonGet": {
+            "PropertyFile": {
+                "Get": "Steps.EvaluateModel.PropertyFiles.EvaluationReport"
+            },
+            "Path": "binary_classification_metrics.auc.value",
+        }
+    }
+
+
+def test_pipeline_parameters_and_native_outputs_preserve_runtime_contract() -> None:
+    definition = _definition()
+    assert definition["Parameters"] == [
+        {"Name": "PreparedInputUri", "Type": "String", "DefaultValue": ""},
+        {
+            "Name": "OutputPrefix",
+            "Type": "String",
+            "DefaultValue": "s3://control/ml/pipeline",
+        },
+        {"Name": "MinimumAuc", "Type": "Float", "DefaultValue": 0.50},
+    ]
+    gate = definition["Steps"][3]
+    transform = gate["Arguments"]["IfSteps"][2]
+    publish = gate["Arguments"]["IfSteps"][3]
+    assert transform["Arguments"]["TransformResources"] == {
+        "InstanceCount": 1,
+        "InstanceType": "ml.m5.large",
+    }
+    assert publish["Arguments"]["AppSpecification"]["ContainerArguments"][0] == (
+        "/opt/ml/processing/code/sagemaker_pipeline_publish.py"
+    )
 
 
 def test_bootstrap_permission_is_scoped_to_exact_pipeline() -> None:
