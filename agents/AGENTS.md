@@ -1334,16 +1334,37 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-COMPLETE — V5 ACCEPTED / RELEASED; REPOSITORY STRUCTURE REFACTOR REVIEW PENDING
+V6 SAGEMAKER MANAGED ML PIPELINE — AUTHORIZED / IN PROGRESS
 
-The Human accepted and merged the portfolio cleanup. The current authorized
-package is a structural-only, domain-oriented repository refactor on
-`codex/repository-structure-refactor`. It may move files and update the path
-references required to preserve behavior, but it must not change business
-logic, AWS architecture, Terraform resource definitions, security policy,
-pipeline semantics or CI/CD behavior. Do not call AWS, move V1–V5 tags, merge
-the refactor PR automatically or begin V6. Stop at the REPOSITORY STRUCTURE
-REFACTOR HUMAN REVIEW CHECKPOINT.
+The Human accepted the V1-V5 platform and the repository structure refactor.
+The current authorized enhancement replaces workstation orchestration of the
+existing claim-risk Training and Batch Transform jobs with one Terraform-managed,
+UI-visible SageMaker Pipeline. It may add Processing, Training, evaluation,
+quality-gate, Model Registry, Batch Transform and Gold publication steps while
+reusing the existing feature contract, Glue job, Athena workgroup, S3, KMS and
+Lake Formation boundaries. It must not add an endpoint, notebook instance,
+always-running compute, new AWS service, PROD change or V6 scope. Stop at the
+Terraform Plan Approval gate before changing AWS resources outside the already
+approved ML Pipeline package. Human approved ML Pipeline apply and routine
+non-destructive fixes. On 2026-09-26 Human narrowed this enhancement to migrating
+the existing successful flow into a UI-visible managed Pipeline; reuse the
+accepted prepared input snapshot for runtime proof and defer current Gold data
+quality issues. Do not modify source business data merely to pass this proof.
+
+On 2026-09-27 managed execution `g46dxu0f1ydw` succeeded end to end using the
+accepted V1 prepared snapshot. All eight executed DAG steps succeeded; Gold
+validation returned 120 rows/120 unique IDs/0 invalid probabilities. Test AUC
+was 0.622222, matching V1. A runtime manifest copy adds legacy lineage metadata
+without modifying source inputs. Current Gold data remediation remains deferred.
+No additional version, PROD deployment, merge or release tag is authorized.
+
+Human formally authorized V6 on 2026-09-27. V6 is a narrow DEV enhancement:
+retain the successful managed DAG and reuse the existing Gold/XGBoost/S3/KMS/
+Model Registry implementation, move workflow semantics into Python rather than
+Terraform, associate the Pipeline with the existing Unified Studio project,
+prove Human-visible UI discovery, run protected PR CI, and stop before merge or
+tagging. Routine DEV fixes are authorized. Destructive changes, broad IAM,
+cost above USD 5, PROD, protected-main merge, and V6 tag require Human approval.
 
 The statements below are retained historical context. They do not override
 the current structural-only authorization.

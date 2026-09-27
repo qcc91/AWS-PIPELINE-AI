@@ -7,6 +7,10 @@ DEV = (ROOT / "infrastructure/terraform/environments/dev/main.tf").read_text(enc
 LF = (ROOT / "infrastructure/terraform/modules/lakeformation/main.tf").read_text(encoding="utf-8")
 BOOTSTRAP = (ROOT / "infrastructure/terraform/bootstrap/modules/dev-operator/main.tf").read_text(encoding="utf-8")
 STATE_BACKEND = (ROOT / "infrastructure/terraform/bootstrap/modules/state-backend/main.tf").read_text(encoding="utf-8")
+PLATFORM_KMS = (ROOT / "infrastructure/terraform/modules/kms/main.tf").read_text(encoding="utf-8")
+PLATFORM_KMS_VARIABLES = (ROOT / "infrastructure/terraform/modules/kms/variables.tf").read_text(encoding="utf-8")
+MONITORING = (ROOT / "infrastructure/terraform/modules/monitoring/main.tf").read_text(encoding="utf-8")
+MONITORING_VARIABLES = (ROOT / "infrastructure/terraform/modules/monitoring/variables.tf").read_text(encoding="utf-8")
 
 
 def test_operator_and_terraform_roles_are_bootstrap_owned():
@@ -126,3 +130,52 @@ def test_sensitive_service_access_is_resource_scoped():
     assert 'Resource = var.platform_kms_key_arn' in SECURITY
     assert 'Sid = "DenySecrets"' in SECURITY
     assert 'iam:PassRole", Resource = var.sagemaker_execution_role_arn' in SECURITY
+
+
+def test_dev_root_kms_visibility_is_read_only_and_explicit():
+    assert DEV.count('allow_account_root_read_only') == 2
+    assert 'variable "allow_account_root_read_only"' in PLATFORM_KMS_VARIABLES
+    assert 'variable "allow_account_root_read_only"' in MONITORING_VARIABLES
+    for policy in [PLATFORM_KMS, MONITORING]:
+        root_read = policy.split('Sid       = "AllowAccountRootReadOnlyMetadata"', 1)[1].split(
+            '] : [],', 1
+        )[0]
+        for action in [
+            "kms:DescribeKey",
+            "kms:GetKeyPolicy",
+            "kms:GetKeyRotationStatus",
+            "kms:ListGrants",
+            "kms:ListKeyPolicies",
+            "kms:ListResourceTags",
+        ]:
+            assert action in root_read
+        for forbidden in [
+            "kms:Decrypt",
+            "kms:Encrypt",
+            "kms:GenerateDataKey",
+            "kms:PutKeyPolicy",
+            "kms:ScheduleKeyDeletion",
+            "kms:DisableKey",
+        ]:
+            assert forbidden not in root_read
+
+
+def test_root_script_decrypt_is_s3_and_control_bucket_scoped():
+    assert 'account_root_s3_decrypt_bucket_arns = [' in DEV
+    assert '"arn:aws:s3:::${local.bucket_names["control"]}"' in DEV
+    assert 'variable "account_root_s3_decrypt_bucket_arns"' in PLATFORM_KMS_VARIABLES
+    root_decrypt = PLATFORM_KMS.split(
+        'Sid       = "AllowAccountRootDecryptControlObjectsViaS3"', 1
+    )[1].split('] : [],', 1)[0]
+    assert 'Action    = ["kms:Decrypt", "kms:DescribeKey"]' in root_decrypt
+    assert '"kms:ViaService" = "s3.${var.aws_region}.amazonaws.com"' in root_decrypt
+    assert '"kms:EncryptionContext:aws:s3:arn"' in root_decrypt
+    assert 'var.account_root_s3_decrypt_bucket_arns' in root_decrypt
+    for forbidden in [
+        '"kms:Encrypt",',
+        '"kms:GenerateDataKey",',
+        '"kms:PutKeyPolicy",',
+        '"kms:ScheduleKeyDeletion",',
+        '"kms:DisableKey",',
+    ]:
+        assert forbidden not in root_decrypt

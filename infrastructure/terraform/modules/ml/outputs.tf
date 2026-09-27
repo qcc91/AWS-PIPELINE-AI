@@ -18,3 +18,13 @@ output "postprocess_role_arn" {
   description = "Claim-risk Glue postprocess execution role ARN."
   value       = aws_iam_role.postprocess.arn
 }
+
+output "pipeline_name" {
+  description = "Terraform-managed SageMaker Pipeline visible in the SageMaker Pipelines console."
+  value       = aws_sagemaker_pipeline.claim_risk.pipeline_name
+}
+
+output "pipeline_arn" {
+  description = "Claim-risk SageMaker Pipeline ARN."
+  value       = aws_sagemaker_pipeline.claim_risk.arn
+}

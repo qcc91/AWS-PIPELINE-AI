@@ -202,6 +202,18 @@ resource "aws_iam_role_policy" "terraform_execution" {
         Resource = sort([for arn in var.project_bucket_arns : "${arn}/artifacts/glue/*"])
       },
       {
+        Sid      = "ProjectMlArtifactDeployment"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:PutObjectTagging"]
+        Resource = sort([for arn in var.project_bucket_arns : "${arn}/artifacts/ml/*" if can(regex("-control-", arn))])
+      },
+      {
+        Sid      = "ManageClaimRiskSageMakerPipeline"
+        Effect   = "Allow"
+        Action   = ["sagemaker:AddTags", "sagemaker:CreatePipeline", "sagemaker:DeletePipeline", "sagemaker:DescribePipeline", "sagemaker:GetPipelineDefinition", "sagemaker:ListTags", "sagemaker:UpdatePipeline"]
+        Resource = "arn:aws:sagemaker:ap-southeast-2:${var.account_id}:pipeline/insurance-${var.environment}-claim-risk"
+      },
+      {
         Sid      = "TerraformSecretRefresh"
         Effect   = "Allow"
         Action   = ["secretsmanager:DescribeSecret", "secretsmanager:GetSecretValue", "secretsmanager:ListSecretVersionIds"]
@@ -218,7 +230,8 @@ resource "aws_iam_role_policy" "terraform_execution" {
           "glue:Get*", "iam:GetRole", "iam:GetRolePolicy", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole", "iam:ListRolePolicies",
           "kms:DescribeKey", "kms:GetKeyPolicy", "kms:GetKeyRotationStatus", "kms:ListAliases", "kms:ListResourceTags",
           "logs:DescribeLogGroups", "logs:ListTagsForResource", "rds:Describe*", "rds:ListTagsForResource",
-          "cloudtrail:DescribeTrails", "s3vectors:GetIndex", "s3vectors:GetVectorBucket", "s3vectors:ListTagsForResource", "sagemaker:DescribeModelPackageGroup", "sagemaker:ListTags",
+          "cloudtrail:DescribeTrails", "s3vectors:GetIndex", "s3vectors:GetVectorBucket", "s3vectors:ListTagsForResource", "sagemaker:DescribeModelPackageGroup", "sagemaker:DescribePipeline", "sagemaker:ListTags",
+          "servicequotas:GetAWSDefaultServiceQuota", "servicequotas:GetServiceQuota", "servicequotas:ListServiceQuotas",
           "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy", "secretsmanager:ListSecretVersionIds", "sns:GetTopicAttributes", "sns:ListTagsForResource",
           "states:DescribeStateMachine", "states:ListStateMachineVersions", "states:ListTagsForResource", "sts:GetCallerIdentity"
         ]

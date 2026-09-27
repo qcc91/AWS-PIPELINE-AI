@@ -1,5 +1,50 @@
 # Manager Current Phase
 
+## V6 — authorized 2026-09-27
+
+Human authorized the narrow SageMaker managed ML Pipeline V6 package. Existing
+execution `g46dxu0f1ydw` is accepted as runtime evidence but V6 is not complete
+until the Pipeline is associated with project `d1zzpm6mte659e`, is visible to
+the Human in the standard SageMaker AI Pipelines UI, workflow semantics are
+Python-owned, full CI passes, and a protected PR is ready. The existing
+IAM-based Unified Studio project does not expose native Pipelines in its left
+navigation; no second domain is being created. Branch:
+`codex/v6-sagemaker-pipeline`. No PROD,
+merge, release tag, persistent endpoint, data-platform redesign, or source-data
+remediation is authorized.
+
+DEV control-plane apply completed in place: `0 add / 1 change / 0 destroy`.
+Pipeline `insurance-dev-claim-risk` is Active, carries
+`AmazonDataZoneProject=d1zzpm6mte659e`, and its targeted Terraform plan is now
+zero drift. Accepted execution `g46dxu0f1ydw` and all eight steps remain
+Succeeded. No new Training/Processing/Transform run was started. Full local
+suite: 133 passed; PR CI remains pending.
+
+## Current authorized enhancement — 2026-09-26
+
+SageMaker managed ML Pipeline apply is Human-approved. Scope is now migration
+of the existing successful ML flow into an AWS/UI-visible DAG; current Gold
+data-quality remediation is deferred by Human. At that checkpoint no PROD or
+separate next-version work was authorized; the V6 authorization above now
+supersedes that historical statement.
+Pipeline `insurance-dev-claim-risk` is deployed. Execution `g46dxu0f1ydw` uses
+the unchanged six prepared V1 input files from
+`ml/runs/insurance-dev-claim-risk-v1-20260910-061552/input/` and succeeded on
+2026-09-27. All eight executed steps succeeded. Gold validation: 120 rows,
+120 unique claims, zero invalid probabilities; test AUC 0.622222.
+The final retries fixed exact-group model registration permissions and added
+legacy dataset lineage only to an encrypted runtime manifest copy. Upstream
+training and prediction were reused. Focused ML/security tests: 50 passed.
+Athena validation: `938f0be5-bf34-4a36-8bbf-25748d872746`.
+The latest scoped apply was 0 add / 2 update / 0 destroy (prepare script and
+Pipeline parameter). This proof is not validation of the current Gold snapshot.
+The earlier three failed runs exposed runtime KMS grant permission, enforced
+Athena output-prefix permission, and non-AUTO vehicle-null validation issues.
+The first two were fixed within the approved role/resource scope; the third
+is deferred rather than changing business data. No ML feature library change.
+
+The older package descriptions below are historical, not the current scope.
+
 ## Authoritative release status
 
 V1–V5 are accepted and released. V5 annotated tag `v5.0-production-ready`
@@ -46,4 +91,4 @@ Stop before merge at REPOSITORY STRUCTURE REFACTOR HUMAN REVIEW CHECKPOINT.
 - V4B AWS status: the bootstrap-managed narrow state/IAM handoff and all 31 isolated control-plane resources are applied with no deletion/replacement. `insurance-dev-v4b-cd` and its three CodeBuild projects exist; connection `06d021e7-aa2e-4dac-8307-cf2451a277bc` is `PENDING` one-time GitHub App authorization. DEV/PROD proof resources remain unapplied.
 - Next: complete protected PR CI bookkeeping and STOP at the V5 Human acceptance checkpoint. Do not tag or begin another version before acceptance.
 
-Last updated: 2026-09-16.
+Last updated: 2026-09-27.

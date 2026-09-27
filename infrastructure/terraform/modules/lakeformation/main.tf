@@ -108,6 +108,33 @@ resource "aws_lakeformation_permissions" "ml_gold_tables" {
   lifecycle { ignore_changes = [permissions] }
 }
 
+resource "aws_lakeformation_permissions" "ml_pipeline_gold_database" {
+  for_each = contains(keys(var.pipeline_role_arns), "ml_sagemaker") ? { ml_sagemaker = var.pipeline_role_arns["ml_sagemaker"] } : {}
+
+  principal   = each.value
+  permissions = ["DESCRIBE"]
+
+  database {
+    name = var.database_names["gold"]
+  }
+
+  lifecycle { ignore_changes = [permissions] }
+}
+
+resource "aws_lakeformation_permissions" "ml_pipeline_gold_tables" {
+  for_each = contains(keys(var.pipeline_role_arns), "ml_sagemaker") ? toset(["claim_risk_features", "claim_risk"]) : toset([])
+
+  principal   = var.pipeline_role_arns["ml_sagemaker"]
+  permissions = ["DESCRIBE", "SELECT"]
+
+  table {
+    database_name = var.database_names["gold"]
+    name          = each.value
+  }
+
+  lifecycle { ignore_changes = [permissions] }
+}
+
 resource "aws_lakeformation_permissions" "data_location" {
   # Keys are configuration-time constants even though role ARNs are provider
   # outputs, so Terraform can construct these instances during planning.
@@ -162,6 +189,26 @@ resource "aws_lakeformation_opt_in" "ml_gold_tables" {
   }
 
   depends_on = [aws_lakeformation_permissions.ml_gold_tables]
+
+  lifecycle {
+    ignore_changes = [resource_data[0].table[0].catalog_id]
+  }
+}
+
+resource "aws_lakeformation_opt_in" "ml_pipeline_gold_tables" {
+  for_each = contains(keys(var.pipeline_role_arns), "ml_sagemaker") ? toset(["claim_risk_features", "claim_risk"]) : toset([])
+
+  principal {
+    data_lake_principal_identifier = var.pipeline_role_arns["ml_sagemaker"]
+  }
+  resource_data {
+    table {
+      database_name = var.database_names["gold"]
+      name          = each.value
+    }
+  }
+
+  depends_on = [aws_lakeformation_permissions.ml_pipeline_gold_tables]
 
   lifecycle {
     ignore_changes = [resource_data[0].table[0].catalog_id]

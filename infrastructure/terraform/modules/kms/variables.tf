@@ -52,6 +52,39 @@ variable "allow_root_for_v1" {
   default     = false
 }
 
+variable "allow_account_root_read_only" {
+  description = "Allow the same-account root principal to inspect key metadata and policy for break-glass diagnostics without cryptographic use or administration."
+  type        = bool
+  default     = false
+}
+
+variable "aws_region" {
+  description = "AWS region used to constrain service-mediated KMS access."
+  type        = string
+  default     = "ap-southeast-2"
+
+  validation {
+    condition     = var.aws_region == "ap-southeast-2"
+    error_message = "Only ap-southeast-2 is approved for this project."
+  }
+}
+
+variable "account_root_s3_decrypt_bucket_arns" {
+  description = "Explicit S3 bucket ARNs whose objects account root may decrypt only through the regional S3 service."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.account_root_s3_decrypt_bucket_arns : can(regex(
+        "^arn:aws:s3:::[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$",
+        arn,
+      ))
+    ])
+    error_message = "account_root_s3_decrypt_bucket_arns must contain explicit S3 bucket ARNs without wildcards."
+  }
+}
+
 variable "user_role_arns" {
   description = "Explicit same-account KMS data-plane user role ARNs; an empty list is allowed."
   type        = list(string)
@@ -67,6 +100,22 @@ variable "user_role_arns" {
       ])
     )
     error_message = "user_role_arns must contain only explicit same-account IAM role ARNs without wildcards."
+  }
+}
+
+variable "aws_resource_grant_role_arns" {
+  description = "Explicit same-account roles allowed to create grants only for AWS-managed resources such as encrypted SageMaker processing volumes."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for arn in var.aws_resource_grant_role_arns : can(regex(
+        "^arn:aws:iam::${var.account_id}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$",
+        arn,
+      ))
+    ])
+    error_message = "aws_resource_grant_role_arns must contain only explicit same-account IAM role ARNs without wildcards."
   }
 }
 

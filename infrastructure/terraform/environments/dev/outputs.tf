@@ -210,6 +210,16 @@ output "ml_sagemaker_role_arn" {
   value       = module.ml.sagemaker_role_arn
 }
 
+output "ml_pipeline_name" {
+  description = "SageMaker Pipeline that owns the complete claim-risk ML DAG."
+  value       = module.ml.pipeline_name
+}
+
+output "ml_pipeline_arn" {
+  description = "Terraform-managed SageMaker claim-risk Pipeline ARN."
+  value       = module.ml.pipeline_arn
+}
+
 output "ml_model_package_group_name" {
   description = "V1 claim-fraud model registry group."
   value       = module.ml.model_package_group_name

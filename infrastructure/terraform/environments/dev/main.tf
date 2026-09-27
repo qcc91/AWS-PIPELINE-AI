@@ -39,6 +39,14 @@ module "platform_kms" {
   account_id        = var.account_id
   admin_role_arns   = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
   allow_root_for_v1 = var.v3_terraform_execution_role_arn == null
+  # Root remains outside the routine V3 role chain. This statement permits
+  # break-glass inspection only; it grants no cryptographic or admin action.
+  allow_account_root_read_only = true
+  # S3 Bucket Keys use the bucket ARN as encryption context, so this is the
+  # narrowest reliable grant that lets root inspect Glue/ML script objects.
+  account_root_s3_decrypt_bucket_arns = [
+    "arn:aws:s3:::${local.bucket_names["control"]}",
+  ]
   user_role_arns = var.v3_terraform_execution_role_arn != null ? [
     module.security_governance[0].role_arns["TerraformExecution"],
     module.security_governance[0].role_arns["DataEngineer"], module.security_governance[0].role_arns["Analyst"],
@@ -46,6 +54,9 @@ module "platform_kms" {
     module.security_governance[0].role_arns["LakeFormationRegistration"], module.batch_ingestion.glue_role_arn,
     module.cdc.glue_role_arn, module.cdc.dms_s3_role_arn, module.cdc.dms_secrets_role_arn,
     module.ml.sagemaker_role_arn, module.ml.postprocess_role_arn, module.rag.bedrock_role_arn,
+  ] : []
+  aws_resource_grant_role_arns = var.v3_terraform_execution_role_arn != null ? [
+    module.ml.sagemaker_role_arn,
   ] : []
   s3vectors_bucket_arns = [
     "arn:aws:s3vectors:${var.aws_region}:${var.account_id}:bucket/${var.org_short}-insurance-${local.environment}-vectors-${var.account_short}",
@@ -123,6 +134,7 @@ module "monitoring" {
   bucket_name                     = "${var.org_short}-insurance-${local.environment}-audit-logs-${var.account_short}"
   kms_admin_role_arns             = var.v3_terraform_execution_role_arn != null ? [module.security_governance[0].role_arns["TerraformExecution"]] : var.kms_admin_role_arns
   allow_root_for_v1               = var.v3_terraform_execution_role_arn == null
+  allow_account_root_read_only    = true
   log_retention_days              = var.log_retention_days
   audit_noncurrent_retention_days = var.audit_noncurrent_retention_days
   audit_retention_days            = var.audit_retention_days
@@ -168,17 +180,23 @@ module "bi" {
 module "ml" {
   source = "../../modules/ml"
 
-  environment             = local.environment
-  aws_region              = var.aws_region
-  account_id              = var.account_id
-  lakehouse_bucket_name   = module.storage["lakehouse"].bucket_id
-  control_bucket_name     = module.storage["control"].bucket_id
-  kms_key_arn             = module.platform_kms.key_arn
-  gold_database_name      = module.glue.database_names["gold"]
-  pipeline_script_path    = abspath("${path.root}/../../../../workloads/ml/ml_claim_fraud_pipeline.py")
-  training_data_path      = abspath("${path.root}/../../../../data/sample/ml_claim_training.csv")
-  postprocess_script_path = abspath("${path.root}/../../../../workloads/ml/glue_claim_risk_postprocess.py")
-  tags                    = module.common.tags
+  environment                   = local.environment
+  aws_region                    = var.aws_region
+  account_id                    = var.account_id
+  lakehouse_bucket_name         = module.storage["lakehouse"].bucket_id
+  control_bucket_name           = module.storage["control"].bucket_id
+  kms_key_arn                   = module.platform_kms.key_arn
+  gold_database_name            = module.glue.database_names["gold"]
+  pipeline_script_path          = abspath("${path.root}/../../../../workloads/ml/ml_claim_fraud_pipeline.py")
+  training_data_path            = abspath("${path.root}/../../../../data/sample/ml_claim_training.csv")
+  postprocess_script_path       = abspath("${path.root}/../../../../workloads/ml/glue_claim_risk_postprocess.py")
+  pipeline_prepare_script_path  = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_prepare.py")
+  pipeline_evaluate_script_path = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_evaluate.py")
+  pipeline_publish_script_path  = abspath("${path.root}/../../../../workloads/ml/sagemaker_pipeline_publish.py")
+  claim_risk_library_path       = abspath("${path.root}/../../../../workloads/ml/claim_risk.py")
+  athena_workgroup_name         = module.bi.athena_workgroup_name
+  unified_studio_project_id     = var.sagemaker_unified_studio_project_id
+  tags                          = module.common.tags
 }
 
 module "rag" {
@@ -217,6 +235,7 @@ module "security_governance" {
   cdc_state_machine_arn        = module.cdc.cdc_state_machine_arn
   athena_workgroup_name        = module.bi.athena_workgroup_name
   sagemaker_execution_role_arn = module.ml.sagemaker_role_arn
+  sagemaker_pipeline_arn       = module.ml.pipeline_arn
   rag_knowledge_base_id        = module.rag.knowledge_base_id
   rag_generation_model_arns = [
     "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-micro-v1:0",
@@ -245,6 +264,7 @@ module "lakeformation" {
     batch_glue     = module.batch_ingestion.glue_role_arn
     cdc_glue       = module.cdc.glue_role_arn
     ml_postprocess = module.ml.postprocess_role_arn
+    ml_sagemaker   = module.ml.sagemaker_role_arn
   }
   tags = module.common.tags
 }
