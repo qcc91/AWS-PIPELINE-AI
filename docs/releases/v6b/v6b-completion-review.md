@@ -2,7 +2,8 @@
 
 ## Result
 
-V6B implementation is complete on DEV and ready for Human pull-request review.
+V6B implementation is complete on DEV and Human-accepted. PR #10 passed
+protected CI and merged normally into `main`.
 No PROD ML resource, endpoint, notebook, online Feature Store, new Unified Studio
 domain/project, release tag or V7 work was created.
 
@@ -68,7 +69,13 @@ orchestration system.
 - Repository consistency and high-confidence credential scan: passed
 - Terraform formatting and Git whitespace checks: passed
 
-## Remaining gate
+## Acceptance and final closeout
 
-Create the V6B pull request and let protected GitHub Actions run. Do not merge,
-tag, deploy to PROD or begin V7 without separate Human approval.
+- Accepted implementation commit: `7386afe8f0974877af845e2f1a4984928bbb197c`
+- Protected PR: #10; CI passed; merge produced main revision
+  `957c6043f7826f08c280f3654a3800b9759cf274` before final documentation closeout.
+- V6B is an enhancement to V6 and receives no separate release tag.
+- The final V6 tag is created only after this documentation closeout passes
+  protected CI and the unchanged minimal PROD proof flow completes.
+- Feature Store, Managed MLflow and the SageMaker Pipeline remain DEV-only.
+- Do not begin V7 automatically.

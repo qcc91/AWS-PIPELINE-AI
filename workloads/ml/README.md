@@ -43,6 +43,16 @@ batch inference. The workload creates no notebook instance, real-time endpoint
 or automated production promotion. DEV executions use short-lived
 `ml.m5.large` Processing, Training and Batch Transform jobs.
 
+Service responsibilities are deliberately separate:
+
+- SageMaker Pipeline owns end-to-end orchestration and the UI-visible DAG.
+- Offline Feature Store owns durable feature materialization and readback; no
+  online serving store is enabled.
+- Model Registry owns model-version and approval-state governance.
+- Batch Transform performs inference without a persistent endpoint.
+- Managed MLflow records experiment parameters, metrics, artifacts and lineage;
+  it is not a second orchestrator and remains stopped when not in use.
+
 The Terraform registration is in
 `infrastructure/terraform/modules/ml/pipeline.tf`. The registered pipeline name
 remains `insurance-<environment>-claim-risk`.
