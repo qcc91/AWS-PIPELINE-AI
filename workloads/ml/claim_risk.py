@@ -14,6 +14,7 @@ SEED = 42
 LABEL_COLUMN = "high_risk_claim"
 ID_COLUMN = "claim_id"
 DATASET_VERSION_PREFIX = "claim-risk-v2"
+FEATURE_STORE_EVENT_TIME = "event_time"
 LEAKAGE_FIELDS = frozenset(
     {
         "approved_amount",
@@ -59,6 +60,19 @@ CATEGORICAL_LEVELS = {
 
 def feature_names() -> list[str]:
     return [*NUMERIC_FEATURES, *(f"{column}__{level}" for column, levels in CATEGORICAL_LEVELS.items() for level in levels)]
+
+
+def feature_store_feature_definitions() -> list[dict[str, str]]:
+    """Return the Feature Group schema from the model's canonical feature list."""
+    return [
+        {"feature_name": ID_COLUMN, "feature_type": "String"},
+        {"feature_name": FEATURE_STORE_EVENT_TIME, "feature_type": "String"},
+        {"feature_name": LABEL_COLUMN, "feature_type": "Integral"},
+        *(
+            {"feature_name": name, "feature_type": "Fractional"}
+            for name in feature_names()
+        ),
+    ]
 
 
 class DatasetValidationError(ValueError):
@@ -266,11 +280,11 @@ def prepare_dataset(rows: Sequence[Mapping[str, object]], output_dir: Path, seed
     ordered = [row for name in ("train", "validation", "test") for row in splits[name]]
     (output_dir / "inference.csv").write_text("\n".join(xgboost_lines(ordered, include_label=False)) + "\n", encoding="utf-8")
     with (output_dir / "claim_ids.csv").open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["claim_id", "as_of_date", "feature_version", "dataset_version", "source_split", "high_risk_claim"])
+        writer = csv.DictWriter(handle, fieldnames=["claim_id", "event_time", "as_of_date", "feature_version", "dataset_version", "source_split", "high_risk_claim"])
         writer.writeheader()
         for name in ("train", "validation", "test"):
             for row in splits[name]:
-                writer.writerow({"claim_id": row[ID_COLUMN], "as_of_date": str(row.get("as_of_date") or row["submitted_at"])[:10], "feature_version": str(row.get("feature_version") or "v1"), "dataset_version": validation["dataset_version"], "source_split": name, "high_risk_claim": row[LABEL_COLUMN]})
+                writer.writerow({"claim_id": row[ID_COLUMN], "event_time": str(row["submitted_at"]), "as_of_date": str(row.get("as_of_date") or row["submitted_at"])[:10], "feature_version": str(row.get("feature_version") or "v1"), "dataset_version": validation["dataset_version"], "source_split": name, "high_risk_claim": row[LABEL_COLUMN]})
     metadata = {
         "seed": seed,
         "prepared_at": datetime.now(timezone.utc).isoformat(),

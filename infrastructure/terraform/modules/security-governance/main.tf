@@ -85,6 +85,7 @@ resource "aws_iam_role_policy" "ml_engineer" {
   role = aws_iam_role.ml_engineer.id
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Sid = "UseMLArtifacts", Effect = "Allow", Action = ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], Resource = "${local.control_arn}/ml/*" },
+    { Sid = "UseClaimRiskMlflowArtifacts", Effect = "Allow", Action = ["s3:AbortMultipartUpload", "s3:GetObject", "s3:PutObject"], Resource = "${local.control_arn}/mlflow/*" },
     { Sid = "ControlBucketLocation", Effect = "Allow", Action = "s3:GetBucketLocation", Resource = local.control_arn },
     { Sid = "ListApprovedMLArtifacts", Effect = "Allow", Action = "s3:ListBucket", Resource = local.control_arn, Condition = { StringLike = { "s3:prefix" = ["ml", "ml/*", "athena-results", "athena-results/*"] } } },
     { Sid = "AthenaResultObjects", Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:AbortMultipartUpload"], Resource = "${local.control_arn}/athena-results/*" },
@@ -94,6 +95,9 @@ resource "aws_iam_role_policy" "ml_engineer" {
     { Sid = "ListManagedPipelines", Effect = "Allow", Action = "sagemaker:ListPipelines", Resource = "*" },
     { Sid = "RetryClaimRiskPipeline", Effect = "Allow", Action = "sagemaker:RetryPipelineExecution", Resource = "${var.sagemaker_pipeline_arn}/execution/*" },
     { Sid = "RunClaimRiskPipeline", Effect = "Allow", Action = ["sagemaker:DescribePipeline", "sagemaker:DescribePipelineDefinitionForExecution", "sagemaker:DescribePipelineExecution", "sagemaker:ListPipelineExecutions", "sagemaker:ListPipelineExecutionSteps", "sagemaker:StartPipelineExecution", "sagemaker:StopPipelineExecution"], Resource = [var.sagemaker_pipeline_arn, "${var.sagemaker_pipeline_arn}/execution/*"] },
+    { Sid = "OpenClaimRiskMlflowUI", Effect = "Allow", Action = "sagemaker-mlflow:AccessUI", Resource = var.mlflow_tracking_server_arn },
+    { Sid = "UseClaimRiskMlflowUI", Effect = "Allow", Action = ["sagemaker:CreatePresignedMlflowTrackingServerUrl", "sagemaker:DescribeMlflowTrackingServer"], Resource = var.mlflow_tracking_server_arn },
+    { Sid = "WriteClaimRiskMlflowRun", Effect = "Allow", Action = ["sagemaker-mlflow:CreateExperiment", "sagemaker-mlflow:CreateRun", "sagemaker-mlflow:GetExperiment", "sagemaker-mlflow:GetExperimentByName", "sagemaker-mlflow:GetRun", "sagemaker-mlflow:ListArtifacts", "sagemaker-mlflow:LogBatch", "sagemaker-mlflow:LogMetric", "sagemaker-mlflow:LogParam", "sagemaker-mlflow:SearchRuns", "sagemaker-mlflow:SetExperimentTag", "sagemaker-mlflow:SetTag", "sagemaker-mlflow:UpdateRun"], Resource = var.mlflow_tracking_server_arn },
     { Sid = "PassOnlyMLExecutionRole", Effect = "Allow", Action = "iam:PassRole", Resource = var.sagemaker_execution_role_arn, Condition = { StringEquals = { "iam:PassedToService" = "sagemaker.amazonaws.com" } } },
     { Sid = "ReadMLCatalog", Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable"], Resource = concat([local.catalog_arn, "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.glue_database_names["gold"]}"], local.ml_table_arns) },
     { Sid = "UseLakeFormation", Effect = "Allow", Action = "lakeformation:GetDataAccess", Resource = "*" },

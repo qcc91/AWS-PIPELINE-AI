@@ -1,24 +1,35 @@
 # Manager Current Phase
 
-## V6 — authorized 2026-09-27
+## V6B — Feature Store + Unified Studio MLflow — implementation complete 2026-09-29
 
-Human authorized the narrow SageMaker managed ML Pipeline V6 package. Existing
-execution `g46dxu0f1ydw` is accepted as runtime evidence but V6 is not complete
-until the Pipeline is associated with project `d1zzpm6mte659e`, is visible to
-the Human in the standard SageMaker AI Pipelines UI, workflow semantics are
-Python-owned, full CI passes, and a protected PR is ready. The existing
-IAM-based Unified Studio project does not expose native Pipelines in its left
-navigation; no second domain is being created. Branch:
-`codex/v6-sagemaker-pipeline`. No PROD,
-merge, release tag, persistent endpoint, data-platform redesign, or source-data
-remediation is authorized.
+V6 SageMaker managed Pipeline is accepted. The active package extends only the
+DEV claim-risk workflow with an offline-only SageMaker Feature Group and a
+Terraform-managed Small SageMaker Managed MLflow server connected to the
+existing Unified Studio project. Branch: `codex/v6b-feature-store-mlflow`.
+No PROD ML deployment, endpoint, notebook, online Feature Store, new domain,
+new project, V7, merge, or release tag is authorized.
 
-DEV control-plane apply completed in place: `0 add / 1 change / 0 destroy`.
-Pipeline `insurance-dev-claim-risk` is Active, carries
-`AmazonDataZoneProject=d1zzpm6mte659e`, and its targeted Terraform plan is now
-zero drift. Accepted execution `g46dxu0f1ydw` and all eight steps remain
-Succeeded. No new Training/Processing/Transform run was started. Full local
-suite: 133 passed; PR CI remains pending.
+Durable control-plane resources are deployed. Feature Group
+`insurance-dev-claim-risk-features` is Created, uses the existing KMS key, S3
+control bucket and Glue table
+`insurance_dev_control.claim_risk_features_offline`, and has no Online Store.
+Unified Studio connection `insurance-dev-claim-risk-mlflow` has connection ID
+`490c7mbswsmzhe`. Managed MLflow experiment `insurance-claim-risk` contains
+successful idempotent evidence run `e5caa62c88374b0c87b988394ef5dfee` for
+accepted Pipeline execution `g46dxu0f1ydw`.
+
+Validation execution `zr3k4aa3lzfz` succeeded with all nine managed steps. It
+submitted and read back all 120 records through the offline Feature Store before
+XGBoost training, then completed evaluation, the quality gate, model registration,
+batch transform and Gold publication. Gold validation passed with 120 rows, 120
+unique claims and zero invalid probabilities. Test AUC was 0.622222. Small MLflow
+is `Stopped/Inactive`. It was inadvertently active for about 14h52m instead of
+the approved four-hour maximum; estimated compute is approximately USD 9.55 at
+USD 0.642/hour. This cost deviation remains explicit. V6B-scoped Terraform reports
+`No changes`; the full foundation plan retains unrelated repository-refactor
+source/path drift and therefore was not applied. Local regression is 151/151 and
+all seven Terraform roots validate. Implementation is ready for PR review; merge,
+release tagging, PROD ML deployment and V7 remain unauthorized.
 
 ## Current authorized enhancement — 2026-09-26
 
@@ -91,4 +102,4 @@ Stop before merge at REPOSITORY STRUCTURE REFACTOR HUMAN REVIEW CHECKPOINT.
 - V4B AWS status: the bootstrap-managed narrow state/IAM handoff and all 31 isolated control-plane resources are applied with no deletion/replacement. `insurance-dev-v4b-cd` and its three CodeBuild projects exist; connection `06d021e7-aa2e-4dac-8307-cf2451a277bc` is `PENDING` one-time GitHub App authorization. DEV/PROD proof resources remain unapplied.
 - Next: complete protected PR CI bookkeeping and STOP at the V5 Human acceptance checkpoint. Do not tag or begin another version before acceptance.
 
-Last updated: 2026-09-27.
+Last updated: 2026-09-29.

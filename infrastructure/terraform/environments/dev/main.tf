@@ -53,7 +53,7 @@ module "platform_kms" {
     module.security_governance[0].role_arns["MLEngineer"], module.security_governance[0].role_arns["RAGApplication"],
     module.security_governance[0].role_arns["LakeFormationRegistration"], module.batch_ingestion.glue_role_arn,
     module.cdc.glue_role_arn, module.cdc.dms_s3_role_arn, module.cdc.dms_secrets_role_arn,
-    module.ml.sagemaker_role_arn, module.ml.postprocess_role_arn, module.rag.bedrock_role_arn,
+    module.ml.sagemaker_role_arn, module.ml.postprocess_role_arn, module.ml.feature_store_role_arn, module.ml.mlflow_tracking_role_arn, module.rag.bedrock_role_arn,
   ] : []
   aws_resource_grant_role_arns = var.v3_terraform_execution_role_arn != null ? [
     module.ml.sagemaker_role_arn,
@@ -199,6 +199,33 @@ module "ml" {
   tags                          = module.common.tags
 }
 
+# Unified Studio models project connections through DataZone. The native AWS
+# provider owns the tracking server; the official AWS Cloud Control provider
+# owns the project-scoped connection because hashicorp/aws does not expose it.
+resource "awscc_datazone_connection" "claim_risk_mlflow" {
+  domain_identifier      = var.sagemaker_unified_studio_domain_id
+  project_identifier     = var.sagemaker_unified_studio_project_id
+  environment_identifier = var.sagemaker_unified_studio_environment_id
+  name                   = "insurance-dev-claim-risk-mlflow"
+  description            = "Managed MLflow tracking for the existing DEV claim-risk SageMaker Pipeline."
+  scope                  = "PROJECT"
+
+  aws_location = {
+    aws_account_id = var.account_id
+    aws_region     = var.aws_region
+  }
+
+  props = {
+    mlflow_properties = {
+      tracking_server_arn = module.ml.mlflow_tracking_server_arn
+    }
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 module "rag" {
   source = "../../modules/rag"
 
@@ -236,6 +263,7 @@ module "security_governance" {
   athena_workgroup_name        = module.bi.athena_workgroup_name
   sagemaker_execution_role_arn = module.ml.sagemaker_role_arn
   sagemaker_pipeline_arn       = module.ml.pipeline_arn
+  mlflow_tracking_server_arn   = module.ml.mlflow_tracking_server_arn
   rag_knowledge_base_id        = module.rag.knowledge_base_id
   rag_generation_model_arns = [
     "arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.nova-micro-v1:0",

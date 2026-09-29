@@ -42,6 +42,28 @@ variable "sagemaker_unified_studio_project_id" {
   }
 }
 
+variable "sagemaker_unified_studio_domain_id" {
+  description = "Existing DEV SageMaker Unified Studio/DataZone domain that contains the claim-risk project."
+  type        = string
+  default     = "dzd-cvpo8yttzkms0y"
+
+  validation {
+    condition     = can(regex("^dzd[-_][A-Za-z0-9_-]{1,36}$", var.sagemaker_unified_studio_domain_id))
+    error_message = "sagemaker_unified_studio_domain_id must be a valid DataZone domain identifier."
+  }
+}
+
+variable "sagemaker_unified_studio_environment_id" {
+  description = "Existing ACTIVE admin-blueprint environment in the DEV Unified Studio project used for project-scoped MLflow connections."
+  type        = string
+  default     = "5254ceu1qw3eoy"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]{1,36}$", var.sagemaker_unified_studio_environment_id))
+    error_message = "sagemaker_unified_studio_environment_id must be a valid DataZone environment identifier."
+  }
+}
+
 variable "account_short" {
   description = "Non-sensitive lowercase account discriminator used in globally unique bucket names."
   type        = string

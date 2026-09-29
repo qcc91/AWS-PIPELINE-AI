@@ -1,5 +1,27 @@
 # AI Engineering Worker Status
 
+## V6B Feature Store + Unified Studio MLflow — IMPLEMENTATION COMPLETE (2026-09-29)
+
+- Offline Feature Group `insurance-dev-claim-risk-features` is Created with no
+  Online Store; encrypted Parquet is catalogued as
+  `insurance_dev_control.claim_risk_features_offline`.
+- Managed execution `zr3k4aa3lzfz` succeeded with all nine managed steps. It
+  proved 120 submitted records and 120 materialized records, with training input
+  sourced from Offline Store readback. Gold validation passed with 120 rows,
+  120 unique claims and zero invalid probabilities; test AUC was 0.622222.
+- Managed MLflow server `insurance-dev-claim-risk` is Terraform-managed and
+  connected to existing Unified Studio project `d1zzpm6mte659e` through
+  DataZone connection `490c7mbswsmzhe`.
+- Experiment `insurance-claim-risk` contains idempotent evidence run
+  `e5caa62c88374b0c87b988394ef5dfee` for accepted V6 execution
+  `g46dxu0f1ydw`.
+- MLflow is now Stopped/Inactive. It ran about 14h52m, exceeding the approved
+  four-hour window; estimated Small compute is approximately USD 9.55. This is
+  a known V6B cost-control deviation, not an ongoing charge.
+- Focused tests: 27/27. Full suite: 151/151. Seven Terraform roots validate.
+  V6B-scoped Terraform reports `No changes`. The full foundation plan retains
+  unrelated repository-refactor source/path drift and was not applied.
+
 ## V6 SageMaker managed Pipeline — IMPLEMENTED / PR VALIDATION PENDING (2026-09-27)
 
 - Pipeline `insurance-dev-claim-risk`, execution `g46dxu0f1ydw`: Succeeded.
@@ -67,4 +89,4 @@
 - Existing managed-service roles remain separate from proposed caller personas: MLEngineer orchestrates only the approved batch workflow; RAGApplication uses only service-mediated Knowledge Base retrieval.
 - No AWS resources or Terraform were changed and no billable workload was run. Live IAM/KMS/S3/Bedrock readback matched the current Terraform state, found no managed-policy attachments or unexpected AI KMS grants, and confirmed root is still the current CLI caller.
 
-Last updated: 2026-09-27.
+Last updated: 2026-09-29.
