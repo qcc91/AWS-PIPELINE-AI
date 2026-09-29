@@ -1,6 +1,35 @@
 # SageMaker Managed Claim-Risk Pipeline
 
-Status: deployed with Human approval; end-to-end migration proof SUCCEEDED.
+Status: V6 and V6B accepted; DEV managed Pipeline and offline Feature Store
+proof SUCCEEDED. No PROD ML deployment.
+
+## Final V6B managed workflow
+
+The Pipeline is the orchestration system. Managed MLflow is the experiment
+tracking system; it does not schedule or control the DAG. Model Registry is the
+model-version governance boundary, and Batch Transform is the inference path.
+
+```text
+Gold/Silver business data
+  -> PrepareData
+  -> MaterializeFeatureStore (offline write and readback)
+  -> TrainXGBoost
+  -> EvaluateModel
+  -> ModelQualityGate
+  -> RegisterModel
+  -> CreateBatchModel
+  -> BatchTransform
+  -> PublishAndValidateGold
+  -> Gold claim_risk predictions
+
+Train/Evaluate -.-> Managed MLflow experiment/run/params/metrics/artifacts
+```
+
+Accepted V6B execution `zr3k4aa3lzfz` succeeded 9/9 steps. It submitted,
+materialized and read back 120/120 Feature Store records before training; Gold
+validation returned 120 rows, 120 unique claims and zero invalid probabilities.
+The Feature Group is offline-only. No persistent endpoint or notebook exists.
+The Small MLflow server is stopped when idle.
 
 ## Migration proof record (2026-09-27)
 
@@ -146,6 +175,10 @@ disabled because the FREE account has no approved subscription.
 - SageMaker Pipelines has no separate orchestration charge; each execution is
   charged only for its short-lived Processing, Training, Batch Transform,
   Glue, Athena, S3 and KMS usage. There is no new fixed monthly compute cost.
+- The first V6B Small MLflow validation runtime remained active for about
+  14h52m instead of the approved four-hour maximum. Estimated compute cost was
+  approximately USD 9.55. It is now Stopped/Inactive. Future DEV use requires
+  an explicit time-bounded window and immediate shutdown after evidence capture.
 
 ## Reviewed DEV plans
 
@@ -166,6 +199,6 @@ The targeted plan intentionally excludes unrelated post-refactor path drift in
 the wider DEV root. A full untargeted plan must be reconciled separately; it is
 not part of this ML enhancement.
 
-The earlier plans and applies are historical evidence. The V6 control-plane
-update above is the current deployed state; no Pipeline execution or PROD
-change is authorized merely by this document.
+The earlier plans and applies are historical evidence. V6/V6B are accepted
+DEV-only enhancements. No SageMaker Pipeline, Feature Store, MLflow server,
+endpoint or full ML platform is deployed to PROD.

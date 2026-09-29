@@ -1334,7 +1334,14 @@ V2–V5 features during V1.
 
 CURRENT PHASE:
 
-V6 SAGEMAKER MANAGED ML PIPELINE — AUTHORIZED / IN PROGRESS
+V6/V6B FINAL CLOSEOUT — HUMAN ACCEPTED / DOCUMENTATION AND RELEASE IN PROGRESS
+
+V6 SageMaker Managed ML Pipeline and V6B Offline Feature Store + Unified Studio
+Managed MLflow are Human-accepted DEV enhancements. The final authorized work
+is documentation synchronization, protected PR merge, the unchanged minimal
+DEV/PROD proof CD flow, and annotated V6 release tagging. Managed Pipeline,
+Feature Store, MLflow and endpoints must not be deployed to PROD. MLflow remains
+stopped when idle. Do not begin V7.
 
 The Human accepted the V1-V5 platform and the repository structure refactor.
 The current authorized enhancement replaces workstation orchestration of the

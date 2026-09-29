@@ -1,5 +1,15 @@
 # Manager Current Phase
 
+## V6/V6B final closeout — Human accepted 2026-09-30
+
+V6 SageMaker Managed ML Pipeline and V6B Offline Feature Store + Unified Studio
+Managed MLflow are accepted. PR #10 merged into `main`; managed execution
+`zr3k4aa3lzfz` succeeded 9/9 with 120/120 Feature Store readback and valid Gold
+output. The Small MLflow server is Stopped/Inactive after an explicit cost
+deviation of approximately 14h52m and USD 9.55 versus the approved four-hour
+window. Current work is documentation synchronization, protected merge, final
+minimal proof CD verification and one V6 annotated tag. No PROD ML or V7.
+
 ## V6B — Feature Store + Unified Studio MLflow — implementation complete 2026-09-29
 
 V6 SageMaker managed Pipeline is accepted. The active package extends only the

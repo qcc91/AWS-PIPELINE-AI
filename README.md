@@ -1,17 +1,17 @@
 # AWS-PIPELINE-AI
 
-**COMPLETE — v5.0-production-ready** · AWS Sydney · Terraform · Python · Apache Iceberg
+**COMPLETE THROUGH V6B** · AWS Sydney · Terraform · Python · Apache Iceberg
 
 面向保险理赔的 AWS 数据与 AI 工程作品集：将经纪人 CSV、参考数据和 PostgreSQL 变化记录转为可查询、可重放、受治理的数据，支撑批量风险预测与带来源引用的文档问答。
 
-项目通过 Human 决策与验收、Manager AI Agent 协调及专业 Workers 实现，累计交付 V1–V5。关键路径在真实 AWS DEV 环境验证；PROD 仅包含经过人工审批的最小 CI/CD 验证资源。
+项目通过 Human 决策与验收、Manager AI Agent 协调及专业 Workers 实现，累计交付 V1–V6B。关键路径在真实 AWS DEV 环境验证；PROD 仅包含经过人工审批的最小 CI/CD 验证资源。
 
 ## What This Project Demonstrates
 
 - **数据工程**：Batch + DMS Full Load/CDC，共享 S3 Bronze/Silver/Gold Iceberg Lakehouse。
 - **可靠性与质量**：分阶段 Glue 编排、有界重试、内容幂等、CDC 当前态重建、行级隔离、Glue DQDL 门禁和对账。
 - **安全与治理**：MFA 角色链、Lake Formation 数据访问边界、PII 限制、KMS、Secrets Manager、CloudTrail。
-- **数据消费**：Athena BI、验收样本范围内时点安全的 XGBoost 批量风险预测、Bedrock Knowledge Bases + S3 Vectors 文档 RAG。
+- **数据消费**：Athena BI、Feature Store + SageMaker Pipeline + Model Registry + Batch Transform 的 XGBoost 批量风险预测、Managed MLflow 实验追踪、Bedrock Knowledge Bases + S3 Vectors 文档 RAG。
 - **交付与运维**：受保护 PR CI、精确二进制计划审批、故障注入、告警、恢复演练及运行手册。
 
 ## Final Architecture
@@ -28,9 +28,9 @@ Batch 以内容摘要识别重复；CDC 保留 I/U/D 和排序信息，从小规
 
 ## Engineering Evolution
 
-[查看 V1 → V5 演进路线图](docs/architecture/evolution.md)
+[查看 V1 → V6B 演进路线图](docs/architecture/evolution.md)
 
-V1 打通真实路径 → V2 增强可靠性与质量 → V3 收紧安全治理 → V4 自动化交付 → V5 验证可运维性。同一代码库持续演进，发布标签保留各版本证据。
+V1 打通真实路径 → V2 增强可靠性与质量 → V3 收紧安全治理 → V4 自动化交付 → V5 验证可运维性 → V6/V6B 将 ML 升级为 AWS 托管、UI 可见的 Pipeline、离线 Feature Store 和 Managed MLflow。同一代码库持续演进，发布标签保留各版本证据。
 
 ## CI/CD & Security
 
@@ -48,7 +48,7 @@ main 合并经 CodeConnections 自动触发 CodePipeline/CodeBuild。CD 仅操�
 | 数据质量 | 行级隔离 + 内联 Glue DQDL，真实 FAIL/PASS | [质量控制](pipelines/quality/)、[V2 验收](docs/releases/v2/v2-completion-review.md) |
 | 治理 | Analyst/ML/RAG 边界，真实 ALLOW/DENY | [治理模块](infrastructure/terraform/modules/security-governance/)、[V3 验收](docs/releases/v3/v3-completion-review.md) |
 | BI | Athena 查询与 Gold 指标；QuickSight 延后 | [BI workload](workloads/bi/)、[BI 说明](docs/releases/v1/v1-bi.md) |
-| ML | 120 条、54 维时点特征；原生 SageMaker Pipeline 已在 DEV 部署并成功运行，覆盖 Processing → Training → Evaluation → Registry → Batch Transform → Gold | [当前特征代码](workloads/ml/claim_risk.py)、[Pipeline 设计与 UI 入口](docs/architecture/sagemaker-managed-pipeline.md)、[真实指标与限制](docs/releases/v1/v1-ml-result.md) |
+| ML | 120 条、54 维时点特征；DEV 原生 SageMaker Pipeline 9/9 步骤成功，覆盖离线 Feature Store → Training → Evaluation → Quality Gate → Registry → Batch Transform → Gold；Managed MLflow 保存实验证据 | [当前特征代码](workloads/ml/claim_risk.py)、[Pipeline 设计与 UI 入口](docs/architecture/sagemaker-managed-pipeline.md)、[V6B 验收](docs/releases/v6b/v6b-completion-review.md) |
 | RAG | 两份文档、Titan V2、Nova Micro 回答及 S3 引用 | [RAG workload](workloads/rag/)、[真实运行](docs/releases/v1/v1-rag.md) |
 | 运维 | 四个告警、Glue/EventBridge/SNS、DMS 失败订阅、恢复重放 | [运行手册](docs/operations/runbooks/)、[V5 证据](docs/releases/v5/v5-runtime-evidence.md) |
 
@@ -97,12 +97,13 @@ python -m pytest -q tests/data tests/infrastructure tests/ml tests/rag
 | [v3.0-governed](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v3.0-governed) | Make it secure | [V3](docs/releases/v3/v3-completion-review.md) |
 | [v4.0-cicd](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v4.0-cicd) | Automate delivery | [V4A](docs/releases/v4/v4-github-ci.md) / [V4B](docs/releases/v4/v4b-minimal-cd.md) |
 | [v5.0-production-ready](https://github.com/qcc91/AWS-PIPELINE-AI/tree/v5.0-production-ready) | Make it operable | [V5 与最终发布](docs/releases/v5/v5-completion-review.md) |
+| `v6.0-sagemaker-ml-platform`（最终收口后创建） | Managed ML platform | [V6B 验收](docs/releases/v6b/v6b-completion-review.md) |
 
 ## Cost-Aware Design
 
 账号保持 AWS FREE plan；**FREE 不等于资源零成本**。历史 V1 估算约 USD 76.89/月（不含用量），主要来自 RDS、DMS 与私有端点，已单独批准；不是当前账单。V5 新增告警历史估算不超过约 USD 0.60/月，演练 Glue 估算约 USD 0.30，见 [成本证据](docs/releases/v5/v5-completion-review.md)。
 
-采用短时作业、无持久推理端点、无 NAT Gateway、无完整 PROD 副本。QuickSight 未订阅；Streaming 因账户限制经 Human 决策退役。最小 PROD 证明审批与部署机制，不承担业务数据平台负载。
+采用短时作业、无持久推理端点、无 NAT Gateway、无完整 PROD 副本。离线 Feature Store 不启用在线服务；Managed MLflow 在不用时保持停止。V6B 首次 Small MLflow 验证误运行约 14 小时 52 分钟，估算计算费用约 USD 9.55，超过批准的 4 小时窗口；该偏差已记录，服务器已停止。QuickSight 未订阅；Streaming 因账户限制经 Human 决策退役。最小 PROD 证明审批与部署机制，不承担业务数据平台负载。
 
 ## Known Limitations
 
@@ -115,4 +116,4 @@ python -m pytest -q tests/data tests/infrastructure tests/ml tests/rag
 
 ## Project Status
 
-**COMPLETE — v5.0-production-ready**，发布标签仍指向最终验收提交 `5e0b479fa47130930dd9d4c0b0ad1005244ff335`。后续作品集与目录整理只改善展示和导航，不改变 V1–V5 实现或标签。
+**V1–V6B 已获 Human 验收。** V1–V5 标签保持不变；V6 最终标签将在本文档收口提交通过受保护合并、最小 proof CD 和零漂移验证后创建。V6/V6B ML 资源仅存在于 DEV；PROD 仍只有最小 CI/CD proof 资源。

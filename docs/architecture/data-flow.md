@@ -29,10 +29,14 @@ flowchart TB
     G[Gold Iceberg facts and summaries]
     DONE[Batch completion marker]
     PIT[Submission-time feature dataset]
-    ML[Train / evaluate / batch predict]
+    FS[Offline Feature Store]
+    ML[SageMaker Pipeline train / evaluate / gate / register]
+    BT[Batch Transform]
+    MF[Managed MLflow tracking]
     P[Gold claim_risk]
     G --> DONE
-    G --> PIT --> ML --> P
+    G --> PIT --> FS --> ML --> BT --> P
+    ML -.-> MF
     G --> A[Athena]
     P --> A
   end
@@ -58,8 +62,8 @@ flowchart TB
   classDef data fill:#e8f1ff,stroke:#3569a8,color:#172b4d;
   classDef process fill:#e7f5ef,stroke:#398268,color:#173f32;
   classDef control fill:#fff4d6,stroke:#ab8124,color:#594410;
-  class F,BB,BS,H,CB,SI,G,P,PG,CSV,BL,CL data;
-  class ID,BC,CV,CS,PIT,ML,DMS,A process;
+  class F,BB,BS,H,CB,SI,G,P,PG,CSV,BL,CL,FS data;
+  class ID,BC,CV,CS,PIT,ML,BT,MF,DMS,A process;
   class BDQ,CDQ,DONE,Q,STOP,AUD,ALERT control;
 ```
 
@@ -69,6 +73,6 @@ CDC 在 Bronze 入口验证变更并隔离无效记录，消除精确重复变�
 
 DQ gate 失败会阻断 Silver 写入和后续 Gold 发布，保留先前可信数据。所有候选先检查降低了质量失败引起的部分更新风险，但多个 Iceberg 表之间没有跨表事务保证；写入途中失败仍须按运行手册核对并重放。源历史保留也是 CDC 重建与恢复的前提。
 
-ML 正式特征排除赔付金额、最终状态、调查结果等事后字段；标签可来自未来合成结果。验收数据使用日期早于理赔提交的单一参考快照，并检查未使用未来参考记录；这不代表实现了多版本参考数据的 as-of join。图中的虚线回放路径由操作员按运行手册触发，不是审计记录自动启动恢复。RAG 文档流见 [最终架构](final-architecture.md)，与本图的结构化事实流分开。
+ML 正式特征排除赔付金额、最终状态、调查结果等事后字段；标签可来自未来合成结果。SageMaker Pipeline 将特征写入并从离线 Feature Store 读回后训练，按时间切分评估，通过质量门禁后写入 Model Registry，再由 Batch Transform 生成预测并发布 Gold。Managed MLflow 记录参数、指标与制品引用，不负责 Pipeline 编排。验收数据使用日期早于理赔提交的单一参考快照，并检查未使用未来参考记录；这不代表实现了多版本参考数据的 as-of join。图中的虚线回放路径由操作员按运行手册触发，不是审计记录自动启动恢复。RAG 文档流见 [最终架构](final-architecture.md)，与本图的结构化事实流分开。
 
 依据：[Batch 实现](../../pipelines/ingestion/batch/glue_claim_pipeline.py)、[CDC 实现](../../pipelines/ingestion/cdc/glue_cdc_pipeline.py)、[V2 数据可靠性](../releases/v2/v2-data-reliability.md)、[V5 重放证据](../releases/v5/v5-runtime-evidence.md)、[数据运维手册](../operations/runbooks/data-pipeline-operations.md)。
