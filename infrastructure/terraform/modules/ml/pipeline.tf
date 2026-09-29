@@ -9,6 +9,7 @@ terraform {
 
 locals {
   pipeline_name              = "insurance-${var.environment}-claim-risk"
+  feature_group_name         = "insurance-${var.environment}-claim-risk-features"
   pipeline_code_uri          = "s3://${var.control_bucket_name}/artifacts/ml/pipeline"
   pipeline_base_uri          = "s3://${var.control_bucket_name}/ml/pipeline"
   pipeline_definition_script = abspath("${path.module}/../../../../workloads/ml/pipeline/pipeline_definition.py")
@@ -24,6 +25,7 @@ data "external" "claim_risk_pipeline_definition" {
     athena_workgroup_name    = var.athena_workgroup_name
     code_uri                 = local.pipeline_code_uri
     definition_sha256        = filesha256(local.pipeline_definition_script)
+    feature_group_name       = local.feature_group_name
     gold_database_name       = var.gold_database_name
     glue_job_name            = aws_glue_job.postprocess.name
     kms_key_arn              = var.kms_key_arn
@@ -51,6 +53,7 @@ resource "aws_sagemaker_pipeline" "claim_risk" {
   depends_on = [
     aws_iam_role_policy.sagemaker,
     aws_s3_object.pipeline_asset,
+    aws_sagemaker_feature_group.claim_risk,
     aws_sagemaker_model_package_group.claim_fraud,
   ]
 }

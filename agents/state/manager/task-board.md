@@ -18,7 +18,8 @@
 | V5 Production Readiness | Manager + Workers | Monitoring, alerting, failure/recovery/replay, runbooks and final regression | ACCEPTED; tag `v5.0-production-ready` at `5e0b479` |
 | Portfolio Cleanup | Manager | Portfolio navigation, final diagrams and honest limitations | ACCEPTED and merged; no runtime/AWS change |
 | Repository Structure Refactor | Manager + Workers | Domain-oriented moves and path updates only | IN PROGRESS; stop before PR merge at Human review |
+| V6B Feature Store + Unified Studio MLflow | Manager | Offline Feature Store in managed Pipeline; project-scoped Managed MLflow experiment visibility | IMPLEMENTATION COMPLETE; execution `zr3k4aa3lzfz` succeeded 9/9, 120/120 offline readback and Gold validation passed; MLflow stopped; awaiting PR review |
 
-The V4B and V5 rows above preserve implementation-time evidence. V4 and V5 are
-accepted releases. The current structural package must not call AWS, change the
-full DEV/PROD platforms, move V1–V5 tags, alter behavior, or begin V6.
+The V4B and V5 rows above preserve implementation-time evidence. V1–V6 are
+accepted baselines. V6B is DEV-only and may not change PROD, add persistent ML
+compute, move V1–V5 tags, merge without Human acceptance, or begin V7.

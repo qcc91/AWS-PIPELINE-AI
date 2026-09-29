@@ -18,6 +18,7 @@ PIPELINE_CONFIG = {
     "aws_region": "ap-southeast-2",
     "athena_workgroup_name": "insurance-dev-bi",
     "code_uri": "s3://control/artifacts/ml/pipeline",
+    "feature_group_name": "insurance-dev-claim-risk-features",
     "gold_database_name": "insurance_dev_gold",
     "glue_job_name": "insurance-dev-claim-risk-postprocess",
     "kms_key_arn": "arn:aws:kms:ap-southeast-2:111122223333:key/example",
@@ -39,11 +40,13 @@ def test_real_sagemaker_pipeline_contains_complete_managed_dag() -> None:
     top_level = {step["Name"]: step for step in definition["Steps"]}
     assert list(top_level) == [
         "PrepareData",
+        "MaterializeFeatureStore",
         "TrainXGBoost",
         "EvaluateModel",
         "ModelQualityGate",
     ]
-    assert top_level["TrainXGBoost"]["DependsOn"] == ["PrepareData"]
+    assert top_level["MaterializeFeatureStore"]["DependsOn"] == ["PrepareData"]
+    assert top_level["TrainXGBoost"]["DependsOn"] == ["MaterializeFeatureStore"]
     assert top_level["EvaluateModel"]["DependsOn"] == ["TrainXGBoost"]
 
     gate = top_level["ModelQualityGate"]
@@ -89,7 +92,7 @@ def test_prepare_reads_real_gold_features_through_athena() -> None:
 
 def test_pipeline_uses_registry_kms_and_project_visible_tags() -> None:
     definition = _definition()
-    gate = definition["Steps"][3]
+    gate = definition["Steps"][4]
     register = gate["Arguments"]["IfSteps"][0]
     assert register["Arguments"]["ModelPackageGroupName"] == "insurance-dev-claim-fraud"
     assert register["Arguments"]["ModelApprovalStatus"] == "PendingManualApproval"
@@ -107,8 +110,8 @@ def test_pipeline_uses_registry_kms_and_project_visible_tags() -> None:
 
 def test_property_files_use_the_service_json_schema_keys() -> None:
     definition = _definition()
-    evaluate = definition["Steps"][2]
-    gate = definition["Steps"][3]
+    evaluate = definition["Steps"][3]
+    gate = definition["Steps"][4]
     publish = gate["Arguments"]["IfSteps"][3]
     assert evaluate["PropertyFiles"] == [
         {
@@ -139,7 +142,7 @@ def test_pipeline_parameters_and_native_outputs_preserve_runtime_contract() -> N
         },
         {"Name": "MinimumAuc", "Type": "Float", "DefaultValue": 0.50},
     ]
-    gate = definition["Steps"][3]
+    gate = definition["Steps"][4]
     transform = gate["Arguments"]["IfSteps"][2]
     publish = gate["Arguments"]["IfSteps"][3]
     assert transform["Arguments"]["TransformResources"] == {

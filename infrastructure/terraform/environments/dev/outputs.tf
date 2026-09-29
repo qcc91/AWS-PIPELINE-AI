@@ -220,6 +220,41 @@ output "ml_pipeline_arn" {
   value       = module.ml.pipeline_arn
 }
 
+output "ml_feature_group_name" {
+  description = "Offline-only claim-risk Feature Group name."
+  value       = module.ml.feature_group_name
+}
+
+output "ml_feature_group_arn" {
+  description = "Offline-only claim-risk Feature Group ARN."
+  value       = module.ml.feature_group_arn
+}
+
+output "ml_feature_group_offline_store_uri" {
+  description = "Resolved S3 URI for the claim-risk Feature Store offline Parquet data."
+  value       = module.ml.feature_group_offline_store_uri
+}
+
+output "mlflow_tracking_server_name" {
+  description = "Temporary Small DEV Managed MLflow tracking server; stop after the approved four-hour window."
+  value       = module.ml.mlflow_tracking_server_name
+}
+
+output "mlflow_tracking_server_arn" {
+  description = "Managed MLflow tracking server connected to the existing Unified Studio project."
+  value       = module.ml.mlflow_tracking_server_arn
+}
+
+output "mlflow_tracking_server_url" {
+  description = "Service URL for SDK tracking; Human UI access is through the Unified Studio project connection."
+  value       = module.ml.mlflow_tracking_server_url
+}
+
+output "mlflow_unified_studio_connection_id" {
+  description = "Project-scoped DataZone connection shown under Unified Studio AI/ML -> MLflow."
+  value       = awscc_datazone_connection.claim_risk_mlflow.connection_id
+}
+
 output "ml_model_package_group_name" {
   description = "V1 claim-fraud model registry group."
   value       = module.ml.model_package_group_name

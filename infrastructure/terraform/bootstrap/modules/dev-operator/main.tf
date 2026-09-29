@@ -431,10 +431,124 @@ resource "aws_iam_policy" "terraform_execution_v4b_services" {
   tags = var.tags
 }
 
+resource "aws_iam_policy" "terraform_execution_v6b_ml" {
+  name        = "insurance-${var.environment}-v6b-terraform-ml"
+  description = "Bootstrap-managed least-privilege permissions for V6B Feature Store and Managed MLflow."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "V6BManageClaimRiskMlflowRole"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:DeleteRolePolicy",
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListInstanceProfilesForRole",
+          "iam:ListRolePolicies",
+          "iam:PassRole",
+          "iam:PutRolePolicy",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:UpdateAssumeRolePolicy",
+          "iam:UpdateRole",
+          "iam:UpdateRoleDescription",
+        ]
+        Resource = "arn:aws:iam::${var.account_id}:role/insurance-${var.environment}-claim-risk-mlflow-role"
+      },
+      {
+        Sid    = "V6BManageClaimRiskMlflowTrackingServer"
+        Effect = "Allow"
+        Action = [
+          "sagemaker:AddTags",
+          "sagemaker:CreateMlflowTrackingServer",
+          "sagemaker:DescribeMlflowTrackingServer",
+          "sagemaker:ListTags",
+          "sagemaker:StartMlflowTrackingServer",
+          "sagemaker:StopMlflowTrackingServer",
+          "sagemaker:UpdateMlflowTrackingServer",
+        ]
+        Resource = "arn:aws:sagemaker:ap-southeast-2:${var.account_id}:mlflow-tracking-server/insurance-${var.environment}-claim-risk"
+      },
+      {
+        Sid      = "V6BDiscoverMlflowTrackingServers"
+        Effect   = "Allow"
+        Action   = "sagemaker:ListMlflowTrackingServers"
+        Resource = "*"
+      },
+      {
+        Sid    = "V6BManageClaimRiskFeatureGroup"
+        Effect = "Allow"
+        Action = [
+          "sagemaker:AddTags",
+          "sagemaker:CreateFeatureGroup",
+          "sagemaker:DeleteFeatureGroup",
+          "sagemaker:DescribeFeatureGroup",
+          "sagemaker:ListTags",
+          "sagemaker:UpdateFeatureGroup",
+        ]
+        Resource = "arn:aws:sagemaker:ap-southeast-2:${var.account_id}:feature-group/insurance-${var.environment}-claim-risk-features"
+      },
+      {
+        Sid      = "V6BDiscoverClaimRiskFeatureGroups"
+        Effect   = "Allow"
+        Action   = "sagemaker:ListFeatureGroups"
+        Resource = "*"
+      },
+      {
+        Sid    = "V6BMaintainClaimRiskFeatureCatalog"
+        Effect = "Allow"
+        Action = [
+          "glue:CreateTable",
+          "glue:GetDatabase",
+          "glue:GetTable",
+          "glue:UpdateTable",
+        ]
+        Resource = [
+          "arn:aws:glue:ap-southeast-2:${var.account_id}:catalog",
+          "arn:aws:glue:ap-southeast-2:${var.account_id}:database/insurance_${var.environment}_control",
+          "arn:aws:glue:ap-southeast-2:${var.account_id}:table/insurance_${var.environment}_control/claim_risk_features_offline",
+        ]
+      },
+      {
+        Sid    = "V6BManageUnifiedStudioMlflowConnectionThroughCloudControl"
+        Effect = "Allow"
+        Action = [
+          "cloudformation:CreateResource",
+          "cloudformation:GetResource",
+          "cloudformation:GetResourceRequestStatus",
+          "cloudformation:ListResourceRequests",
+          "cloudformation:ListResources",
+          "cloudformation:UpdateResource",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "V6BManageUnifiedStudioMlflowConnection"
+        Effect = "Allow"
+        Action = [
+          "datazone:CreateConnection",
+          "datazone:GetConnection",
+          "datazone:ListConnections",
+          "datazone:ListEnvironments",
+          "datazone:UpdateConnection",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+
+  tags = var.tags
+}
+
 resource "aws_iam_role_policy_attachment" "terraform_execution_v4b" {
   for_each = {
     identity_state = aws_iam_policy.terraform_execution_v4b_identity.arn
     services       = aws_iam_policy.terraform_execution_v4b_services.arn
+    v6b_ml         = aws_iam_policy.terraform_execution_v6b_ml.arn
   }
 
   role       = aws_iam_role.terraform_execution.name

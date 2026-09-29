@@ -28,3 +28,43 @@ output "pipeline_arn" {
   description = "Claim-risk SageMaker Pipeline ARN."
   value       = aws_sagemaker_pipeline.claim_risk.arn
 }
+
+output "feature_group_name" {
+  description = "Offline-only claim-risk Feature Group name."
+  value       = aws_sagemaker_feature_group.claim_risk.feature_group_name
+}
+
+output "feature_group_arn" {
+  description = "Offline-only claim-risk Feature Group ARN."
+  value       = aws_sagemaker_feature_group.claim_risk.arn
+}
+
+output "feature_group_offline_store_uri" {
+  description = "Resolved S3 location where Feature Store persists offline Parquet records."
+  value       = aws_sagemaker_feature_group.claim_risk.offline_store_config[0].s3_storage_config[0].resolved_output_s3_uri
+}
+
+output "feature_store_role_arn" {
+  description = "Least-privilege role used by SageMaker to persist offline feature records."
+  value       = aws_iam_role.feature_store.arn
+}
+
+output "mlflow_tracking_role_arn" {
+  description = "Least-privilege service role for the Managed MLflow artifact store."
+  value       = aws_iam_role.mlflow_tracking.arn
+}
+
+output "mlflow_tracking_server_name" {
+  description = "Small DEV Managed MLflow tracking server name."
+  value       = aws_sagemaker_mlflow_tracking_server.claim_risk.tracking_server_name
+}
+
+output "mlflow_tracking_server_arn" {
+  description = "Small DEV Managed MLflow tracking server ARN."
+  value       = aws_sagemaker_mlflow_tracking_server.claim_risk.arn
+}
+
+output "mlflow_tracking_server_url" {
+  description = "Managed MLflow tracking URL used by authenticated MLflow clients."
+  value       = aws_sagemaker_mlflow_tracking_server.claim_risk.tracking_server_url
+}

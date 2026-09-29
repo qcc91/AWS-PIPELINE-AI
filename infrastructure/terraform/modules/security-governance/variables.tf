@@ -45,6 +45,7 @@ variable "cdc_state_machine_arn" { type = string }
 variable "athena_workgroup_name" { type = string }
 variable "sagemaker_execution_role_arn" { type = string }
 variable "sagemaker_pipeline_arn" { type = string }
+variable "mlflow_tracking_server_arn" { type = string }
 variable "rag_knowledge_base_id" { type = string }
 variable "rag_generation_model_arns" { type = list(string) }
 variable "tags" { type = map(string) }

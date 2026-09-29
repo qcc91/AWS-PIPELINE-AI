@@ -6,6 +6,10 @@ account_id        = "<12_digit_dev_account_id>"
 account_short     = "dev01"
 org_short         = "aip"
 
+# Existing IAM-based SageMaker Unified Studio domain/project; V6B reuses both.
+sagemaker_unified_studio_domain_id  = "dzd-cvpo8yttzkms0y"
+sagemaker_unified_studio_project_id = "d1zzpm6mte659e"
+
 owner               = "platform"
 cost_center         = "insurance-data-ai"
 data_classification = "restricted"

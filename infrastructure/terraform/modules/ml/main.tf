@@ -34,10 +34,11 @@ resource "aws_s3_object" "postprocess_script" {
 
 resource "aws_s3_object" "pipeline_asset" {
   for_each = {
-    "sagemaker_pipeline_prepare.py"  = var.pipeline_prepare_script_path
-    "sagemaker_pipeline_evaluate.py" = var.pipeline_evaluate_script_path
-    "sagemaker_pipeline_publish.py"  = var.pipeline_publish_script_path
-    "claim_risk.py"                  = var.claim_risk_library_path
+    "sagemaker_pipeline_prepare.py"                   = var.pipeline_prepare_script_path
+    "sagemaker_pipeline_materialize_feature_store.py" = abspath("${path.module}/../../../../workloads/ml/sagemaker_pipeline_materialize_feature_store.py")
+    "sagemaker_pipeline_evaluate.py"                  = var.pipeline_evaluate_script_path
+    "sagemaker_pipeline_publish.py"                   = var.pipeline_publish_script_path
+    "claim_risk.py"                                   = var.claim_risk_library_path
   }
 
   bucket                 = var.control_bucket_name
@@ -119,10 +120,12 @@ resource "aws_iam_role_policy" "sagemaker" {
       { Effect = "Allow", Action = ["sagemaker:CreateProcessingJob", "sagemaker:DescribeProcessingJob", "sagemaker:StopProcessingJob", "sagemaker:CreateTrainingJob", "sagemaker:DescribeTrainingJob", "sagemaker:StopTrainingJob", "sagemaker:CreateModel", "sagemaker:DescribeModel", "sagemaker:DeleteModel", "sagemaker:CreateTransformJob", "sagemaker:DescribeTransformJob", "sagemaker:StopTransformJob", "sagemaker:AddTags", "sagemaker:ListTags"], Resource = ["arn:aws:sagemaker:${var.aws_region}:${var.account_id}:processing-job/pipelines-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:training-job/pipelines-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:model/pipelines-*", "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:transform-job/pipelines-*"] },
       { Effect = "Allow", Action = ["sagemaker:CreateModelPackage", "sagemaker:DescribeModelPackage", "sagemaker:ListTags", "sagemaker:AddTags"], Resource = [aws_sagemaker_model_package_group.claim_fraud.arn, "arn:aws:sagemaker:${var.aws_region}:${var.account_id}:model-package/${aws_sagemaker_model_package_group.claim_fraud.model_package_group_name}/*"] },
       { Effect = "Allow", Action = ["sagemaker:CreateModelPackageGroup", "sagemaker:DescribeModelPackageGroup"], Resource = aws_sagemaker_model_package_group.claim_fraud.arn },
+      { Effect = "Allow", Action = ["sagemaker:DescribeFeatureGroup", "sagemaker:PutRecord"], Resource = aws_sagemaker_feature_group.claim_risk.arn },
       { Effect = "Allow", Action = "iam:PassRole", Resource = aws_iam_role.sagemaker.arn, Condition = { StringEquals = { "iam:PassedToService" = "sagemaker.amazonaws.com" } } },
       { Effect = "Allow", Action = ["glue:StartJobRun", "glue:GetJobRun"], Resource = aws_glue_job.postprocess.arn },
       { Effect = "Allow", Action = ["athena:StartQueryExecution", "athena:GetQueryExecution", "athena:GetQueryResults"], Resource = "arn:aws:athena:${var.aws_region}:${var.account_id}:workgroup/${var.athena_workgroup_name}" },
       { Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable", "glue:GetPartitions"], Resource = ["arn:aws:glue:${var.aws_region}:${var.account_id}:catalog", "arn:aws:glue:${var.aws_region}:${var.account_id}:database/${var.gold_database_name}", "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.gold_database_name}/claim_risk_features", "arn:aws:glue:${var.aws_region}:${var.account_id}:table/${var.gold_database_name}/claim_risk"] },
+      { Effect = "Allow", Action = ["glue:GetDatabase", "glue:GetTable", "glue:GetPartitions"], Resource = ["arn:aws:glue:${var.aws_region}:${var.account_id}:catalog", "arn:aws:glue:${var.aws_region}:${var.account_id}:database/insurance_${var.environment}_control", "arn:aws:glue:${var.aws_region}:${var.account_id}:table/insurance_${var.environment}_control/claim_risk_features_offline"] },
       { Effect = "Allow", Action = "lakeformation:GetDataAccess", Resource = "*" }
     ]
   })

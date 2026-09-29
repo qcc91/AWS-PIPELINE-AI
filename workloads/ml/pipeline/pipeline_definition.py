@@ -22,6 +22,7 @@ REQUIRED_CONFIG = (
     "aws_region",
     "athena_workgroup_name",
     "code_uri",
+    "feature_group_name",
     "gold_database_name",
     "glue_job_name",
     "kms_key_arn",
@@ -99,6 +100,8 @@ def build_pipeline_definition(config: Mapping[str, str]) -> dict[str, Any]:
                     cfg["athena_workgroup_name"],
                     "--gold-database",
                     cfg["gold_database_name"],
+                    "--feature-group-name",
+                    cfg["feature_group_name"],
                     "--athena-output-uri",
                     _join(output_prefix, "executions", execution_id, "athena-prepare"),
                 ],
@@ -137,10 +140,90 @@ def build_pipeline_definition(config: Mapping[str, str]) -> dict[str, Any]:
         },
     }
 
+    materialize = {
+        "Name": "MaterializeFeatureStore",
+        "Type": "Processing",
+        "DependsOn": ["PrepareData"],
+        "Arguments": {
+            "AppSpecification": {
+                "ImageUri": cfg["processing_image_uri"],
+                "ContainerEntrypoint": ["python3"],
+                "ContainerArguments": [
+                    "/opt/ml/processing/code/sagemaker_pipeline_materialize_feature_store.py",
+                    "--region",
+                    cfg["aws_region"],
+                    "--feature-group-name",
+                    cfg["feature_group_name"],
+                    "--athena-workgroup",
+                    cfg["athena_workgroup_name"],
+                    "--athena-output-uri",
+                    _join(
+                        output_prefix,
+                        "executions",
+                        execution_id,
+                        "athena-feature-store",
+                    ),
+                ],
+            },
+            "ProcessingInputs": [
+                code_input,
+                *(
+                    {
+                        "InputName": input_name,
+                        "S3Input": {
+                            "S3Uri": _get(
+                                "Steps.PrepareData.ProcessingOutputConfig."
+                                f"Outputs['{name}'].S3Output.S3Uri"
+                            ),
+                            "LocalPath": f"/opt/ml/processing/input/{name}",
+                            "S3DataType": "S3Prefix",
+                            "S3InputMode": "File",
+                            "S3DataDistributionType": "FullyReplicated",
+                            "S3CompressionType": "None",
+                        },
+                    }
+                    for input_name, name in (
+                        ("prepared-manifest", "manifest"),
+                        ("prepared-metadata", "metadata"),
+                    )
+                ),
+            ],
+            "ProcessingOutputConfig": {
+                "KmsKeyId": kms_key_arn,
+                "Outputs": [
+                    {
+                        "OutputName": name,
+                        "S3Output": {
+                            "LocalPath": f"/opt/ml/processing/{name}",
+                            "S3Uri": _join(
+                                output_prefix,
+                                "executions",
+                                execution_id,
+                                "feature-store-materialized",
+                                name,
+                            ),
+                            "S3UploadMode": "EndOfJob",
+                        },
+                    }
+                    for name in (
+                        "train",
+                        "validation",
+                        "test",
+                        "inference",
+                        "metadata",
+                    )
+                ],
+            },
+            "ProcessingResources": processing_resources,
+            "RoleArn": role_arn,
+            "StoppingCondition": {"MaxRuntimeInSeconds": 1500},
+        },
+    }
+
     train = {
         "Name": "TrainXGBoost",
         "Type": "Training",
-        "DependsOn": ["PrepareData"],
+        "DependsOn": ["MaterializeFeatureStore"],
         "Arguments": {
             "AlgorithmSpecification": {
                 "TrainingImage": cfg["xgboost_image_uri"],
@@ -167,7 +250,7 @@ def build_pipeline_definition(config: Mapping[str, str]) -> dict[str, Any]:
                         "S3DataSource": {
                             "S3DataType": "S3Prefix",
                             "S3Uri": _get(
-                                "Steps.PrepareData.ProcessingOutputConfig."
+                                "Steps.MaterializeFeatureStore.ProcessingOutputConfig."
                                 f"Outputs['{channel}'].S3Output.S3Uri"
                             ),
                             "S3DataDistributionType": "FullyReplicated",
@@ -229,7 +312,7 @@ def build_pipeline_definition(config: Mapping[str, str]) -> dict[str, Any]:
                     "InputName": "test",
                     "S3Input": {
                         "S3Uri": _get(
-                            "Steps.PrepareData.ProcessingOutputConfig."
+                            "Steps.MaterializeFeatureStore.ProcessingOutputConfig."
                             "Outputs['test'].S3Output.S3Uri"
                         ),
                         "LocalPath": "/opt/ml/processing/test",
@@ -325,7 +408,7 @@ def build_pipeline_definition(config: Mapping[str, str]) -> dict[str, Any]:
                     "S3DataSource": {
                         "S3DataType": "S3Prefix",
                         "S3Uri": _get(
-                            "Steps.PrepareData.ProcessingOutputConfig."
+                            "Steps.MaterializeFeatureStore.ProcessingOutputConfig."
                             "Outputs['inference'].S3Output.S3Uri"
                         ),
                     }
@@ -461,7 +544,7 @@ def build_pipeline_definition(config: Mapping[str, str]) -> dict[str, Any]:
             "ExperimentName": _get("Execution.PipelineName"),
             "TrialName": execution_id,
         },
-        "Steps": [prepare, train, evaluate, quality_gate],
+        "Steps": [prepare, materialize, train, evaluate, quality_gate],
     }
 
 
